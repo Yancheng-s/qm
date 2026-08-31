@@ -14,14 +14,16 @@ export interface SpecInputs {
   adminGrantsSeed: string;
   coreSigningSecret: string;
   portalSessionSecret: string;
-  portalDevPrincipal: string;
   sandboxEnv: Record<string, string>;
 }
 
+const IDLOGIN_CLIENT_ID = "qm-portal";
+const IDLOGIN_CLIENT_SECRET = "dev-instance-idlogin-0123456789abcdef";
+
 export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
   const watchArgs = i.watch ? ["--watch"] : [];
-  const base = { ...i.baseEnv, ...i.sandboxEnv };
   const orgId = i.baseEnv.DEV_INSTANCE_ORG_ID || "acme";
+  const base = { ...i.baseEnv, ...i.sandboxEnv, CORE_ORG_ID: orgId };
   const signing: Record<string, string> = i.coreSigningSecret ? { CORE_SIGNING_SECRET: i.coreSigningSecret } : {};
   return [
     {
@@ -45,7 +47,6 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
               DEV_HEALTH_PORT: String(i.ports.slackHealth),
             }
           : {}),
-        CORE_ORG_ID: orgId,
         SHUTDOWN_DRAIN_MS: "2000",
       },
       port: i.ports.core,
@@ -64,7 +65,6 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         CORE_API_URL: `http://localhost:${i.ports.core}`,
         WEB_UI_BASE: i.webUiBasePath,
         ...(i.watch ? { WEB_UI_DEV: "1" } : {}),
-        CORE_ORG_ID: orgId,
         WEB_UI_PRINCIPALS: "",
         WEB_UI_PUBLIC_URL: `http://localhost:${i.ports.portal}`,
       },
@@ -82,12 +82,28 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         ...signing,
         PORT: String(i.ports.admin),
         CORE_API_URL: `http://localhost:${i.ports.core}`,
-        CORE_ORG_ID: orgId,
         ADMIN_BASE_PATH: "/admin",
       },
       port: i.ports.admin,
       readiness: { kind: "log", pattern: `http://localhost:${i.ports.admin}` },
       health: { kind: "tcp", port: i.ports.admin },
+      stopGraceMs: 5_000,
+    },
+    {
+      name: "idlogin",
+      cwd: join(i.worktree, "plugins/idlogin"),
+      argv: ["node", ...watchArgs, "src/server.ts"],
+      env: {
+        ...base,
+        PORT: String(i.ports.idlogin),
+        IDLOGIN_ISSUER: `http://localhost:${i.ports.idlogin}`,
+        IDLOGIN_CLIENT_ID,
+        IDLOGIN_CLIENT_SECRET,
+        IDLOGIN_REDIRECT_URI: `http://localhost:${i.ports.portal}/auth/callback`,
+      },
+      port: i.ports.idlogin,
+      readiness: { kind: "log", pattern: `id sign-in broker on http://localhost:${i.ports.idlogin}` },
+      health: { kind: "tcp", port: i.ports.idlogin },
       stopGraceMs: 5_000,
     },
     {
@@ -100,13 +116,18 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         PORT: String(i.ports.portal),
         PORTAL_PUBLIC_URL: `http://localhost:${i.ports.portal}`,
         CORE_API_URL: `http://localhost:${i.ports.core}`,
-        CORE_ORG_ID: orgId,
         WEB_UI_UPSTREAM: `http://localhost:${i.ports.web}`,
         ADMIN_UPSTREAM: `http://localhost:${i.ports.admin}`,
         PORTAL_SESSION_SECRET: i.portalSessionSecret,
         NODE_ENV: "development",
-        PORTAL_LOCAL_AUTH_BYPASS: "1",
-        PORTAL_DEV_PRINCIPAL: i.portalDevPrincipal,
+        OIDC_CLIENT_ID: IDLOGIN_CLIENT_ID,
+        OIDC_CLIENT_SECRET: IDLOGIN_CLIENT_SECRET,
+        OIDC_AUTH_ENDPOINT: `http://localhost:${i.ports.idlogin}/authorize`,
+        OIDC_TOKEN_ENDPOINT: `http://localhost:${i.ports.idlogin}/token`,
+        OIDC_USERINFO_ENDPOINT: `http://localhost:${i.ports.idlogin}/userinfo`,
+        OIDC_ISSUER: `http://localhost:${i.ports.idlogin}`,
+        OIDC_JWKS_URI: `http://localhost:${i.ports.idlogin}/.well-known/jwks.json`,
+        OIDC_PRINCIPAL_CLAIM: "sub",
       },
       port: i.ports.portal,
       readiness: { kind: "log", pattern: `public front door on http://localhost:${i.ports.portal}` },

@@ -56,6 +56,7 @@ test("slotPorts derive the full port block from the slot number", () => {
     prodProxy: 8147,
     slackHealth: 8163,
     supervisor: 8179,
+    idlogin: 8195,
   });
 });
 
@@ -359,7 +360,6 @@ test("supervised children share the selected dev org", () => {
     adminGrantsSeed: "",
     coreSigningSecret: "",
     portalSessionSecret: "secret",
-    portalDevPrincipal: "U1",
     sandboxEnv: {},
   };
   const specs = buildChildSpecs(inputs);
@@ -382,7 +382,6 @@ test("child specs omit Slack env when no Slack tokens are supplied", () => {
     adminGrantsSeed: "",
     coreSigningSecret: "",
     portalSessionSecret: "secret",
-    portalDevPrincipal: "U1",
     sandboxEnv: {},
   };
   const core = buildChildSpecs(inputs).find((spec) => spec.name === "core")!;
