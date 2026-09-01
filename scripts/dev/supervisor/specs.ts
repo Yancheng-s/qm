@@ -95,7 +95,10 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
       argv: ["node", ...watchArgs, "src/server.ts"],
       env: {
         ...base,
+        ...signing,
         PORT: String(i.ports.idlogin),
+        CORE_API_URL: `http://localhost:${i.ports.core}`,
+        ...(i.databaseUrl ? { DATABASE_URL: i.databaseUrl } : {}),
         IDLOGIN_ISSUER: `http://localhost:${i.ports.idlogin}`,
         IDLOGIN_CLIENT_ID,
         IDLOGIN_CLIENT_SECRET,

@@ -4,7 +4,8 @@ import { createHash, randomBytes } from "node:crypto";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateJwkThumbprint, createLocalJWKSet, exportJWK, generateKeyPair, jwtVerify, type JWK } from "jose";
-import { createIdLoginHandler, readConfig, type IdLoginConfig } from "../src/server.ts";
+import { createIdLoginHandler, readConfig, type DirectoryMemberPush, type IdLoginConfig } from "../src/server.ts";
+import { createMemoryUserRegistry, type UserRegistry } from "../src/users.ts";
 
 const CLIENT_ID = "qm-portal";
 const CLIENT_SECRET = "test-client-secret-0123456789abcdef0123456789";
@@ -46,7 +47,10 @@ function form(body: Record<string, string>): { method: string; body: string; hea
   };
 }
 
-async function startHandler(cfg: IdLoginConfig): Promise<{ base: string; close: () => Promise<void> }> {
+async function startHandler(
+  cfg: IdLoginConfig,
+  opts: { users?: UserRegistry; pushes?: DirectoryMemberPush[][] } = {},
+): Promise<{ base: string; close: () => Promise<void> }> {
   const { privateKey, publicKey } = await generateKeyPair("ES256");
   const publicJwk = await exportJWK(publicKey);
   const kid = await calculateJwkThumbprint(publicJwk, "sha256");
@@ -54,6 +58,8 @@ async function startHandler(cfg: IdLoginConfig): Promise<{ base: string; close: 
     cfg,
     signingKey: { privateKey, publicJwk: { ...publicJwk, kid, use: "sig", alg: "ES256" }, kid },
     sealSecret: randomBytes(32),
+    users: opts.users ?? createMemoryUserRegistry(),
+    ...(opts.pushes ? { pushDirectory: async (members: DirectoryMemberPush[]) => void opts.pushes!.push(members) } : {}),
   });
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     void handle(req, res).catch(() => {
@@ -89,11 +95,16 @@ test.after(async () => {
   await closeServer();
 });
 
-async function obtainCode(id: string, query: URLSearchParams): Promise<{ code: string; location: URL }> {
-  const page = await fetch(`${base}/authorize?${query}`);
+async function obtainCode(
+  id: string,
+  query: URLSearchParams,
+  name?: string,
+  baseUrl = base,
+): Promise<{ code: string; location: URL }> {
+  const page = await fetch(`${baseUrl}/authorize?${query}`);
   assert.equal(page.status, 200);
-  const submit = await fetch(`${base}/authorize`, {
-    ...form({ request: hiddenRequestToken(await page.text()), id }),
+  const submit = await fetch(`${baseUrl}/authorize`, {
+    ...form({ request: hiddenRequestToken(await page.text()), id, ...(name !== undefined ? { name } : {}) }),
     redirect: "manual",
   });
   assert.equal(submit.status, 302, await submit.text());
@@ -103,9 +114,19 @@ async function obtainCode(id: string, query: URLSearchParams): Promise<{ code: s
   return { code: location.searchParams.get("code")!, location };
 }
 
-async function redeem(code: string, verifier: string, secret = CLIENT_SECRET): Promise<Response> {
+async function waitFor<T>(fn: () => T | false | undefined | null, timeoutMs = 1_000): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const value = fn();
+    if (value) return value;
+    if (Date.now() > deadline) throw new Error("timed out waiting");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
+async function redeem(code: string, verifier: string, secret = CLIENT_SECRET, baseUrl = base): Promise<Response> {
   const basic = Buffer.from(`${CLIENT_ID}:${secret}`).toString("base64");
-  return fetch(`${base}/token`, {
+  return fetch(`${baseUrl}/token`, {
     ...form({ grant_type: "authorization_code", code, redirect_uri: REDIRECT_URI, code_verifier: verifier }),
     headers: { "content-type": "application/x-www-form-urlencoded", authorization: `Basic ${basic}` },
   });
@@ -180,6 +201,56 @@ test("allowedIds whitelist refuses ids outside the list", async () => {
       redirect: "manual",
     });
     assert.equal(submit.status, 403);
+  } finally {
+    await started.close();
+  }
+});
+
+test("the display name entered at login flows into id_token and userinfo", async () => {
+  const { verifier, challenge } = pkcePair();
+  const { code } = await obtainCode("app_u30001", authorizeQuery({ code_challenge: challenge }), "张三");
+  const response = await redeem(code, verifier);
+  const body = JSON.parse(await response.text()) as { access_token: string; id_token: string };
+  const jwksBody = (await (await fetch(`${base}/.well-known/jwks.json`)).json()) as { keys: JWK[] };
+  const { payload } = await jwtVerify(body.id_token, createLocalJWKSet(jwksBody), {
+    issuer: "http://idlogin.test",
+    audience: CLIENT_ID,
+    algorithms: ["ES256"],
+  });
+  assert.equal(payload.name, "张三");
+  const info = await fetch(`${base}/userinfo`, { headers: { authorization: `Bearer ${body.access_token}` } });
+  assert.deepEqual(await info.json(), { sub: "app_u30001", name: "张三" });
+});
+
+test("logging in again without a name keeps the stored display name", async () => {
+  const started = await startHandler(cfgFor());
+  try {
+    await obtainCode("app_u40001", authorizeQuery(), "李四", started.base);
+    const { verifier, challenge } = pkcePair();
+    const { code } = await obtainCode("app_u40001", authorizeQuery({ code_challenge: challenge }), "", started.base);
+    const body = (await (await redeem(code, verifier, CLIENT_SECRET, started.base)).json()) as { access_token: string };
+    const info = await fetch(`${started.base}/userinfo`, { headers: { authorization: `Bearer ${body.access_token}` } });
+    assert.deepEqual(await info.json(), { sub: "app_u40001", name: "李四" });
+  } finally {
+    await started.close();
+  }
+});
+
+test("each successful login pushes the full roster to the directory", async () => {
+  const pushes: DirectoryMemberPush[][] = [];
+  const started = await startHandler(cfgFor(), { pushes });
+  try {
+    await obtainCode("app_u50001", authorizeQuery(), "甲", started.base);
+    await waitFor(() => pushes.length >= 1);
+    await obtainCode("app_u50002", authorizeQuery(), "乙", started.base);
+    const last = await waitFor(() => pushes[1]);
+    assert.deepEqual(
+      [...last].sort((a, b) => a.principalId.localeCompare(b.principalId)),
+      [
+        { principalId: "app_u50001", displayName: "甲", type: "internal" },
+        { principalId: "app_u50002", displayName: "乙", type: "internal" },
+      ],
+    );
   } finally {
     await started.close();
   }

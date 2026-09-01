@@ -11,7 +11,14 @@ import {
   type JWK,
 } from "jose";
 import { readBody, PayloadTooLargeError, escapeHtml, serveEmojiFavicon } from "../../chassis/src/http.ts";
-import { portFromEnv } from "../../chassis/src/env.ts";
+import { signedHeaders, withSourceAuthNonce } from "../../chassis/src/core-client.ts";
+import { errMessage } from "../../chassis/src/errors.ts";
+import { CORE_API_URL, CORE_SIGNING_SECRET, portFromEnv } from "../../chassis/src/env.ts";
+import {
+  createMemoryUserRegistry,
+  createPostgresUserRegistry,
+  type UserRegistry,
+} from "./users.ts";
 
 export interface IdLoginConfig {
   issuer: string;
@@ -58,6 +65,7 @@ export function bootProblems(cfg: IdLoginConfig): string[] {
 
 const MAX_FORM_BYTES = 8 * 1024;
 const MAX_ID_CHARS = 200;
+const MAX_NAME_CHARS = 200;
 const ID_TOKEN_TTL_S = 300;
 const ID_TOKEN_ALG = "ES256";
 
@@ -75,6 +83,13 @@ interface CodeClaims {
   nonce: string;
   codeChallenge: string;
   id: string;
+  name: string;
+}
+
+export interface DirectoryMemberPush {
+  principalId: string;
+  displayName: string;
+  type: "internal";
 }
 
 type PrivateSigningKey = Awaited<ReturnType<typeof generateKeyPair>>["privateKey"];
@@ -111,6 +126,8 @@ export interface IdLoginDeps {
   cfg: IdLoginConfig;
   signingKey: SigningKey;
   sealSecret: Uint8Array;
+  users: UserRegistry;
+  pushDirectory?: (members: DirectoryMemberPush[]) => Promise<void>;
 }
 
 const PAGE_CSP =
@@ -180,7 +197,14 @@ ${STYLE}
 </html>`;
 }
 
-function idFormPage(o: { brandName: string; action: string; requestToken: string; id?: string; problem?: string }): string {
+function idFormPage(o: {
+  brandName: string;
+  action: string;
+  requestToken: string;
+  id?: string;
+  name?: string;
+  problem?: string;
+}): string {
   return page({
     title: "登录",
     brandName: o.brandName,
@@ -192,6 +216,9 @@ function idFormPage(o: { brandName: string; action: string; requestToken: string
         <label for="id">用户 id</label>
         <input id="id" name="id" type="text" autocomplete="username" required autofocus
           spellcheck="false" maxlength="${MAX_ID_CHARS}" placeholder="app_u10086" value="${escapeHtml(o.id ?? "")}">
+        <label for="name">显示名（可选）</label>
+        <input id="name" name="name" type="text" autocomplete="name"
+          maxlength="${MAX_NAME_CHARS}" placeholder="张三" value="${escapeHtml(o.name ?? "")}">
         <button class="btn" type="submit">进入</button>
       </form>`,
     help: "第一次使用的 id 会自动创建账号。",
@@ -211,7 +238,7 @@ function problemPage(o: { brandName: string; heading: string; msg: string }): st
 }
 
 export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
-  const { cfg, signingKey, sealSecret } = deps;
+  const { cfg, signingKey, sealSecret, users } = deps;
   const now = (): number => Date.now();
   const used = new Map<string, number>();
 
@@ -287,7 +314,7 @@ export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, 
   async function openCode(token: string): Promise<{ claims: CodeClaims; jti: string; expiresAtMs: number } | null> {
     const payload = await open("code", token);
     if (!payload) return null;
-    const { cid, ru, no, cc, id } = payload as Record<string, unknown>;
+    const { cid, ru, no, cc, id, nm } = payload as Record<string, unknown>;
     if ([cid, ru, no, cc, id].some((value) => typeof value !== "string" || !value)) return null;
     return {
       claims: {
@@ -296,6 +323,7 @@ export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, 
         nonce: no as string,
         codeChallenge: cc as string,
         id: id as string,
+        name: typeof nm === "string" ? nm : (id as string),
       },
       jti: String(payload.jti),
       expiresAtMs: Number(payload.exp) * 1000,
@@ -394,7 +422,25 @@ export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, 
         idFormPage({ brandName: cfg.brandName, action: "/authorize", requestToken: sealed.token, id, problem: "该 id 未被允许登录。" }),
       );
     }
-    const code = await seal("code", { cid: request.clientId, ru: request.redirectUri, no: request.nonce, cc: request.codeChallenge, id }, cfg.codeTtlS);
+    const submittedName = (form.get("name") ?? "").trim().slice(0, MAX_NAME_CHARS);
+    const previous = await users.get(id);
+    const displayName = submittedName || previous?.name || id;
+    await users.put({ id, name: displayName });
+    const code = await seal(
+      "code",
+      { cid: request.clientId, ru: request.redirectUri, no: request.nonce, cc: request.codeChallenge, id, nm: displayName },
+      cfg.codeTtlS,
+    );
+    if (deps.pushDirectory) {
+      void (async () => {
+        try {
+          const roster = await users.list();
+          await deps.pushDirectory!(roster.map((u) => ({ principalId: u.id, displayName: u.name, type: "internal" })));
+        } catch (e) {
+          console.error(`[idlogin] directory push failed: ${errMessage(e)}`);
+        }
+      })();
+    }
     const destination = new URL(request.redirectUri);
     destination.searchParams.set("code", code.token);
     destination.searchParams.set("state", request.state);
@@ -445,7 +491,7 @@ export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, 
 
     const nowMs = now();
     const issuedAt = Math.floor(nowMs / 1000);
-    const idToken = await new SignJWT({ nonce: granted.nonce, azp: cfg.clientId })
+    const idToken = await new SignJWT({ nonce: granted.nonce, azp: cfg.clientId, name: granted.name })
       .setProtectedHeader({ alg: ID_TOKEN_ALG, kid: signingKey.kid, typ: "JWT" })
       .setIssuer(cfg.issuer)
       .setSubject(granted.id)
@@ -453,7 +499,7 @@ export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, 
       .setIssuedAt(issuedAt)
       .setExpirationTime(issuedAt + ID_TOKEN_TTL_S)
       .sign(signingKey.privateKey);
-    const access = await seal("access", { sub: granted.id, nm: granted.id }, cfg.accessTtlS);
+    const access = await seal("access", { sub: granted.id, nm: granted.name }, cfg.accessTtlS);
     return sendJson(res, 200, {
       access_token: access.token,
       token_type: "Bearer",
@@ -519,6 +565,24 @@ export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, 
 
 const PORT = portFromEnv(8099);
 
+function createDirectoryPusher(): ((members: DirectoryMemberPush[]) => Promise<void>) | undefined {
+  if (!CORE_SIGNING_SECRET) {
+    console.warn("[idlogin] CORE_SIGNING_SECRET unset — directory sync disabled");
+    return undefined;
+  }
+  return async (members) => {
+    const path = withSourceAuthNonce("/v1/directory", CORE_SIGNING_SECRET);
+    const body = JSON.stringify({ members });
+    const r = await fetch(`${CORE_API_URL}${path}`, {
+      method: "POST",
+      body,
+      headers: signedHeaders(CORE_SIGNING_SECRET, "POST", path, body),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!r.ok) throw new Error(`core replied ${r.status}: ${await r.text().catch(() => "")}`);
+  };
+}
+
 async function startServer(): Promise<void> {
   const cfg = readConfig(process.env);
   const problems = bootProblems(cfg);
@@ -526,8 +590,17 @@ async function startServer(): Promise<void> {
     for (const item of problems) console.error(`[idlogin] FATAL: ${item}`);
     throw new Error(`idlogin refusing to start: ${problems.length} misconfiguration(s)`);
   }
+  const users = process.env.DATABASE_URL
+    ? await createPostgresUserRegistry(process.env.DATABASE_URL)
+    : createMemoryUserRegistry();
   const signingKey = await createSigningKey();
-  const handle = createIdLoginHandler({ cfg, signingKey, sealSecret: randomBytes(32) });
+  const handle = createIdLoginHandler({
+    cfg,
+    signingKey,
+    sealSecret: randomBytes(32),
+    users,
+    pushDirectory: createDirectoryPusher(),
+  });
   const server = createServer((req, res) => {
     void handle(req, res).catch((err: unknown) => {
       console.error("[idlogin] 500 %s %s: %s", req.method ?? "?", (req.url ?? "?").split("?")[0], String(err));

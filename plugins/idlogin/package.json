@@ -10,13 +10,15 @@
   "scripts": {
     "start": "node src/server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --test"
+    "test": "node --test test/"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.11.10",
     "typescript": "^5.8.2"
   },
   "dependencies": {
-    "jose": "^6.2.3"
+    "jose": "^6.2.3",
+    "pg": "^8.13.1"
   }
 }
