@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url";
-import { signedRequestHeaders, withSourceAuthNonce } from "../../chassis/src/core-client.ts";
-import { CORE_API_URL, CORE_ORG_ID, CORE_SIGNING_SECRET } from "../../chassis/src/env.ts";
+import { signedRequestHeaders, withSourceAuthNonce } from "../../../chassis/src/core-client.ts";
+import { CORE_API_URL, CORE_ORG_ID, CORE_SIGNING_SECRET } from "../../../chassis/src/env.ts";
 
 const IMPORT_TIMEOUT_MS = 120_000;
 const MAX_NAME_CHARS = 200;

@@ -1,9 +1,9 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { readBody, PayloadTooLargeError } from "../../chassis/src/http.ts";
-import { errMessage } from "../../chassis/src/errors.ts";
-import { CORE_API_URL, CORE_SIGNING_SECRET, portFromEnv } from "../../chassis/src/env.ts";
+import { readBody, PayloadTooLargeError } from "../../../chassis/src/http.ts";
+import { errMessage } from "../../../chassis/src/errors.ts";
+import { CORE_API_URL, CORE_SIGNING_SECRET, portFromEnv } from "../../../chassis/src/env.ts";
 import { readConfig, bootProblems, type ProfilesConfig } from "./config.ts";
 import {
   assembleProject,

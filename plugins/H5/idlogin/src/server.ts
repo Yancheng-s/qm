@@ -10,10 +10,10 @@ import {
   type JWTPayload,
   type JWK,
 } from "jose";
-import { readBody, PayloadTooLargeError, escapeHtml, serveEmojiFavicon } from "../../chassis/src/http.ts";
-import { signedHeaders, withSourceAuthNonce } from "../../chassis/src/core-client.ts";
-import { errMessage } from "../../chassis/src/errors.ts";
-import { CORE_API_URL, CORE_SIGNING_SECRET, portFromEnv } from "../../chassis/src/env.ts";
+import { readBody, PayloadTooLargeError, escapeHtml, serveEmojiFavicon } from "../../../chassis/src/http.ts";
+import { signedHeaders, withSourceAuthNonce } from "../../../chassis/src/core-client.ts";
+import { errMessage } from "../../../chassis/src/errors.ts";
+import { CORE_API_URL, CORE_SIGNING_SECRET, portFromEnv } from "../../../chassis/src/env.ts";
 import {
   createMemoryUserRegistry,
   createPostgresUserRegistry,

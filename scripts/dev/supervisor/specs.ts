@@ -93,7 +93,7 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
     },
     {
       name: "idlogin",
-      cwd: join(i.worktree, "plugins/idlogin"),
+      cwd: join(i.worktree, "plugins/H5/idlogin"),
       argv: ["node", ...watchArgs, "src/server.ts"],
       env: {
         ...base,
@@ -141,7 +141,7 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
     },
     {
       name: "profiles",
-      cwd: join(i.worktree, "plugins/profiles"),
+      cwd: join(i.worktree, "plugins/H5/profiles"),
       argv: ["node", ...watchArgs, "src/server.ts"],
       env: {
         ...base,

@@ -1,4 +1,4 @@
-import { signedRequestHeaders, withSourceAuthNonce } from "../../chassis/src/core-client.ts";
+import { signedRequestHeaders, withSourceAuthNonce } from "../../../chassis/src/core-client.ts";
 import type { ProfilesConfig } from "./config.ts";
 import type { AssemblyRegistry } from "./assemble-store.ts";
 
