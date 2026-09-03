@@ -1,0 +1,24 @@
+{
+  "name": "qm-profiles-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Assembly gateway for the H5 front end: one call creates a project and grants it the configured skill library.",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node src/server.ts",
+    "bootstrap": "node bootstrap/bootstrap-library.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}

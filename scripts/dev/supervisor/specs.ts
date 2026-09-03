@@ -19,6 +19,8 @@ export interface SpecInputs {
 
 const IDLOGIN_CLIENT_ID = "qm-portal";
 const IDLOGIN_CLIENT_SECRET = "dev-instance-idlogin-0123456789abcdef";
+const PROFILES_DEV_ASSEMBLE_KEY = "dev-instance-profiles-0123456789abcdef";
+const PROFILES_DEV_LIBRARY_PRINCIPAL = "dev-admin";
 
 export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
   const watchArgs = i.watch ? ["--watch"] : [];
@@ -135,6 +137,25 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
       port: i.ports.portal,
       readiness: { kind: "log", pattern: `public front door on http://localhost:${i.ports.portal}` },
       health: { kind: "tcp", port: i.ports.portal },
+      stopGraceMs: 5_000,
+    },
+    {
+      name: "profiles",
+      cwd: join(i.worktree, "plugins/profiles"),
+      argv: ["node", ...watchArgs, "src/server.ts"],
+      env: {
+        ...base,
+        ...signing,
+        PORT: String(i.ports.profiles),
+        CORE_API_URL: `http://localhost:${i.ports.core}`,
+        ...(i.databaseUrl ? { DATABASE_URL: i.databaseUrl } : {}),
+        PROFILES_ASSEMBLE_KEY: i.baseEnv.PROFILES_ASSEMBLE_KEY || PROFILES_DEV_ASSEMBLE_KEY,
+        PROFILES_LIBRARY_SCOPE: i.baseEnv.PROFILES_LIBRARY_SCOPE || `org:${orgId}`,
+        PROFILES_LIBRARY_PRINCIPAL: i.baseEnv.PROFILES_LIBRARY_PRINCIPAL || PROFILES_DEV_LIBRARY_PRINCIPAL,
+      },
+      port: i.ports.profiles,
+      readiness: { kind: "log", pattern: `assemble gateway on http://localhost:${i.ports.profiles}` },
+      health: { kind: "tcp", port: i.ports.profiles },
       stopGraceMs: 5_000,
     },
   ];

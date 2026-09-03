@@ -77,6 +77,7 @@ export function slotPorts(slot: string, basePort = Number(process.env.DEV_INSTAN
     slackHealth: basePort + 80 + num,
     supervisor: basePort + 96 + num,
     idlogin: basePort + 112 + num,
+    profiles: basePort + 128 + num,
   };
 }
 

@@ -271,6 +271,7 @@ function writeLegacyMeta(booting: boolean): void {
     admin_port: String(ports.admin),
     idlogin_port: String(ports.idlogin),
     portal_port: String(ports.portal),
+    profiles_port: String(ports.profiles),
     handle,
     supervisor_pid: String(process.pid),
     session_store: durability.sessionStore,
@@ -581,7 +582,8 @@ async function shutdownSelf(removeLock: boolean): Promise<void> {
 }
 
 let socketPathResolved = join(lock, "supervisor.sock");
-if (socketPathResolved.length > 100) socketPathResolved = join(tmpdir(), `qm-dev-${slot}.sock`);
+if (process.platform === "win32") socketPathResolved = `\\\\.\\pipe\\qm-dev-${slot}`;
+else if (socketPathResolved.length > 100) socketPathResolved = join(tmpdir(), `qm-dev-${slot}.sock`);
 
 function serveApi(): Server {
   const server = createServer(async (req, res) => {
@@ -644,7 +646,7 @@ function serveApi(): Server {
       respond(500, { ok: false, reason: errMessage(err) });
     }
   });
-  rmSync(socketPathResolved, { force: true });
+  if (!socketPathResolved.startsWith("\\\\.\\pipe\\")) rmSync(socketPathResolved, { force: true });
   server.listen(socketPathResolved);
   return server;
 }

@@ -120,7 +120,18 @@ const withSlack = !opts["no-slack"] && process.env.DEV_INSTANCE_NO_SLACK !== "1"
 const devCallerEnv = (): Record<string, string> => ({ ...callerEnvSnapshot(), DEV_INSTANCE_ORG_ID: orgId });
 
 async function legacyTeardown(lease: LeaseInfo): Promise<void> {
-  for (const name of ["portal", "idlogin", "admin", "web", "web-build", "slack", "core", "tunnel", "supervisor"]) {
+  for (const name of [
+    "portal",
+    "idlogin",
+    "admin",
+    "web",
+    "web-build",
+    "slack",
+    "core",
+    "tunnel",
+    "supervisor",
+    "profiles",
+  ]) {
     const pid = readPidFile(lease.lockDir, `${name}.pid`);
     if (pid) await killTree(pid, 5000);
   }
@@ -264,8 +275,7 @@ async function bootOnSlot(slot: string, worktree: string, branch: string): Promi
     env: callerEnv,
   });
 
-  const sock = resolveSocketPath(lock);
-  if (!(await waitForSupervisor(sock, 60_000))) {
+  if (!(await waitForSupervisor(lock, 60_000))) {
     let tail: string[] = [];
     bestEffort(() => {
       tail = readFileSync(join(lock, "supervisor.log"), "utf8").trimEnd().split("\n").slice(-15);
@@ -280,6 +290,7 @@ async function bootOnSlot(slot: string, worktree: string, branch: string): Promi
     };
   }
 
+  const sock = resolveSocketPath(lock);
   out(
     tokens
       ? `booting on slot ${slot} (@${tokens.handle || `agent-${slot}`})...`

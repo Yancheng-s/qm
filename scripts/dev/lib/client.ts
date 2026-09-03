@@ -52,10 +52,10 @@ export async function supervisorReachable(socketPath: string): Promise<boolean> 
   }
 }
 
-export async function waitForSupervisor(socketPath: string, timeoutMs = 20_000): Promise<boolean> {
+export async function waitForSupervisor(lock: string, timeoutMs = 20_000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (await supervisorReachable(socketPath)) return true;
+    if (await supervisorReachable(resolveSocketPath(lock))) return true;
     await sleep(300);
   }
   return false;
