@@ -11,6 +11,7 @@ const VALID_ENV = {
   IDLOGIN_CLIENT_ID: "qm-portal",
   IDLOGIN_CLIENT_SECRET: "gateway-test-secret-0123456789abcdef",
   IDLOGIN_REDIRECT_URI: "http://h5.test/auth/callback",
+  IDLOGIN_API_KEY: "gateway-test-api-key-0123456789abcdef",
   PROFILES_ASSEMBLE_KEY: "gateway-test-key-0123456789abcdef",
   PROFILES_LIBRARY_SCOPE: "group:web-project-lib",
   PROFILES_LIBRARY_PRINCIPAL: "app_admin",
@@ -19,6 +20,7 @@ const VALID_ENV = {
 function gatewayEnv(overrides: Record<string, string>): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, ...overrides, PORT: "0" };
   delete env.DATABASE_URL;
+  delete env.CORE_SIGNING_SECRET;
   return env;
 }
 
@@ -71,7 +73,7 @@ async function withGateway(run: (base: string) => Promise<void>): Promise<void> 
   }
 }
 
-test("one port serves health, assemble, and id sign-in", async () => {
+test("one port serves health, assemble, id sign-in, and the app login api", async () => {
   await withGateway(async (base) => {
     const health = await fetch(`${base}/healthz`);
     assert.equal(health.status, 200);
@@ -87,6 +89,18 @@ test("one port serves health, assemble, and id sign-in", async () => {
     const authorize = await fetch(`${base}/authorize`);
     assert.equal(authorize.status, 400);
     assert.match(await authorize.text(), /无法开始登录/);
+
+    const login = await fetch(`${base}/login`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${VALID_ENV.IDLOGIN_API_KEY}` },
+      body: JSON.stringify({ id: "app_u1", name: "甲" }),
+    });
+    assert.equal(login.status, 200);
+    assert.deepEqual(await login.json(), { ok: true, principalId: "app_u1", displayName: "甲", created: true });
+
+    const loginNoKey = await fetch(`${base}/login`, { method: "POST", body: JSON.stringify({ id: "app_u2" }) });
+    assert.equal(loginNoKey.status, 401);
+    assert.deepEqual(await loginNoKey.json(), { error: "invalid_key" });
 
     const discovery = await fetch(`${base}/.well-known/openid-configuration`);
     assert.equal(discovery.status, 200);

@@ -20,6 +20,7 @@ export interface IdLoginConfig {
   clientId: string;
   clientSecret: string;
   redirectUri: string;
+  apiKey: string;
   allowedIds: readonly string[];
   brandName: string;
   requestTtlS: number;
@@ -33,6 +34,7 @@ export function readConfig(env: NodeJS.ProcessEnv): IdLoginConfig {
     clientId: env.IDLOGIN_CLIENT_ID?.trim() ?? "",
     clientSecret: env.IDLOGIN_CLIENT_SECRET ?? "",
     redirectUri: env.IDLOGIN_REDIRECT_URI?.trim() ?? "",
+    apiKey: env.IDLOGIN_API_KEY?.trim() ?? "",
     allowedIds: (env.IDLOGIN_ALLOWED_IDS ?? "")
       .split(",")
       .map((entry) => entry.trim())
@@ -54,10 +56,12 @@ export function bootProblems(cfg: IdLoginConfig): string[] {
   require("IDLOGIN_REDIRECT_URI", cfg.redirectUri);
   if (!cfg.clientSecret.trim()) problems.push("IDLOGIN_CLIENT_SECRET is required");
   else if (cfg.clientSecret.trim().length < 32) problems.push("IDLOGIN_CLIENT_SECRET must be at least 32 characters");
+  if (!cfg.apiKey) problems.push("IDLOGIN_API_KEY is required");
+  else if (cfg.apiKey.length < 32) problems.push("IDLOGIN_API_KEY must be at least 32 characters");
   return problems;
 }
 
-const MAX_FORM_BYTES = 8 * 1024;
+const MAX_BODY_BYTES = 8 * 1024;
 const MAX_ID_CHARS = 200;
 const MAX_NAME_CHARS = 200;
 const ID_TOKEN_TTL_S = 300;
@@ -107,6 +111,12 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(left, right);
 }
 
+function bearerToken(header: string | undefined): string | null {
+  if (!header || !/^bearer /i.test(header)) return null;
+  const token = header.slice(7).trim();
+  return token || null;
+}
+
 function pkceMatches(codeVerifier: string, codeChallenge: string): boolean {
   if (codeVerifier.length < 43 || codeVerifier.length > 128 || !/^[A-Za-z0-9\-._~]+$/.test(codeVerifier)) return false;
   return safeEqual(createHash("sha256").update(codeVerifier).digest("base64url"), codeChallenge);
@@ -114,6 +124,16 @@ function pkceMatches(codeVerifier: string, codeChallenge: string): boolean {
 
 function idAllowed(cfg: IdLoginConfig, id: string): boolean {
   return !cfg.allowedIds.length || cfg.allowedIds.includes(id);
+}
+
+function parseLoginInput(raw: unknown): { id: string; name: string } | { problem: string } {
+  if (typeof raw !== "object" || raw === null) return { problem: "request body must be a JSON object" };
+  const body = raw as Record<string, unknown>;
+  const id = typeof body.id === "string" ? body.id.trim() : "";
+  if (!id || id.length > MAX_ID_CHARS) return { problem: `id is required (max ${MAX_ID_CHARS} chars)` };
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  if (name.length > MAX_NAME_CHARS) return { problem: `name too long (max ${MAX_NAME_CHARS} chars)` };
+  return { id, name };
 }
 
 export interface IdLoginDeps {
@@ -407,10 +427,16 @@ export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, 
     sendHtml(res, 200, idFormPage({ brandName: cfg.brandName, action: "/authorize", requestToken: sealed.token }));
   }
 
+  async function syncDirectory(): Promise<void> {
+    if (!deps.pushDirectory) return;
+    const roster = await users.list();
+    await deps.pushDirectory(roster.map((u) => ({ principalId: u.id, displayName: u.name, type: "internal" })));
+  }
+
   async function authorizeSubmit(req: IncomingMessage, res: ServerResponse): Promise<void> {
     let raw: string;
     try {
-      raw = await readBody(req, MAX_FORM_BYTES);
+      raw = await readBody(req, MAX_BODY_BYTES);
     } catch (e) {
       if (e instanceof PayloadTooLargeError) return problem(res, 413, "无法登录", "表单数据过大。");
       throw e;
@@ -463,21 +489,48 @@ export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, 
       },
       cfg.codeTtlS,
     );
-    if (deps.pushDirectory) {
-      void (async () => {
-        try {
-          const roster = await users.list();
-          await deps.pushDirectory!(roster.map((u) => ({ principalId: u.id, displayName: u.name, type: "internal" })));
-        } catch (e) {
-          console.error(`[idlogin] directory push failed: ${errMessage(e)}`);
-        }
-      })();
-    }
+    void syncDirectory().catch((e) => console.error(`[idlogin] directory push failed: ${errMessage(e)}`));
     const destination = new URL(request.redirectUri);
     destination.searchParams.set("code", code.token);
     destination.searchParams.set("state", request.state);
     res.writeHead(302, noStore({ location: destination.toString() }));
     res.end();
+  }
+
+  async function login(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const token = bearerToken(req.headers.authorization);
+    if (!token || !safeEqual(token, cfg.apiKey)) {
+      res.writeHead(
+        401,
+        noStore({ "content-type": "application/json", "www-authenticate": 'Bearer realm="qm-idlogin"' }),
+      );
+      return void res.end(JSON.stringify({ error: "invalid_key" }));
+    }
+    let raw: string;
+    try {
+      raw = await readBody(req, MAX_BODY_BYTES);
+    } catch (e) {
+      if (e instanceof PayloadTooLargeError) return sendJson(res, 413, { error: "payload_too_large" });
+      throw e;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return sendJson(res, 400, { error: "bad_json" });
+    }
+    const input = parseLoginInput(parsed);
+    if ("problem" in input) return sendJson(res, 400, { error: "bad_request", message: input.problem });
+    if (!idAllowed(cfg, input.id)) return sendJson(res, 403, { error: "id_not_allowed" });
+    const previous = await users.get(input.id);
+    const displayName = input.name || previous?.name || input.id;
+    await users.put({ id: input.id, name: displayName });
+    try {
+      await syncDirectory();
+    } catch (e) {
+      return sendJson(res, 502, { error: "directory_sync_failed", message: errMessage(e) });
+    }
+    return sendJson(res, 200, { ok: true, principalId: input.id, displayName, created: previous === null });
   }
 
   function basicCredentials(header: string | undefined): { id: string; secret: string } | null {
@@ -501,7 +554,7 @@ export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, 
     }
     let raw: string;
     try {
-      raw = await readBody(req, MAX_FORM_BYTES);
+      raw = await readBody(req, MAX_BODY_BYTES);
     } catch {
       return sendJson(res, 400, { error: "invalid_request" });
     }
@@ -594,6 +647,7 @@ export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, 
     if (method === "GET" && path === "/.well-known/openid-configuration") return discovery(res);
     if (method === "GET" && path === "/authorize") return authorizeForm(res, url.searchParams);
     if (method === "POST" && path === "/authorize") return authorizeSubmit(req, res);
+    if (method === "POST" && path === "/login") return login(req, res);
     if (method === "POST" && path === "/token") return token(req, res);
     if ((method === "GET" || method === "POST") && path === "/userinfo") return userinfo(req, res);
     return sendJson(res, 404, { error: "not_found" });
