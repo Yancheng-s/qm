@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createMemoryAssemblyRegistry, createPostgresAssemblyRegistry } from "../src/assemble-store.ts";
+import { createMemoryAssemblyRegistry, createPostgresAssemblyRegistry } from "../src/profiles/assemble-store.ts";
 
 test("memory registry upserts by externalId and lists everything", async () => {
   const registry = createMemoryAssemblyRegistry();

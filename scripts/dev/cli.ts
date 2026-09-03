@@ -120,18 +120,7 @@ const withSlack = !opts["no-slack"] && process.env.DEV_INSTANCE_NO_SLACK !== "1"
 const devCallerEnv = (): Record<string, string> => ({ ...callerEnvSnapshot(), DEV_INSTANCE_ORG_ID: orgId });
 
 async function legacyTeardown(lease: LeaseInfo): Promise<void> {
-  for (const name of [
-    "portal",
-    "idlogin",
-    "admin",
-    "web",
-    "web-build",
-    "slack",
-    "core",
-    "tunnel",
-    "supervisor",
-    "profiles",
-  ]) {
+  for (const name of ["portal", "h5", "admin", "web", "web-build", "slack", "core", "tunnel", "supervisor"]) {
     const pid = readPidFile(lease.lockDir, `${name}.pid`);
     if (pid) await killTree(pid, 5000);
   }

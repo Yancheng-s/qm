@@ -1,14 +1,14 @@
 {
-  "name": "qm-profiles-plugin",
+  "name": "qm-h5-plugin",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Assembly gateway for the H5 front end: one call creates a project and grants it the configured skill library.",
+  "description": "H5 gateway: id sign-in (OIDC) and project assembly behind one port.",
   "engines": {
     "node": ">=24.0.0"
   },
   "scripts": {
-    "start": "node src/server.ts",
+    "start": "node src/index.ts",
     "bootstrap": "node bootstrap/bootstrap-library.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"test/*.test.ts\""
@@ -19,6 +19,7 @@
     "typescript": "^5.8.2"
   },
   "dependencies": {
+    "jose": "^6.2.3",
     "pg": "^8.13.1"
   }
 }

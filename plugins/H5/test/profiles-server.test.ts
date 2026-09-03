@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
-import { createProfilesHandler } from "../src/server.ts";
-import { createMemoryAssemblyRegistry } from "../src/assemble-store.ts";
-import type { CoreClient } from "../src/assemble.ts";
+import { createProfilesHandler } from "../src/profiles/server.ts";
+import { createMemoryAssemblyRegistry } from "../src/profiles/assemble-store.ts";
+import type { CoreClient } from "../src/profiles/assemble.ts";
 
 const KEY = "profiles-test-key-0123456789abcdef";
 
@@ -45,14 +45,6 @@ async function withServer(run: (base: string) => Promise<void>): Promise<void> {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 }
-
-test("healthz is open", async () => {
-  await withServer(async (base) => {
-    const r = await fetch(`${base}/healthz`);
-    assert.equal(r.status, 200);
-    assert.deepEqual(await r.json(), { ok: true });
-  });
-});
 
 test("assemble rejects a missing or wrong key", async () => {
   await withServer(async (base) => {

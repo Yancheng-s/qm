@@ -1,6 +1,6 @@
 import pg from "pg";
 
-export interface Assembly {
+interface Assembly {
   externalId: string;
   projectId: string;
   projectScopeId: string;

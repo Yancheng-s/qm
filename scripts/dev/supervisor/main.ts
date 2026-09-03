@@ -269,9 +269,8 @@ function writeLegacyMeta(booting: boolean): void {
     port: String(ports.core),
     web_port: String(ports.web),
     admin_port: String(ports.admin),
-    idlogin_port: String(ports.idlogin),
+    h5_port: String(ports.h5),
     portal_port: String(ports.portal),
-    profiles_port: String(ports.profiles),
     handle,
     supervisor_pid: String(process.pid),
     session_store: durability.sessionStore,
@@ -388,7 +387,7 @@ async function assembleAndPrepare(spec: BootSpec): Promise<SpecInputs> {
 
   completeDevSecuritySecrets(assembled.env, databaseUrl || worktree);
   const portalSessionSecret = assembled.env.PORTAL_SESSION_SECRET!;
-  log(`portal auth: id sign-in via idlogin at http://localhost:${ports.idlogin} (enter any user id)`);
+  log(`h5 gateway: http://localhost:${ports.h5} -- portal id sign-in (enter any user id) and POST /assemble`);
 
   const tokens = slackOn(spec) ? slotTokens(slot, store) : null;
 

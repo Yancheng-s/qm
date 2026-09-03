@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assembleProject, type CoreClient, type CoreResponse } from "../src/assemble.ts";
-import { createMemoryAssemblyRegistry } from "../src/assemble-store.ts";
-import type { ProfilesConfig } from "../src/config.ts";
+import { assembleProject, type CoreClient, type CoreResponse } from "../src/profiles/assemble.ts";
+import { createMemoryAssemblyRegistry } from "../src/profiles/assemble-store.ts";
+import type { ProfilesConfig } from "../src/profiles/config.ts";
 
 interface Recorded {
   method: string;

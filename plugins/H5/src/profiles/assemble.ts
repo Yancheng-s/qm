@@ -32,7 +32,7 @@ export function createSignedCoreClient(
         signal: AbortSignal.timeout(timeoutMs),
       });
       const text = await response.text();
-      let json: unknown = null;
+      let json: unknown;
       try {
         json = text ? JSON.parse(text) : null;
       } catch {
@@ -49,7 +49,7 @@ export interface AssembleInput {
   principalId: string;
 }
 
-export interface Assembled {
+interface Assembled {
   status: "assembled";
   projectId: string;
   projectScopeId: string;
@@ -58,7 +58,7 @@ export interface Assembled {
   reused: boolean;
 }
 
-export interface AssembleError {
+interface AssembleError {
   status: "error";
   code: string;
   message: string;
@@ -72,7 +72,7 @@ export type AssembleOutcome = Assembled | AssembleError;
 export interface AssembleDeps {
   core: CoreClient;
   cfg: ProfilesConfig;
-  registry: AssemblyRegistry; 
+  registry: AssemblyRegistry;
   now?: () => number;
 }
 

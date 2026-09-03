@@ -1,10 +1,8 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { type IncomingMessage, type ServerResponse } from "node:http";
 import { createHash, timingSafeEqual } from "node:crypto";
-import { pathToFileURL } from "node:url";
 import { readBody, PayloadTooLargeError } from "../../../chassis/src/http.ts";
-import { errMessage } from "../../../chassis/src/errors.ts";
-import { CORE_API_URL, CORE_SIGNING_SECRET, portFromEnv } from "../../../chassis/src/env.ts";
-import { readConfig, bootProblems, type ProfilesConfig } from "./config.ts";
+import { CORE_API_URL, CORE_SIGNING_SECRET } from "../../../chassis/src/env.ts";
+import type { ProfilesConfig } from "./config.ts";
 import {
   assembleProject,
   createSignedCoreClient,
@@ -18,7 +16,6 @@ import {
   type AssemblyRegistry,
 } from "./assemble-store.ts";
 
-const PORT = portFromEnv(8208);
 const MAX_BODY_BYTES = 8 * 1024;
 const MAX_NAME_CHARS = 200;
 const MAX_ID_CHARS = 200;
@@ -77,9 +74,7 @@ export function createProfilesHandler(
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const method = req.method ?? "GET";
-    const url = new URL(req.url ?? "/", "http://profiles.local");
-
-    if (method === "GET" && url.pathname === "/healthz") return sendJson(res, 200, { ok: true });
+    const url = new URL(req.url ?? "/", "http://h5.local");
 
     if (method === "POST" && url.pathname === "/assemble") {
       const token = bearerToken(req.headers.authorization);
@@ -110,33 +105,11 @@ export function createProfilesHandler(
   };
 }
 
-async function startServer(): Promise<void> {
-  const cfg = readConfig(process.env);
-  const problems = bootProblems(cfg);
-  if (problems.length) {
-    for (const item of problems) console.error(`[profiles] FATAL: ${item}`);
-    throw new Error(`profiles refusing to start: ${problems.length} misconfiguration(s)`);
-  }
-  const registry = process.env.DATABASE_URL
-    ? await createPostgresAssemblyRegistry(process.env.DATABASE_URL)
-    : createMemoryAssemblyRegistry();
+export async function bootProfiles(
+  cfg: ProfilesConfig,
+  databaseUrl: string | undefined,
+): Promise<(req: IncomingMessage, res: ServerResponse) => Promise<void>> {
+  const registry = databaseUrl ? await createPostgresAssemblyRegistry(databaseUrl) : createMemoryAssemblyRegistry();
   const core = createSignedCoreClient(CORE_API_URL, CORE_SIGNING_SECRET);
-  const handle = createProfilesHandler({ cfg, core, registry });
-  const server = createServer((req, res) => {
-    void handle(req, res).catch((err: unknown) => {
-      console.error(`[profiles] 500 %s %s: %s`, req.method ?? "?", (req.url ?? "?").split("?")[0], errMessage(err));
-      if (!res.headersSent) {
-        res.writeHead(500, { "content-type": "application/json" });
-        res.end(JSON.stringify({ error: "internal_error" }));
-      } else res.end();
-    });
-  });
-  server.listen(PORT, () => {
-    const scope = cfg.skillNames.length ? `${cfg.skillNames.length} named skill(s)` : "every skill";
-    console.log(`[profiles] assemble gateway on http://localhost:${PORT} (library ${cfg.libraryScopeId}, ${scope})`);
-  });
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await startServer();
+  return createProfilesHandler({ cfg, core, registry });
 }

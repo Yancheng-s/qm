@@ -56,8 +56,7 @@ test("slotPorts derive the full port block from the slot number", () => {
     prodProxy: 8147,
     slackHealth: 8163,
     supervisor: 8179,
-    idlogin: 8195,
-    profiles: 8211,
+    h5: 8195,
   });
 });
 
@@ -393,7 +392,7 @@ test("child specs omit Slack env when no Slack tokens are supplied", () => {
   assert.equal(core.env.CORE_ORG_ID, "acme");
 });
 
-test("profiles child defaults the library to the dev org and honors overrides", () => {
+test("h5 child defaults the library to the dev org and honors overrides", () => {
   const inputs: SpecInputs = {
     worktree: "/tmp/worktree",
     ports: slotPorts("pool1"),
@@ -408,18 +407,18 @@ test("profiles child defaults the library to the dev org and honors overrides", 
     portalSessionSecret: "secret",
     sandboxEnv: {},
   };
-  const profiles = buildChildSpecs(inputs).find((spec) => spec.name === "profiles")!;
-  assert.equal(profiles.env.PROFILES_LIBRARY_SCOPE, "org:acme");
-  assert.equal(profiles.env.PROFILES_LIBRARY_PRINCIPAL, "dev-admin");
-  assert.ok((profiles.env.PROFILES_ASSEMBLE_KEY ?? "").length >= 32);
-  assert.equal(profiles.env.DATABASE_URL, "postgres://dev");
+  const h5 = buildChildSpecs(inputs).find((spec) => spec.name === "h5")!;
+  assert.equal(h5.env.PROFILES_LIBRARY_SCOPE, "org:acme");
+  assert.equal(h5.env.PROFILES_LIBRARY_PRINCIPAL, "dev-admin");
+  assert.ok((h5.env.PROFILES_ASSEMBLE_KEY ?? "").length >= 32);
+  assert.equal(h5.env.DATABASE_URL, "postgres://dev");
   inputs.baseEnv = {
     DEV_INSTANCE_ORG_ID: "beta",
     PROFILES_LIBRARY_SCOPE: "group:web-project-lib",
     PROFILES_LIBRARY_PRINCIPAL: "app_admin",
     PROFILES_SKILL_NAMES: "space-xhs-title",
   };
-  const overridden = buildChildSpecs(inputs).find((spec) => spec.name === "profiles")!;
+  const overridden = buildChildSpecs(inputs).find((spec) => spec.name === "h5")!;
   assert.equal(overridden.env.PROFILES_LIBRARY_SCOPE, "group:web-project-lib");
   assert.equal(overridden.env.PROFILES_LIBRARY_PRINCIPAL, "app_admin");
   assert.equal(overridden.env.PROFILES_SKILL_NAMES, "space-xhs-title");
