@@ -1,7 +1,7 @@
 import { type IncomingMessage, type ServerResponse } from "node:http";
 import { CORE_API_URL, CORE_SIGNING_SECRET } from "../../../chassis/src/env.ts";
 import { readSignedBody } from "../signed-request.ts";
-import type { ProfilesConfig } from "./config.ts";
+import { LIBRARY_KEY, type ProfilesConfig } from "./config.ts";
 import {
   assembleProject,
   createSignedCoreClient,
@@ -42,18 +42,21 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
 function parseAssembleInput(raw: unknown): AssembleInput | { problem: string } {
   if (typeof raw !== "object" || raw === null) return { problem: "request body must be a JSON object" };
   const body = raw as Record<string, unknown>;
+  const library = typeof body.library === "string" ? body.library.trim() : "";
+  if (!library) return { problem: "library is required" };
+  if (!LIBRARY_KEY.test(library)) return { problem: `library must match ${LIBRARY_KEY.source}` };
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (!name || name.length > MAX_NAME_CHARS) return { problem: "name is required (max 200 chars)" };
   const principalId = typeof body.principalId === "string" ? body.principalId.trim() : "";
   if (!principalId || principalId.length > MAX_ID_CHARS) return { problem: "principalId is required (max 200 chars)" };
   const externalId = typeof body.externalId === "string" ? body.externalId.trim() : "";
   if (externalId.length > MAX_ID_CHARS) return { problem: "externalId too long (max 200 chars)" };
-  return { name, principalId, ...(externalId ? { externalId } : {}) };
+  return { library, name, principalId, ...(externalId ? { externalId } : {}) };
 }
 
 function outcomeStatus(outcome: AssembleOutcome): number {
   if (outcome.status === "assembled") return 200;
-  if (outcome.code === "library_empty") return 400;
+  if (outcome.code === "unknown_library") return 400;
   return 502;
 }
 
@@ -92,7 +95,10 @@ export async function bootProfiles(
   cfg: ProfilesConfig,
   databaseUrl: string | undefined,
 ): Promise<(req: IncomingMessage, res: ServerResponse) => Promise<void>> {
-  const registry = databaseUrl ? await createPostgresAssemblyRegistry(databaseUrl) : createMemoryAssemblyRegistry();
+  const legacyLibrary = cfg.libraries.length === 1 ? cfg.libraries[0]!.key : "";
+  const registry = databaseUrl
+    ? await createPostgresAssemblyRegistry(databaseUrl, legacyLibrary)
+    : createMemoryAssemblyRegistry();
   const core = createSignedCoreClient(CORE_API_URL, CORE_SIGNING_SECRET);
   return createProfilesHandler({ cfg, signingSecret: CORE_SIGNING_SECRET, core, registry });
 }

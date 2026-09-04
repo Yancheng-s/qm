@@ -15,7 +15,7 @@ const VALID_ENV = {
   IDLOGIN_CLIENT_ID: "qm-portal",
   IDLOGIN_CLIENT_SECRET: "gateway-test-secret-0123456789abcdef",
   IDLOGIN_REDIRECT_URI: "http://h5.test/auth/callback",
-  PROFILES_LIBRARY_SCOPE: "group:web-project-lib",
+  PROFILES_LIBRARY_SCOPES: "xhs=group:web-project-lib",
   PROFILES_LIBRARY_PRINCIPAL: "app_admin",
   CORE_SIGNING_SECRET: SIGNING_SECRET,
 };
@@ -87,7 +87,10 @@ async function stopGateway(child: ReturnType<typeof spawn>): Promise<void> {
   await new Promise<void>((resolve) => child.once("exit", () => resolve()));
 }
 
-async function withGateway(overrides: Record<string, string>, run: (base: string) => Promise<void>): Promise<void> {
+async function withGateway(
+  overrides: Record<string, string>,
+  run: (base: string, banner: string) => Promise<void>,
+): Promise<void> {
   const { child, output } = bootGateway({ ...VALID_ENV, ...overrides });
   let base: string;
   try {
@@ -110,7 +113,7 @@ async function withGateway(overrides: Record<string, string>, run: (base: string
     throw e;
   }
   try {
-    await run(base);
+    await run(base, output.join(""));
   } finally {
     await stopGateway(child);
   }
@@ -119,14 +122,16 @@ async function withGateway(overrides: Record<string, string>, run: (base: string
 test("one port serves health, assemble, id sign-in, and the app login api", async () => {
   const core = await startStubCore();
   try {
-    await withGateway({ CORE_API_URL: core.url }, async (base) => {
+    await withGateway({ CORE_API_URL: core.url }, async (base, banner) => {
+      assert.match(banner, /assemble libraries xhs=group:web-project-lib/);
+
       const health = await fetch(`${base}/healthz`);
       assert.equal(health.status, 200);
       assert.deepEqual(await health.json(), { ok: true });
 
       const unsigned = await fetch(`${base}/assemble`, {
         method: "POST",
-        body: JSON.stringify({ name: "p", principalId: "app_u1" }),
+        body: JSON.stringify({ library: "xhs", name: "p", principalId: "app_u1" }),
       });
       assert.equal(unsigned.status, 401);
       assert.deepEqual(await unsigned.json(), {
@@ -136,7 +141,7 @@ test("one port serves health, assemble, id sign-in, and the app login api", asyn
 
       const assemble = await fetch(
         `${base}/assemble`,
-        signedPost("/assemble", JSON.stringify({ name: "p", principalId: "app_u1" })),
+        signedPost("/assemble", JSON.stringify({ library: "xhs", name: "p", principalId: "app_u1" })),
       );
       assert.equal(assemble.status, 200);
       const assembled = (await assemble.json()) as { status: string; projectId: string; granted: string[] };
@@ -178,13 +183,26 @@ test("gateway refuses to start when either service is misconfigured", async () =
   const { child, output } = bootGateway({
     ...VALID_ENV,
     IDLOGIN_CLIENT_ID: "",
-    PROFILES_LIBRARY_SCOPE: "",
+    PROFILES_LIBRARY_SCOPES: "",
   });
   const code = await new Promise<number | null>((resolve) => child.once("exit", (exitCode) => resolve(exitCode)));
   assert.notEqual(code, 0);
   const logged = output.join("");
   assert.match(logged, /IDLOGIN_CLIENT_ID is required/);
-  assert.match(logged, /PROFILES_LIBRARY_SCOPE is required/);
+  assert.match(logged, /PROFILES_LIBRARY_SCOPES is required/);
+  assert.match(logged, /h5 refusing to start: 2 misconfiguration/);
+});
+
+test("gateway refuses to start when a library binding is malformed", async () => {
+  const { child, output } = bootGateway({
+    ...VALID_ENV,
+    PROFILES_LIBRARY_SCOPES: "xhs=group:web-project-lib,XHS=group:c,xhs=group:d",
+  });
+  const code = await new Promise<number | null>((resolve) => child.once("exit", (exitCode) => resolve(exitCode)));
+  assert.notEqual(code, 0);
+  const logged = output.join("");
+  assert.match(logged, /key "XHS" must match/);
+  assert.match(logged, /binds "xhs" twice/);
   assert.match(logged, /h5 refusing to start: 2 misconfiguration/);
 });
 

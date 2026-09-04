@@ -1,5 +1,5 @@
 import { signedRequestHeaders, withSourceAuthNonce } from "../../../chassis/src/core-client.ts";
-import type { ProfilesConfig } from "./config.ts";
+import { libraryScopeFor, type ProfilesConfig } from "./config.ts";
 import type { AssemblyRegistry } from "./assemble-store.ts";
 
 export interface CoreResponse {
@@ -44,6 +44,7 @@ export function createSignedCoreClient(
 }
 
 export interface AssembleInput {
+  library: string;
   externalId?: string;
   name: string;
   principalId: string;
@@ -51,10 +52,10 @@ export interface AssembleInput {
 
 interface Assembled {
   status: "assembled";
+  library: string;
   projectId: string;
   projectScopeId: string;
   granted: string[];
-  missing: string[];
   reused: boolean;
 }
 
@@ -81,7 +82,7 @@ interface LibrarySkill {
   name: string;
 }
 
-async function resolveLibrarySkills(deps: AssembleDeps): Promise<{ found: LibrarySkill[]; missing: string[] }> {
+async function resolveLibrarySkills(deps: AssembleDeps, libraryScopeId: string): Promise<LibrarySkill[]> {
   const path = `/v1/skills?principalId=${encodeURIComponent(deps.cfg.libraryPrincipalId)}`;
   const response = await deps.core.call("GET", path);
   if (response.status !== 200) {
@@ -96,30 +97,22 @@ async function resolveLibrarySkills(deps: AssembleDeps): Promise<{ found: Librar
       code: "skill_list_failed",
     });
   }
-  const inLibrary = listed.filter(
-    (entry): entry is { id: string; name: string; scopeId: string } =>
-      typeof entry === "object" &&
-      entry !== null &&
-      typeof (entry as { id?: unknown }).id === "string" &&
-      typeof (entry as { name?: unknown }).name === "string" &&
-      (entry as { scopeId?: unknown }).scopeId === deps.cfg.libraryScopeId,
-  );
-  const found: LibrarySkill[] = [];
-  const missing: string[] = [];
-  if (!deps.cfg.skillNames.length) {
-    for (const entry of inLibrary) found.push({ id: entry.id, name: entry.name });
-    return { found, missing };
-  }
-  for (const name of deps.cfg.skillNames) {
-    const match = inLibrary.find((entry) => entry.name === name);
-    if (match) found.push({ id: match.id, name: match.name });
-    else missing.push(name);
-  }
-  return { found, missing };
+  return listed
+    .filter(
+      (entry): entry is { id: string; name: string; scopeId: string } =>
+        typeof entry === "object" &&
+        entry !== null &&
+        typeof (entry as { id?: unknown }).id === "string" &&
+        typeof (entry as { name?: unknown }).name === "string" &&
+        (entry as { status?: unknown }).status !== "archived" &&
+        (entry as { scopeId?: unknown }).scopeId === libraryScopeId,
+    )
+    .map((entry) => ({ id: entry.id, name: entry.name }));
 }
 
 async function ensureGrants(
   deps: AssembleDeps,
+  libraryScopeId: string,
   projectScopeId: string,
   skills: LibrarySkill[],
 ): Promise<{ granted: LibrarySkill[]; failed: Array<{ name: string; status: number; body: unknown }> }> {
@@ -127,7 +120,7 @@ async function ensureGrants(
   const failed: Array<{ name: string; status: number; body: unknown }> = [];
   for (const skill of skills) {
     const response = await deps.core.call("POST", "/v1/grants", {
-      ownerScopeId: deps.cfg.libraryScopeId,
+      ownerScopeId: libraryScopeId,
       ref: `skill:${skill.id}`,
       granteeScopeId: projectScopeId,
       permission: "read",
@@ -141,9 +134,17 @@ async function ensureGrants(
 
 export async function assembleProject(deps: AssembleDeps, input: AssembleInput): Promise<AssembleOutcome> {
   const now = deps.now ?? (() => Date.now());
-  let library: { found: LibrarySkill[]; missing: string[] };
+  const libraryScopeId = libraryScopeFor(deps.cfg, input.library);
+  if (!libraryScopeId) {
+    return {
+      status: "error",
+      code: "unknown_library",
+      message: `unknown library "${input.library}" (known: ${deps.cfg.libraries.map((binding) => binding.key).join(", ")})`,
+    };
+  }
+  let skills: LibrarySkill[];
   try {
-    library = await resolveLibrarySkills(deps);
+    skills = await resolveLibrarySkills(deps, libraryScopeId);
   } catch (e) {
     const err = e as Error & { code?: string; upstream?: { status: number; body: unknown } };
     return {
@@ -153,15 +154,15 @@ export async function assembleProject(deps: AssembleDeps, input: AssembleInput):
       ...(err.upstream ? { upstream: err.upstream } : {}),
     };
   }
-  if (!library.found.length) {
+  if (!skills.length) {
     return {
       status: "error",
       code: "library_empty",
-      message: `no skill available in library scope ${deps.cfg.libraryScopeId}`,
+      message: `no skill available in library "${input.library}"`,
     };
   }
 
-  const existing = input.externalId ? await deps.registry.get(input.externalId) : null;
+  const existing = input.externalId ? await deps.registry.get(input.externalId, input.library) : null;
   let projectId: string;
   let projectScopeId: string;
   let reused = false;
@@ -196,11 +197,12 @@ export async function assembleProject(deps: AssembleDeps, input: AssembleInput):
     projectScopeId = project.scopeId;
   }
 
-  const { granted, failed } = await ensureGrants(deps, projectScopeId, library.found);
+  const { granted, failed } = await ensureGrants(deps, libraryScopeId, projectScopeId, skills);
   const grantedNames = granted.map((skill) => skill.name);
   if (input.externalId) {
     await deps.registry.put({
       externalId: input.externalId,
+      library: input.library,
       projectId,
       projectScopeId,
       grantedSkillIds: granted.map((skill) => skill.id),
@@ -211,7 +213,7 @@ export async function assembleProject(deps: AssembleDeps, input: AssembleInput):
     return {
       status: "error",
       code: "grant_failed",
-      message: `${failed.length} of ${library.found.length} grants rejected: ${failed.map((f) => f.name).join(", ")}`,
+      message: `${failed.length} of ${skills.length} grants rejected: ${failed.map((f) => f.name).join(", ")}`,
       projectId,
       granted: grantedNames,
       upstream: { status: failed[0]!.status, body: failed[0]!.body },
@@ -219,10 +221,10 @@ export async function assembleProject(deps: AssembleDeps, input: AssembleInput):
   }
   return {
     status: "assembled",
+    library: input.library,
     projectId,
     projectScopeId,
     granted: grantedNames,
-    missing: library.missing,
     reused,
   };
 }

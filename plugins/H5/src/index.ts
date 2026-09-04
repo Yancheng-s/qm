@@ -43,8 +43,8 @@ const server = createServer((req, res) => {
 
 server.listen(PORT, () => {
   const port = (server.address() as AddressInfo).port;
-  const scope = profilesConfig.skillNames.length ? `${profilesConfig.skillNames.length} named skill(s)` : "every skill";
+  const libraries = profilesConfig.libraries.map((binding) => `${binding.key}=${binding.scopeId}`).join(", ");
   console.log(
-    `[h5] gateway on http://localhost:${port} (id sign-in issuer ${idLoginConfig.issuer}, key ${idLogin.kid}; assemble library ${profilesConfig.libraryScopeId}, ${scope})`,
+    `[h5] gateway on http://localhost:${port} (id sign-in issuer ${idLoginConfig.issuer}, key ${idLogin.kid}; assemble libraries ${libraries})`,
   );
 });
