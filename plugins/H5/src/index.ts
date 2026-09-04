@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net";
 import { json } from "../../chassis/src/http.ts";
 import { errMessage } from "../../chassis/src/errors.ts";
-import { portFromEnv } from "../../chassis/src/env.ts";
+import { CORE_SIGNING_SECRET, portFromEnv } from "../../chassis/src/env.ts";
 import { bootIdLogin, bootProblems as idLoginBootProblems, readConfig as readIdLoginConfig } from "./idlogin/server.ts";
 import { bootProfiles } from "./profiles/server.ts";
 import { bootProblems as profilesBootProblems, readConfig as readProfilesConfig } from "./profiles/config.ts";
@@ -12,7 +12,11 @@ const PORT = portFromEnv(8193);
 const env = process.env;
 const idLoginConfig = readIdLoginConfig(env);
 const profilesConfig = readProfilesConfig(env);
-const problems = [...idLoginBootProblems(idLoginConfig), ...profilesBootProblems(profilesConfig)];
+const problems = [
+  ...idLoginBootProblems(idLoginConfig),
+  ...profilesBootProblems(profilesConfig),
+  ...(CORE_SIGNING_SECRET ? [] : ["CORE_SIGNING_SECRET is required"]),
+];
 if (problems.length) {
   for (const item of problems) console.error(`[h5] FATAL: ${item}`);
   throw new Error(`h5 refusing to start: ${problems.length} misconfiguration(s)`);

@@ -153,7 +153,6 @@ export async function assembleEnv(opts: {
   }
   for (const k of [
     "SURFACE_DEBUG_FOOTER",
-    "PROFILES_ASSEMBLE_KEY",
     "PROFILES_LIBRARY_SCOPE",
     "PROFILES_LIBRARY_PRINCIPAL",
     "PROFILES_SKILL_NAMES",

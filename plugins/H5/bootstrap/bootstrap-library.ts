@@ -254,7 +254,7 @@ export function adminActorHeader(principalId: string, orgId: string): string {
 async function runCli(): Promise<void> {
   const parsed = parseBootstrapArgs(process.argv.slice(2), process.env);
   if ("problem" in parsed) {
-    console.error(`[profiles-bootstrap] ${parsed.problem}`);
+    console.error(`[h5-bootstrap] ${parsed.problem}`);
     console.error(
       "usage: node bootstrap/bootstrap-library.ts --url <git repository> --name <library project> [--admin <principalId>] [--ref <git ref>] [--skill <name>]...",
     );
@@ -270,7 +270,7 @@ async function runCli(): Promise<void> {
   );
   const outcome = await bootstrapLibrary({ core, adminCore }, parsed);
   console.log(JSON.stringify(outcome, null, 2));
-  if (outcome.status === "bootstrapped") console.error(`[profiles-bootstrap] library scope: ${outcome.projectScopeId}`);
+  if (outcome.status === "bootstrapped") console.error(`[h5-bootstrap] library scope: ${outcome.projectScopeId}`);
   else process.exitCode = 1;
 }
 

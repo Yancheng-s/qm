@@ -403,28 +403,26 @@ test("h5 child defaults the library to the dev org and honors overrides", () => 
     runStore: "memory",
     databaseUrl: "postgres://dev",
     adminGrantsSeed: "",
-    coreSigningSecret: "",
+    coreSigningSecret: "dev-core-signing-secret",
     portalSessionSecret: "secret",
     sandboxEnv: {},
   };
   const h5 = buildChildSpecs(inputs).find((spec) => spec.name === "h5")!;
   assert.equal(h5.env.PROFILES_LIBRARY_SCOPE, "org:acme");
   assert.equal(h5.env.PROFILES_LIBRARY_PRINCIPAL, "dev-admin");
-  assert.ok((h5.env.PROFILES_ASSEMBLE_KEY ?? "").length >= 32);
-  assert.ok((h5.env.IDLOGIN_API_KEY ?? "").length >= 32);
+  assert.equal(h5.env.CORE_SIGNING_SECRET, "dev-core-signing-secret");
   assert.equal(h5.env.DATABASE_URL, "postgres://dev");
   inputs.baseEnv = {
     DEV_INSTANCE_ORG_ID: "beta",
     PROFILES_LIBRARY_SCOPE: "group:web-project-lib",
     PROFILES_LIBRARY_PRINCIPAL: "app_admin",
     PROFILES_SKILL_NAMES: "space-xhs-title",
-    IDLOGIN_API_KEY: "h5-app-key-0123456789abcdef0123456789",
   };
   const overridden = buildChildSpecs(inputs).find((spec) => spec.name === "h5")!;
   assert.equal(overridden.env.PROFILES_LIBRARY_SCOPE, "group:web-project-lib");
   assert.equal(overridden.env.PROFILES_LIBRARY_PRINCIPAL, "app_admin");
   assert.equal(overridden.env.PROFILES_SKILL_NAMES, "space-xhs-title");
-  assert.equal(overridden.env.IDLOGIN_API_KEY, "h5-app-key-0123456789abcdef0123456789");
+  assert.equal(overridden.env.CORE_ORG_ID, "beta");
 });
 
 test("formatAge renders the bash-compatible shapes", () => {

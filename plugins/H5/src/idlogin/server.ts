@@ -13,6 +13,7 @@ import { readBody, PayloadTooLargeError, escapeHtml, serveEmojiFavicon } from ".
 import { signedHeaders, withSourceAuthNonce } from "../../../chassis/src/core-client.ts";
 import { errMessage } from "../../../chassis/src/errors.ts";
 import { CORE_API_URL, CORE_SIGNING_SECRET } from "../../../chassis/src/env.ts";
+import { readSignedBody } from "../signed-request.ts";
 import { createMemoryUserRegistry, createPostgresUserRegistry, type UserRegistry } from "./users.ts";
 
 export interface IdLoginConfig {
@@ -20,7 +21,6 @@ export interface IdLoginConfig {
   clientId: string;
   clientSecret: string;
   redirectUri: string;
-  apiKey: string;
   allowedIds: readonly string[];
   brandName: string;
   requestTtlS: number;
@@ -34,7 +34,6 @@ export function readConfig(env: NodeJS.ProcessEnv): IdLoginConfig {
     clientId: env.IDLOGIN_CLIENT_ID?.trim() ?? "",
     clientSecret: env.IDLOGIN_CLIENT_SECRET ?? "",
     redirectUri: env.IDLOGIN_REDIRECT_URI?.trim() ?? "",
-    apiKey: env.IDLOGIN_API_KEY?.trim() ?? "",
     allowedIds: (env.IDLOGIN_ALLOWED_IDS ?? "")
       .split(",")
       .map((entry) => entry.trim())
@@ -56,8 +55,6 @@ export function bootProblems(cfg: IdLoginConfig): string[] {
   require("IDLOGIN_REDIRECT_URI", cfg.redirectUri);
   if (!cfg.clientSecret.trim()) problems.push("IDLOGIN_CLIENT_SECRET is required");
   else if (cfg.clientSecret.trim().length < 32) problems.push("IDLOGIN_CLIENT_SECRET must be at least 32 characters");
-  if (!cfg.apiKey) problems.push("IDLOGIN_API_KEY is required");
-  else if (cfg.apiKey.length < 32) problems.push("IDLOGIN_API_KEY must be at least 32 characters");
   return problems;
 }
 
@@ -111,12 +108,6 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(left, right);
 }
 
-function bearerToken(header: string | undefined): string | null {
-  if (!header || !/^bearer /i.test(header)) return null;
-  const token = header.slice(7).trim();
-  return token || null;
-}
-
 function pkceMatches(codeVerifier: string, codeChallenge: string): boolean {
   if (codeVerifier.length < 43 || codeVerifier.length > 128 || !/^[A-Za-z0-9\-._~]+$/.test(codeVerifier)) return false;
   return safeEqual(createHash("sha256").update(codeVerifier).digest("base64url"), codeChallenge);
@@ -140,6 +131,7 @@ export interface IdLoginDeps {
   cfg: IdLoginConfig;
   signingKey: SigningKey;
   sealSecret: Uint8Array;
+  signingSecret: string | undefined;
   users: UserRegistry;
   pushDirectory?: (members: DirectoryMemberPush[]) => Promise<void>;
 }
@@ -497,25 +489,17 @@ export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, 
     res.end();
   }
 
-  async function login(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const token = bearerToken(req.headers.authorization);
-    if (!token || !safeEqual(token, cfg.apiKey)) {
-      res.writeHead(
-        401,
-        noStore({ "content-type": "application/json", "www-authenticate": 'Bearer realm="qm-idlogin"' }),
-      );
-      return void res.end(JSON.stringify({ error: "invalid_key" }));
-    }
-    let raw: string;
-    try {
-      raw = await readBody(req, MAX_BODY_BYTES);
-    } catch (e) {
-      if (e instanceof PayloadTooLargeError) return sendJson(res, 413, { error: "payload_too_large" });
-      throw e;
-    }
+  async function login(req: IncomingMessage, res: ServerResponse, pathWithQuery: string): Promise<void> {
+    const signed = await readSignedBody(req, {
+      secret: deps.signingSecret,
+      method: "POST",
+      pathWithQuery,
+      maxBytes: MAX_BODY_BYTES,
+    });
+    if (!signed.ok) return sendJson(res, signed.status, signed.body);
     let parsed: unknown;
     try {
-      parsed = JSON.parse(raw);
+      parsed = JSON.parse(signed.raw);
     } catch {
       return sendJson(res, 400, { error: "bad_json" });
     }
@@ -647,7 +631,7 @@ export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, 
     if (method === "GET" && path === "/.well-known/openid-configuration") return discovery(res);
     if (method === "GET" && path === "/authorize") return authorizeForm(res, url.searchParams);
     if (method === "POST" && path === "/authorize") return authorizeSubmit(req, res);
-    if (method === "POST" && path === "/login") return login(req, res);
+    if (method === "POST" && path === "/login") return login(req, res, path + url.search);
     if (method === "POST" && path === "/token") return token(req, res);
     if ((method === "GET" || method === "POST") && path === "/userinfo") return userinfo(req, res);
     return sendJson(res, 404, { error: "not_found" });
@@ -682,6 +666,7 @@ export async function bootIdLogin(
     cfg,
     signingKey,
     sealSecret: randomBytes(32),
+    signingSecret: CORE_SIGNING_SECRET,
     users,
     pushDirectory: createDirectoryPusher(),
   });

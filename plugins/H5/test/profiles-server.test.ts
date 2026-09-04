@@ -1,11 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
+import { signedRequestHeaders } from "../../chassis/src/core-client.ts";
 import { createProfilesHandler } from "../src/profiles/server.ts";
 import { createMemoryAssemblyRegistry } from "../src/profiles/assemble-store.ts";
 import type { CoreClient } from "../src/profiles/assemble.ts";
 
-const KEY = "profiles-test-key-0123456789abcdef";
+const SECRET = "profiles-test-signing-secret-0123456789";
+
+function signedPost(
+  pathWithQuery: string,
+  body: string,
+  opts: { secret?: string; nowSec?: number } = {},
+): { method: string; body: string; headers: Record<string, string> } {
+  const headers = signedRequestHeaders(
+    opts.secret ?? SECRET,
+    "POST",
+    pathWithQuery,
+    body,
+    { "content-type": "application/json" },
+    opts.nowSec,
+  );
+  return { method: "POST", body, headers };
+}
 
 function stubCore(): CoreClient {
   return {
@@ -25,11 +42,11 @@ function stubCore(): CoreClient {
 async function withServer(run: (base: string) => Promise<void>): Promise<void> {
   const handler = createProfilesHandler({
     cfg: {
-      assembleKey: KEY,
       libraryScopeId: "group:web-project-lib",
       libraryPrincipalId: "app_admin",
       skillNames: ["space-xhs-title"],
     },
+    signingSecret: SECRET,
     core: stubCore(),
     registry: createMemoryAssemblyRegistry(),
   });
@@ -46,27 +63,48 @@ async function withServer(run: (base: string) => Promise<void>): Promise<void> {
   }
 }
 
-test("assemble rejects a missing or wrong key", async () => {
+test("assemble rejects a request the signing secret does not cover", async () => {
   await withServer(async (base) => {
     const body = JSON.stringify({ name: "p", principalId: "app_u1" });
-    const noKey = await fetch(`${base}/assemble`, { method: "POST", body });
-    assert.equal(noKey.status, 401);
-    const wrongKey = await fetch(`${base}/assemble`, {
-      method: "POST",
-      body,
-      headers: { authorization: "Bearer nope" },
+
+    const unsigned = await fetch(`${base}/assemble`, { method: "POST", body });
+    assert.equal(unsigned.status, 401);
+    assert.deepEqual(await unsigned.json(), {
+      error: "unauthorized",
+      message: "missing signature (unsigned request)",
     });
-    assert.equal(wrongKey.status, 401);
+
+    const wrongSecret = await fetch(`${base}/assemble`, signedPost("/assemble", body, { secret: "other-secret" }));
+    assert.equal(wrongSecret.status, 401);
+    assert.deepEqual(await wrongSecret.json(), { error: "unauthorized", message: "signature mismatch" });
+
+    const stale = await fetch(
+      `${base}/assemble`,
+      signedPost("/assemble", body, { nowSec: Math.floor(Date.now() / 1000) - 3600 }),
+    );
+    assert.equal(stale.status, 401);
+    assert.deepEqual(await stale.json(), { error: "unauthorized", message: "stale timestamp (replay protection)" });
+
+    const tampered = await fetch(`${base}/assemble`, {
+      ...signedPost("/assemble", body),
+      body: JSON.stringify({ name: "p", principalId: "app_u2" }),
+    });
+    assert.equal(tampered.status, 401);
+    assert.deepEqual(await tampered.json(), { error: "unauthorized", message: "signature mismatch" });
+
+    const otherPath = await fetch(`${base}/assemble?nonce=1`, signedPost("/assemble", body));
+    assert.equal(otherPath.status, 401);
+    assert.deepEqual(await otherPath.json(), { error: "unauthorized", message: "signature mismatch" });
   });
 });
 
 test("assemble validates the body before touching core", async () => {
   await withServer(async (base) => {
-    const r = await fetch(`${base}/assemble`, {
-      method: "POST",
-      body: JSON.stringify({ principalId: "app_u1" }),
-      headers: { authorization: `Bearer ${KEY}` },
-    });
+    const badJson = await fetch(`${base}/assemble`, signedPost("/assemble", "{"));
+    assert.equal(badJson.status, 400);
+    assert.deepEqual(await badJson.json(), { error: "bad_json" });
+
+    const r = await fetch(`${base}/assemble`, signedPost("/assemble", JSON.stringify({ principalId: "app_u1" })));
     assert.equal(r.status, 400);
     const parsed = (await r.json()) as { error: string };
     assert.equal(parsed.error, "bad_request");
@@ -75,11 +113,10 @@ test("assemble validates the body before touching core", async () => {
 
 test("assemble returns the assembled project", async () => {
   await withServer(async (base) => {
-    const r = await fetch(`${base}/assemble`, {
-      method: "POST",
-      body: JSON.stringify({ name: "张三的运营项目", principalId: "app_u1", externalId: "mini-1" }),
-      headers: { authorization: `Bearer ${KEY}`, "content-type": "application/json" },
-    });
+    const r = await fetch(
+      `${base}/assemble`,
+      signedPost("/assemble", JSON.stringify({ name: "张三的运营项目", principalId: "app_u1", externalId: "mini-1" })),
+    );
     assert.equal(r.status, 200);
     const parsed = (await r.json()) as {
       status: string;

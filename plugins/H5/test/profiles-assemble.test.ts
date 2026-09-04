@@ -44,7 +44,6 @@ function createFakeCore(opts: {
 }
 
 const cfg: ProfilesConfig = {
-  assembleKey: "k".repeat(40),
   libraryScopeId: "group:web-project-lib",
   libraryPrincipalId: "app_admin",
   skillNames: ["space-xhs-title", "space-xhs-cover", "space-xhs-missing"],

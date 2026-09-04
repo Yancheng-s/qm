@@ -1,7 +1,6 @@
 import { type IncomingMessage, type ServerResponse } from "node:http";
-import { createHash, timingSafeEqual } from "node:crypto";
-import { readBody, PayloadTooLargeError } from "../../../chassis/src/http.ts";
 import { CORE_API_URL, CORE_SIGNING_SECRET } from "../../../chassis/src/env.ts";
+import { readSignedBody } from "../signed-request.ts";
 import type { ProfilesConfig } from "./config.ts";
 import {
   assembleProject,
@@ -22,20 +21,9 @@ const MAX_ID_CHARS = 200;
 
 export interface ProfilesDeps {
   cfg: ProfilesConfig;
+  signingSecret: string | undefined;
   core: CoreClient;
   registry: AssemblyRegistry;
-}
-
-function safeEqual(a: string, b: string): boolean {
-  const left = createHash("sha256").update(a, "utf8").digest();
-  const right = createHash("sha256").update(b, "utf8").digest();
-  return timingSafeEqual(left, right);
-}
-
-function bearerToken(header: string | undefined): string | null {
-  if (!header || !/^bearer /i.test(header)) return null;
-  const token = header.slice(7).trim();
-  return token || null;
 }
 
 function noStore(): Record<string, string> {
@@ -77,21 +65,16 @@ export function createProfilesHandler(
     const url = new URL(req.url ?? "/", "http://h5.local");
 
     if (method === "POST" && url.pathname === "/assemble") {
-      const token = bearerToken(req.headers.authorization);
-      if (!token || !safeEqual(token, deps.cfg.assembleKey)) {
-        res.writeHead(401, { ...noStore(), "www-authenticate": 'Bearer realm="qm-profiles"' });
-        return void res.end(JSON.stringify({ error: "invalid_key" }));
-      }
-      let raw: string;
-      try {
-        raw = await readBody(req, MAX_BODY_BYTES);
-      } catch (e) {
-        if (e instanceof PayloadTooLargeError) return sendJson(res, 413, { error: "payload_too_large" });
-        throw e;
-      }
+      const signed = await readSignedBody(req, {
+        secret: deps.signingSecret,
+        method,
+        pathWithQuery: url.pathname + url.search,
+        maxBytes: MAX_BODY_BYTES,
+      });
+      if (!signed.ok) return sendJson(res, signed.status, signed.body);
       let parsed: unknown;
       try {
-        parsed = JSON.parse(raw);
+        parsed = JSON.parse(signed.raw);
       } catch {
         return sendJson(res, 400, { error: "bad_json" });
       }
@@ -111,5 +94,5 @@ export async function bootProfiles(
 ): Promise<(req: IncomingMessage, res: ServerResponse) => Promise<void>> {
   const registry = databaseUrl ? await createPostgresAssemblyRegistry(databaseUrl) : createMemoryAssemblyRegistry();
   const core = createSignedCoreClient(CORE_API_URL, CORE_SIGNING_SECRET);
-  return createProfilesHandler({ cfg, core, registry });
+  return createProfilesHandler({ cfg, signingSecret: CORE_SIGNING_SECRET, core, registry });
 }
