@@ -2,19 +2,23 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net";
 import { json } from "../../chassis/src/http.ts";
 import { errMessage } from "../../chassis/src/errors.ts";
-import { CORE_SIGNING_SECRET, portFromEnv } from "../../chassis/src/env.ts";
+import { CORE_SIGNING_SECRET, PORTAL_IDENTITY_SECRET, portFromEnv } from "../../chassis/src/env.ts";
 import { bootIdLogin, bootProblems as idLoginBootProblems, readConfig as readIdLoginConfig } from "./idlogin/server.ts";
 import { bootProfiles } from "./profiles/server.ts";
 import { bootProblems as profilesBootProblems, readConfig as readProfilesConfig } from "./profiles/config.ts";
+import { bootBridge } from "./bridge/server.ts";
+import { bootProblems as bridgeBootProblems, readConfig as readBridgeConfig } from "./bridge/config.ts";
 
 const PORT = portFromEnv(8193);
 
 const env = process.env;
 const idLoginConfig = readIdLoginConfig(env);
 const profilesConfig = readProfilesConfig(env);
+const bridgeConfig = readBridgeConfig(env);
 const problems = [
   ...idLoginBootProblems(idLoginConfig),
   ...profilesBootProblems(profilesConfig),
+  ...bridgeBootProblems(bridgeConfig),
   ...(CORE_SIGNING_SECRET ? [] : ["CORE_SIGNING_SECRET is required"]),
 ];
 if (problems.length) {
@@ -24,12 +28,18 @@ if (problems.length) {
 
 const idLogin = await bootIdLogin(idLoginConfig, env.DATABASE_URL);
 const profiles = await bootProfiles(profilesConfig, env.DATABASE_URL);
+const bridge = bootBridge({
+  webUiApiUrl: bridgeConfig.webUiApiUrl,
+  signingSecret: CORE_SIGNING_SECRET,
+  identitySecret: PORTAL_IDENTITY_SECRET ?? "",
+});
 
 const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
   const method = req.method ?? "GET";
   const { pathname } = new URL(req.url ?? "/", `http://localhost:${PORT}`);
   if (method === "GET" && pathname === "/healthz") return json(res, 200, { ok: true });
   if (method === "POST" && pathname === "/assemble") return profiles(req, res);
+  if (pathname === "/me" || pathname.startsWith("/api/")) return bridge.handle(req, res);
   return idLogin.handle(req, res);
 };
 

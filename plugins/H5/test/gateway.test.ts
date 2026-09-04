@@ -17,6 +17,7 @@ const VALID_ENV = {
   IDLOGIN_REDIRECT_URI: "http://h5.test/auth/callback",
   PROFILES_LIBRARY_SCOPES: "xhs=group:web-project-lib",
   PROFILES_LIBRARY_PRINCIPAL: "app_admin",
+  WEB_UI_API_URL: "http://127.0.0.1:9",
   CORE_SIGNING_SECRET: SIGNING_SECRET,
 };
 

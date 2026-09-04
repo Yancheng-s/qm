@@ -104,6 +104,7 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         IDLOGIN_CLIENT_ID,
         IDLOGIN_CLIENT_SECRET,
         IDLOGIN_REDIRECT_URI: `http://localhost:${i.ports.portal}/auth/callback`,
+        WEB_UI_API_URL: `http://localhost:${i.ports.web}`,
         PROFILES_LIBRARY_SCOPES: i.baseEnv.PROFILES_LIBRARY_SCOPES || `dev=org:${orgId}`,
         PROFILES_LIBRARY_PRINCIPAL: i.baseEnv.PROFILES_LIBRARY_PRINCIPAL || PROFILES_DEV_LIBRARY_PRINCIPAL,
       },
