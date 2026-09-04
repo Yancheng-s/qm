@@ -19,6 +19,7 @@ function createFakeCore(opts: {
   skills: Array<{ id: string; name: string; scopeId: string; status?: string }>;
   projectStatus?: number;
   failGrantRefs?: string[];
+  soulStatus?: number;
 }): FakeCore {
   const calls: Recorded[] = [];
   let projects = 0;
@@ -37,6 +38,10 @@ function createFakeCore(opts: {
         const ref = (body as { ref: string }).ref;
         if (opts.failGrantRefs?.includes(ref)) return { status: 400, json: { error: "grant_failed" } };
         return { status: 200, json: { ok: true } };
+      }
+      if (method === "POST" && path === "/v1/soul") {
+        const status = opts.soulStatus ?? 200;
+        return status === 200 ? { status, json: { ok: true, version: 1 } } : { status, json: { error: "denied" } };
       }
       return { status: 404, json: { error: "not_found" } };
     },
@@ -264,4 +269,74 @@ test("skill listing failure is reported, not swallowed", async () => {
   if (outcome.status !== "error") return;
   assert.equal(outcome.code, "skill_list_failed");
   assert.equal(outcome.upstream?.status, 500);
+});
+
+test("writes the persona to the project scope when soul is provided", async () => {
+  const core = createFakeCore({ skills: librarySkills });
+  const outcome = await assembleProject(
+    { core: core.client, cfg, registry: createMemoryAssemblyRegistry() },
+    { library: "xhs", name: "张三的运营项目", principalId: "app_u1", soul: "你是小红书运营数字员工" },
+  );
+  assert.equal(outcome.status, "assembled");
+  const soulCall = core.calls.find((c) => c.path === "/v1/soul");
+  assert.deepEqual(soulCall?.body, {
+    scopeId: "group:web-project-1",
+    content: "你是小红书运营数字员工",
+    actorId: "app_u1",
+  });
+});
+
+test("omits the soul write when no persona is provided", async () => {
+  const core = createFakeCore({ skills: librarySkills });
+  const outcome = await assembleProject(
+    { core: core.client, cfg, registry: createMemoryAssemblyRegistry() },
+    { library: "xhs", name: "p", principalId: "app_u1" },
+  );
+  assert.equal(outcome.status, "assembled");
+  assert.equal(
+    core.calls.some((c) => c.path === "/v1/soul"),
+    false,
+  );
+});
+
+test("a rejected soul write surfaces soul_failed with the project already built and stored", async () => {
+  const registry = createMemoryAssemblyRegistry();
+  const core = createFakeCore({ skills: librarySkills, soulStatus: 403 });
+  const outcome = await assembleProject(
+    { core: core.client, cfg, registry },
+    { library: "xhs", externalId: "miniapp-soul", name: "p", principalId: "app_u1", soul: "人格" },
+  );
+  assert.equal(outcome.status, "error");
+  if (outcome.status !== "error") return;
+  assert.equal(outcome.code, "soul_failed");
+  assert.equal(outcome.projectId, "web-project-1");
+  assert.deepEqual(outcome.granted, ["space-xhs-title", "space-xhs-cover"]);
+  assert.equal(outcome.upstream?.status, 403);
+  assert.equal((await registry.get("miniapp-soul", "xhs"))?.projectId, "web-project-1");
+});
+
+test("a replayed assembly overwrites the persona on the existing project scope", async () => {
+  const registry = createMemoryAssemblyRegistry();
+  await registry.put({
+    externalId: "miniapp-42",
+    library: "xhs",
+    projectId: "web-project-existing",
+    projectScopeId: "group:web-project-existing",
+    grantedSkillIds: [],
+    at: 1,
+  });
+  const core = createFakeCore({ skills: librarySkills });
+  const outcome = await assembleProject(
+    { core: core.client, cfg, registry },
+    { library: "xhs", externalId: "miniapp-42", name: "ignored", principalId: "app_u1", soul: "新人格" },
+  );
+  assert.equal(outcome.status, "assembled");
+  if (outcome.status !== "assembled") return;
+  assert.equal(outcome.reused, true);
+  const soulCall = core.calls.find((c) => c.path === "/v1/soul");
+  assert.deepEqual(soulCall?.body, {
+    scopeId: "group:web-project-existing",
+    content: "新人格",
+    actorId: "app_u1",
+  });
 });

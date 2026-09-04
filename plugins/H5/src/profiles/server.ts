@@ -51,7 +51,8 @@ function parseAssembleInput(raw: unknown): AssembleInput | { problem: string } {
   if (!principalId || principalId.length > MAX_ID_CHARS) return { problem: "principalId is required (max 200 chars)" };
   const externalId = typeof body.externalId === "string" ? body.externalId.trim() : "";
   if (externalId.length > MAX_ID_CHARS) return { problem: "externalId too long (max 200 chars)" };
-  return { library, name, principalId, ...(externalId ? { externalId } : {}) };
+  const soul = typeof body.soul === "string" ? body.soul.trim() : "";
+  return { library, name, principalId, ...(externalId ? { externalId } : {}), ...(soul ? { soul } : {}) };
 }
 
 function outcomeStatus(outcome: AssembleOutcome): number {

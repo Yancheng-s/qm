@@ -195,6 +195,37 @@ test("assemble returns the assembled project", async () => {
   });
 });
 
+test("assemble forwards the persona to the core soul endpoint", async () => {
+  await withServer(async (base, calls) => {
+    const r = await fetch(
+      `${base}/assemble`,
+      signedPost(
+        "/assemble",
+        JSON.stringify({ library: "xhs", name: "张三的运营项目", principalId: "app_u1", soul: "你是小红书运营" }),
+      ),
+    );
+    assert.equal(r.status, 200);
+    assert.equal(
+      calls.some((c) => c.method === "POST" && c.path === "/v1/soul"),
+      true,
+    );
+  });
+});
+
+test("assemble without a persona never calls the soul endpoint", async () => {
+  await withServer(async (base, calls) => {
+    const r = await fetch(
+      `${base}/assemble`,
+      signedPost("/assemble", JSON.stringify({ library: "xhs", name: "p", principalId: "app_u1" })),
+    );
+    assert.equal(r.status, 200);
+    assert.equal(
+      calls.some((c) => c.path === "/v1/soul"),
+      false,
+    );
+  });
+});
+
 test("unknown routes 404", async () => {
   await withServer(async (base) => {
     const r = await fetch(`${base}/nope`);

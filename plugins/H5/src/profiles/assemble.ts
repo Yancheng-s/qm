@@ -48,6 +48,7 @@ export interface AssembleInput {
   externalId?: string;
   name: string;
   principalId: string;
+  soul?: string;
 }
 
 interface Assembled {
@@ -218,6 +219,23 @@ export async function assembleProject(deps: AssembleDeps, input: AssembleInput):
       granted: grantedNames,
       upstream: { status: failed[0]!.status, body: failed[0]!.body },
     };
+  }
+  if (input.soul) {
+    const soulResponse = await deps.core.call("POST", "/v1/soul", {
+      scopeId: projectScopeId,
+      content: input.soul,
+      actorId: input.principalId,
+    });
+    if (soulResponse.status !== 200) {
+      return {
+        status: "error",
+        code: "soul_failed",
+        message: `core rejected the SOUL write with ${soulResponse.status}`,
+        projectId,
+        granted: grantedNames,
+        upstream: { status: soulResponse.status, body: soulResponse.json },
+      };
+    }
   }
   return {
     status: "assembled",
