@@ -124,6 +124,7 @@ test("the whole protocol closes against a stub core", async () => {
         employee: { id: "web-project-1", scopeId: "group:web-project-1", name: "Support" },
         skills: [{ name: "triage", ok: true }],
         soul: true,
+        standingOrders: false,
       });
 
       const outbound = core.calls.find((call) => call.path === "/v1/projects" && call.method === "POST");

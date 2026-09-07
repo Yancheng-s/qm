@@ -4,6 +4,7 @@ import {
   MAX_NAME_CHARS,
   MAX_SKILLS,
   MAX_SOUL_BYTES,
+  MAX_STANDING_ORDERS_CHARS,
   assembleEmployee,
   parseAssembleBody,
   type AssembleInput,
@@ -23,6 +24,7 @@ function skill(
 interface CoreOptions {
   skillStatuses?: Record<string, number>;
   soulStatus?: number;
+  policyStatus?: number;
   projectStatus?: number;
   projectUnreachable?: boolean;
 }
@@ -46,6 +48,12 @@ function stubCore(options: CoreOptions = {}): ReturnType<typeof recordingCore> {
       );
     }
     if (call.path === "/v1/soul") return ok(options.soulStatus ?? 200, { ok: true, version: 1 });
+    if (call.path === "/v1/contexts/policy") {
+      const body = call.body as { orders?: string };
+      return ok(options.policyStatus ?? 200, {
+        policy: { orders: body.orders ?? "", bots: {}, ambientEnabled: null, updatedAt: 1 },
+      });
+    }
     return ok(404, { error: "not_found" });
   };
   return recordingCore(script);
@@ -141,6 +149,60 @@ test("a failed soul leaves the employee valid and reports the reason", async () 
   assert.equal(outcome.soulError, "core replied 403");
 });
 
+test("standing orders are written to the context policy after the soul", async () => {
+  const core = stubCore();
+  const outcome = await assembleEmployee(core.factory(PRINCIPAL), {
+    principalId: PRINCIPAL,
+    name: "Support",
+    skills: [skill("one")],
+    soul: "Be terse.",
+    standingOrders: "Your name is Red.",
+  });
+
+  assert.deepEqual(
+    core.calls.map((call) => call.path),
+    ["/v1/projects", "/v1/skills", "/v1/soul", "/v1/contexts/policy"],
+  );
+  assert.deepEqual(bodies(core.calls, "/v1/contexts/policy"), [
+    { principalId: PRINCIPAL, scope: "group:web-project-1", orders: "Your name is Red." },
+  ]);
+  assert.equal(outcome.status, "assembled");
+  if (outcome.status !== "assembled") return;
+  assert.equal(outcome.standingOrders, true);
+  assert.equal(outcome.standingOrdersError, undefined);
+});
+
+test("standing orders are skipped entirely when the request carries none", async () => {
+  const core = stubCore();
+  const outcome = await assembleEmployee(core.factory(PRINCIPAL), {
+    principalId: PRINCIPAL,
+    name: "Support",
+    skills: [],
+  });
+  assert.deepEqual(
+    core.calls.map((call) => call.path),
+    ["/v1/projects"],
+  );
+  assert.equal(outcome.status, "assembled");
+  if (outcome.status !== "assembled") return;
+  assert.equal(outcome.standingOrders, false);
+  assert.equal(outcome.standingOrdersError, undefined);
+});
+
+test("a rejected context policy leaves the employee valid and reports the reason", async () => {
+  const core = stubCore({ policyStatus: 403 });
+  const outcome = await assembleEmployee(core.factory(PRINCIPAL), {
+    principalId: PRINCIPAL,
+    name: "Support",
+    skills: [],
+    standingOrders: "Your name is Red.",
+  });
+  assert.equal(outcome.status, "assembled");
+  if (outcome.status !== "assembled") return;
+  assert.equal(outcome.standingOrders, false);
+  assert.equal(outcome.standingOrdersError, "core replied 403");
+});
+
 test("a project failure produces no state at all", async () => {
   const unreachableCore = stubCore({ projectUnreachable: true });
   const failed = await assembleEmployee(unreachableCore.factory(PRINCIPAL), {
@@ -232,10 +294,15 @@ test("parseAssembleBody refuses malformed requests before any core call", () => 
   );
   assert.match(problemOf({ name: "ok", soul: 42 }), /soul must be a string/);
   assert.match(problemOf({ name: "ok", soul: "x".repeat(MAX_SOUL_BYTES + 1) }), /soul exceeds/);
+  assert.match(problemOf({ name: "ok", standingOrders: 42 }), /standingOrders must be a string/);
+  assert.match(
+    problemOf({ name: "ok", standingOrders: "x".repeat(MAX_STANDING_ORDERS_CHARS + 1) }),
+    /standingOrders exceeds/,
+  );
 });
 
 test("parseAssembleBody accepts a valid request and drops an empty soul", () => {
-  const parsed = parseAssembleBody({ name: " Support ", skills: [skill("one")], soul: "" });
+  const parsed = parseAssembleBody({ name: " Support ", skills: [skill("one")], soul: "", standingOrders: "" });
   assert.equal(parsed.ok, true);
   if (!parsed.ok) return;
   assert.deepEqual(parsed.request, { name: "Support", skills: [skill("one")] });

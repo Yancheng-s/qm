@@ -6,11 +6,13 @@ import type { Ctx } from "./index.ts";
 export const MAX_NAME_CHARS = 200;
 export const MAX_SKILLS = 20;
 export const MAX_SOUL_BYTES = 8 * 1024;
+export const MAX_STANDING_ORDERS_CHARS = 20_000;
 
 interface AssembleRequest {
   name: string;
   skills: readonly SkillInput[];
   soul?: string;
+  standingOrders?: string;
 }
 
 export interface AssembleInput extends AssembleRequest {
@@ -30,6 +32,8 @@ export type AssembleOutcome =
       skills: readonly SkillOutcome[];
       soul: boolean;
       soulError?: string;
+      standingOrders: boolean;
+      standingOrdersError?: string;
     }
   | { status: "failed"; problem: Problem };
 
@@ -52,6 +56,18 @@ export function parseAssembleBody(body: Record<string, unknown>): AssembleParse 
     soul = body.soul;
   }
 
+  let standingOrders: string | undefined;
+  if (body.standingOrders !== undefined && body.standingOrders !== null && body.standingOrders !== "") {
+    if (typeof body.standingOrders !== "string")
+      return { ok: false, problem: problem(400, "bad_request", "standingOrders must be a string") };
+    if (body.standingOrders.length > MAX_STANDING_ORDERS_CHARS)
+      return {
+        ok: false,
+        problem: problem(400, "bad_request", `standingOrders exceeds ${MAX_STANDING_ORDERS_CHARS} characters`),
+      };
+    standingOrders = body.standingOrders;
+  }
+
   const listed = body.skills ?? [];
   if (!Array.isArray(listed)) return { ok: false, problem: problem(400, "bad_request", "skills must be an array") };
   if (listed.length > MAX_SKILLS)
@@ -71,7 +87,10 @@ export function parseAssembleBody(body: Record<string, unknown>): AssembleParse 
     skills.push(parsed.skill);
   }
 
-  return { ok: true, request: { name, skills, ...(soul ? { soul } : {}) } };
+  return {
+    ok: true,
+    request: { name, skills, ...(soul ? { soul } : {}), ...(standingOrders ? { standingOrders } : {}) },
+  };
 }
 
 function failureMessage(outcome: CoreOutcome): string {
@@ -123,12 +142,26 @@ export async function assembleEmployee(core: CoreCall, input: AssembleInput): Pr
     else soulError = failureMessage(outcome);
   }
 
+  let standingOrders = false;
+  let standingOrdersError: string | undefined;
+  if (input.standingOrders) {
+    const outcome = await core("PUT", "/v1/contexts/policy", {
+      principalId: input.principalId,
+      scope: scopeId,
+      orders: input.standingOrders,
+    });
+    if (outcome.ok && outcome.status === 200) standingOrders = true;
+    else standingOrdersError = failureMessage(outcome);
+  }
+
   return {
     status: "assembled",
     employee: { id: projectId, scopeId, name: input.name },
     skills,
     soul,
     ...(soulError ? { soulError } : {}),
+    standingOrders,
+    ...(standingOrdersError ? { standingOrdersError } : {}),
   };
 }
 
@@ -142,5 +175,7 @@ export async function handleAssemble(c: Ctx): Promise<void> {
     skills: outcome.skills,
     soul: outcome.soul,
     ...(outcome.soulError ? { soulError: outcome.soulError } : {}),
+    standingOrders: outcome.standingOrders,
+    ...(outcome.standingOrdersError ? { standingOrdersError: outcome.standingOrdersError } : {}),
   });
 }

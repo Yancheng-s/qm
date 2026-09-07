@@ -684,6 +684,10 @@ test("assemble is reachable end to end through the pipeline", async () => {
     }
     if (call.path === "/v1/skills") return ok(201, { skill: { id: "skill-1", name: "one" } });
     if (call.path === "/v1/soul") return ok(200, { ok: true, version: 1 });
+    if (call.path === "/v1/contexts/policy") {
+      const body = call.body as { orders?: string };
+      return ok(200, { policy: { orders: body.orders ?? "", bots: {}, ambientEnabled: null, updatedAt: 1 } });
+    }
     return ok(404, { error: "not_found" });
   });
   const gateway = await startGateway(core.factory);
@@ -699,6 +703,7 @@ test("assemble is reachable end to end through the pipeline", async () => {
       employee: { id: "web-project-1", scopeId: "group:web-project-1", name: "Support" },
       skills: [{ name: "one", ok: true }],
       soul: true,
+      standingOrders: false,
     });
     assert.deepEqual(
       core.calls.map((call) => call.path),

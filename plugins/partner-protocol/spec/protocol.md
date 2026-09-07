@@ -91,7 +91,8 @@ principalId = partnerId + "_" + userId
   "userId": "u1",
   "name": "客服",
   "skills": [{ "name": "triage", "description": "把工单分类", "body": "# triage\n\n步骤……\n" }],
-  "soul": "语气克制，先给结论。"
+  "soul": "语气克制，先给结论。",
+  "standingOrders": "你的名字叫小红，对外身份是甲方派驻的数字员工。被问及名字或身份时一律以此为准。"
 }
 ```
 
@@ -102,7 +103,8 @@ principalId = partnerId + "_" + userId
 | `skills[].name`        | 必填，合 `^[a-z0-9][a-z0-9_-]{0,63}$`                                            |
 | `skills[].description` | 必填，非空，≤ **500** 字符。这是模型选技能时唯一看到的说明，请写清「什么时候用」 |
 | `skills[].body`        | 必填，去空格后非空，≤ **128KB**（131,072 字节）。markdown，可内联代码            |
-| `soul`                 | 可选字符串，≤ **8KB**（8,192 字节）。该员工的人格/长期设定                       |
+| `soul`                 | 可选字符串，≤ **8KB**（8,192 字节）。该员工的**人格**：语气、行事风格、价值观     |
+| `standingOrders`       | 可选字符串，≤ **20,000** 字符。该员工的**对外形象/身份**：名字、职务、自我介绍口径。每回合随唤醒信封注入且标注「必须照做」，能压过平台默认自称；仅对非 DM 会话生效（本协议建出的员工均为 group scope，生效） |
 
 响应：
 
@@ -111,7 +113,9 @@ principalId = partnerId + "_" + userId
   "employee": {"id":"web-project-1","scopeId":"group:web-project-1","name":"客服"},
   "skills":   [{"name":"triage","ok":true},{"name":"dup","ok":false,"error":"exists"}],
   "soul":     true,
-  "soulError":"core replied 403"
+  "soulError":"core replied 403",
+  "standingOrders": true,
+  "standingOrdersError": "core replied 403"
 }
 ```
 
@@ -122,6 +126,7 @@ principalId = partnerId + "_" + userId
 | 项目没建成   | `502 {"error":"upstream_error",…}`                        | **员工可能已经建了一半**，重试前先用 `GET /v1/employees` 按名字核对 |
 | 某条技能失败 | 仍 `201`；`skills[i].ok=false` 带 `error`；后续技能继续建 | 用 `POST /v1/skills` 补建失败的那几条                               |
 | 人格写入失败 | 仍 `201`；`soul:false` + `soulError`                      | 员工可用；v1 没有单独重写人格的端点，只能重建员工                   |
+| 形象写入失败 | 仍 `201`；`standingOrders:false` + `standingOrdersError`  | 员工可用但自称回落平台默认；重建员工或请运营侧补写 context policy    |
 
 **这个接口不是幂等的**：重复调用会创建多个员工（多个不同 `scopeId`）。
 
