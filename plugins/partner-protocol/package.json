@@ -1,0 +1,19 @@
+{
+  "name": "qm-partner-protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Partner protocol gateway: signed partner credentials in, source-authenticated core calls out.",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.2"
+  }
+}

@@ -57,6 +57,7 @@ test("slotPorts derive the full port block from the slot number", () => {
     slackHealth: 8163,
     supervisor: 8179,
     h5: 8195,
+    partner: 8211,
   });
 });
 
@@ -421,6 +422,31 @@ test("h5 child defaults the library to the dev org and honors overrides", () => 
   assert.equal(overridden.env.PROFILES_LIBRARY_SCOPES, "xhs=group:web-project-lib,ecom=group:web-project-shop");
   assert.equal(overridden.env.PROFILES_LIBRARY_PRINCIPAL, "app_admin");
   assert.equal(overridden.env.CORE_ORG_ID, "beta");
+});
+
+test("partner child defaults credentials and honors overrides", () => {
+  const inputs: SpecInputs = {
+    worktree: "/tmp/worktree",
+    ports: slotPorts("pool1"),
+    baseEnv: {},
+    watch: false,
+    webUiBasePath: "/",
+    sessionStore: "memory",
+    runStore: "memory",
+    databaseUrl: "",
+    adminGrantsSeed: "",
+    coreSigningSecret: "dev-core-signing-secret",
+    portalSessionSecret: "secret",
+    sandboxEnv: {},
+  };
+  const partner = buildChildSpecs(inputs).find((spec) => spec.name === "partner")!;
+  assert.equal(partner.env.CORE_SIGNING_SECRET, "dev-core-signing-secret");
+  assert.equal(partner.env.CORE_API_URL, `http://localhost:${inputs.ports.core}`);
+  assert.equal(partner.env.PORT, String(inputs.ports.partner));
+  assert.equal(partner.env.PARTNER_CREDENTIALS, "dev-partner=dev-instance-partner-0123456789abcdef");
+  inputs.baseEnv = { PARTNER_CREDENTIALS: "acme=0123456789012345678901234567890123" };
+  const overridden = buildChildSpecs(inputs).find((spec) => spec.name === "partner")!;
+  assert.equal(overridden.env.PARTNER_CREDENTIALS, "acme=0123456789012345678901234567890123");
 });
 
 test("formatAge renders the bash-compatible shapes", () => {

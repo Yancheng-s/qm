@@ -29,6 +29,7 @@
     "cli": { "entry": ["bin/qm.ts"] },
     "plugins/*": {},
     "plugins/H5": { "ignore": ["bootstrap/xhs/**"] },
+    "plugins/partner-protocol": { "entry": ["spec/partner-client.mjs"] },
     "plugins/web-ui": {
       "entry": ["src/lazy-katex.ts", "src/lazy-hljs.ts", "src/hljs-lang-stub.ts", "test/**/*.test.ts"],
       "ignoreDependencies": [
