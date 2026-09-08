@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { request } from "node:http";
 import { routes } from "../src/routes/index.ts";
 import {
+  LIBRARY_KEY,
+  LIBRARY_SCOPE,
   PRINCIPAL_ID,
   USER_ID,
   ok,
@@ -52,14 +54,13 @@ async function withGateway(script: CoreScript | undefined, run: (base: string) =
   }
 }
 
-test("the whitelist is exactly the eight documented endpoints with their body limits", () => {
+test("the whitelist is exactly the seven documented endpoints with their body limits", () => {
   assert.deepEqual(
     routes.map((route) => `${route.method} ${route.path} ${route.limit}`),
     [
       "GET /v1/employees 0",
       "GET /v1/runtime 0",
-      "POST /v1/assemble 512000",
-      "POST /v1/skills 160000",
+      "POST /v1/assemble 128000",
       "POST /v1/turn 64000",
       "GET /v1/events 0",
       "GET /v1/sessions 0",
@@ -283,60 +284,6 @@ test("turn relays a refusal from core as a protocol error", async () => {
   );
 });
 
-test("skills are created in the employee scope and conflicts are relayed", async () => {
-  const core = recordingCore((call) => {
-    const body = call.body as { name?: string };
-    return body.name === "dup"
-      ? ok(409, { error: "exists", message: "a skill of that name already exists here" })
-      : ok(201, {
-          skill: { id: "skill-1", name: body.name, description: "d", body: "b", status: "draft", version: 1 },
-        });
-  });
-  const gateway = await startGateway(core.factory);
-  try {
-    const created = await post(gateway.base, "/v1/skills", {
-      userId: USER_ID,
-      scopeId: SCOPE,
-      name: "fresh",
-      description: "does things",
-      body: "# fresh\n",
-    });
-    assert.equal(created.status, 201);
-    assert.deepEqual(await created.json(), { skill: { id: "skill-1", name: "fresh" } });
-    assert.deepEqual(core.calls[0]?.body, {
-      principalId: PRINCIPAL_ID,
-      scopeId: SCOPE,
-      name: "fresh",
-      description: "does things",
-      body: "# fresh\n",
-    });
-
-    const conflict = await post(gateway.base, "/v1/skills", {
-      userId: USER_ID,
-      scopeId: SCOPE,
-      name: "dup",
-      description: "does things",
-      body: "# dup\n",
-    });
-    assert.equal(conflict.status, 409);
-    assert.deepEqual(await conflict.json(), {
-      error: "exists",
-      message: "a skill of that name already exists here",
-    });
-
-    const forbidden = await post(gateway.base, "/v1/skills", {
-      userId: USER_ID,
-      scopeId: "org:acme",
-      name: "nope",
-      description: "d",
-      body: "b",
-    });
-    assert.equal(forbidden.status, 400);
-  } finally {
-    await gateway.close();
-  }
-});
-
 test("the signature covers the request target exactly as it arrived on the wire", async () => {
   const core = recordingCore(() => ok(200, { projects: [] }));
   const gateway = await startGateway(core.factory);
@@ -361,33 +308,14 @@ test("the signature covers the request target exactly as it arrived on the wire"
 
 test("relayed core errors fall back to documented protocol codes", async () => {
   const core = recordingCore((call) => {
-    if (call.path === "/v1/skills") {
-      const body = call.body as { name?: string };
-      return body.name === "clash" ? ok(409, {}) : ok(403, {});
-    }
+    if (call.path.startsWith("/v1/runtime-config")) return ok(403, {});
     return ok(400, {});
   });
   const gateway = await startGateway(core.factory);
   try {
-    const forbidden = await post(gateway.base, "/v1/skills", {
-      userId: USER_ID,
-      scopeId: SCOPE,
-      name: "nope",
-      description: "d",
-      body: "b",
-    });
-    assert.equal(forbidden.status, 403);
-    assert.deepEqual(await forbidden.json(), { error: "forbidden", message: "core replied 403" });
-
-    const clash = await post(gateway.base, "/v1/skills", {
-      userId: USER_ID,
-      scopeId: SCOPE,
-      name: "clash",
-      description: "d",
-      body: "b",
-    });
-    assert.equal(clash.status, 409);
-    assert.deepEqual(await clash.json(), { error: "exists", message: "core replied 409" });
+    const refused = await get(gateway.base, `/v1/runtime?userId=${USER_ID}&scopeId=${encodeURIComponent(SCOPE)}`);
+    assert.equal(refused.status, 403);
+    assert.deepEqual(await refused.json(), { error: "refused", message: "core replied 403" });
 
     const badTurn = await post(gateway.base, "/v1/turn", { userId: USER_ID, scopeId: SCOPE, text: "hi" });
     assert.equal(badTurn.status, 400);
@@ -679,11 +607,19 @@ test("session detail refuses bad ids, bad windows, and unknown sessions", async 
 test("assemble is reachable end to end through the pipeline", async () => {
   let projects = 0;
   const core = recordingCore((call) => {
+    if (call.path.startsWith("/v1/skills")) {
+      return ok(200, {
+        skills: [
+          { id: "skill-writer", name: "space-xhs-writer", scopeId: LIBRARY_SCOPE, status: "active" },
+          { id: "skill-title", name: "space-xhs-title", scopeId: LIBRARY_SCOPE, status: "active" },
+        ],
+      });
+    }
     if (call.path === "/v1/projects") {
       projects += 1;
       return ok(201, { project: { id: `web-project-${projects}`, scopeId: `group:web-project-${projects}` } });
     }
-    if (call.path === "/v1/skills") return ok(201, { skill: { id: "skill-1", name: "one" } });
+    if (call.path === "/v1/grants") return ok(200, { ok: true });
     if (call.path === "/v1/soul") return ok(200, { ok: true, version: 1 });
     if (call.path === "/v1/contexts/policy") {
       const body = call.body as { orders?: string };
@@ -696,19 +632,19 @@ test("assemble is reachable end to end through the pipeline", async () => {
     const response = await post(gateway.base, "/v1/assemble", {
       userId: USER_ID,
       name: "Support",
-      skills: [{ name: "one", description: "d", body: "b" }],
+      library: LIBRARY_KEY,
       soul: "Be terse.",
     });
     assert.equal(response.status, 201);
     assert.deepEqual(await response.json(), {
       employee: { id: "web-project-1", scopeId: "group:web-project-1", name: "Support" },
-      skills: [{ name: "one", ok: true }],
+      granted: ["space-xhs-writer", "space-xhs-title"],
       soul: true,
       standingOrders: false,
     });
     assert.deepEqual(
-      core.calls.map((call) => call.path),
-      ["/v1/projects", "/v1/skills", "/v1/soul"],
+      core.calls.map((call) => call.path.split("?")[0]),
+      ["/v1/skills", "/v1/projects", "/v1/grants", "/v1/grants", "/v1/soul"],
     );
   } finally {
     await gateway.close();

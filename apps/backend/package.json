@@ -10,7 +10,6 @@
   "scripts": {
     "start": "node src/index.ts",
     "dev": "node --watch src/index.ts",
-    "skills": "node skills/flatten-skills.mjs",
     "register-mcp": "node --env-file-if-exists=../../.env bootstrap/register-mcp.mjs",
     "typecheck": "tsc --noEmit"
   },

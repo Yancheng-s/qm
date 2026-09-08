@@ -8,7 +8,6 @@ import { handleEmployees } from "./employees.ts";
 import { handleEvents } from "./events.ts";
 import { handleRuntime } from "./runtime.ts";
 import { handleSessionById, handleSessions } from "./sessions.ts";
-import { handleSkillCreate } from "./skills.ts";
 import { handleTurn } from "./turn.ts";
 
 export interface Ctx {
@@ -21,6 +20,9 @@ export interface Ctx {
   principalId: string;
   body: Record<string, unknown>;
   core: CoreCall;
+  libraryCore: CoreCall;
+  libraries: ReadonlyMap<string, string>;
+  libraryPrincipalId: string;
 }
 
 export interface Route {
@@ -33,8 +35,7 @@ export interface Route {
 export const routes: readonly Route[] = [
   { method: "GET", path: "/v1/employees", limit: 0, handle: handleEmployees },
   { method: "GET", path: "/v1/runtime", limit: 0, handle: handleRuntime },
-  { method: "POST", path: "/v1/assemble", limit: 512_000, handle: handleAssemble },
-  { method: "POST", path: "/v1/skills", limit: 160_000, handle: handleSkillCreate },
+  { method: "POST", path: "/v1/assemble", limit: 128_000, handle: handleAssemble },
   { method: "POST", path: "/v1/turn", limit: 64_000, handle: handleTurn },
   { method: "GET", path: "/v1/events", limit: 0, handle: handleEvents },
   { method: "GET", path: "/v1/sessions", limit: 0, handle: handleSessions },
@@ -48,6 +49,8 @@ export interface GatewayDeps {
   signingSecret: string | undefined;
   identitySecret: string;
   partners: ReadonlyMap<string, string>;
+  libraries: ReadonlyMap<string, string>;
+  libraryPrincipalId: string;
   ratePerMin: number;
   core?: (principalId: string) => CoreCall;
 }
@@ -67,6 +70,8 @@ export function createHandler(deps: GatewayDeps): Handler {
         },
         principalId,
       ));
+
+  const libraryCore = coreFor(deps.libraryPrincipalId);
 
   return async (req, res) => {
     const method = req.method ?? "GET";
@@ -123,6 +128,9 @@ export function createHandler(deps: GatewayDeps): Handler {
       principalId: identity.principalId,
       body: read.body,
       core: coreFor(identity.principalId),
+      libraryCore,
+      libraries: deps.libraries,
+      libraryPrincipalId: deps.libraryPrincipalId,
     });
   };
 }

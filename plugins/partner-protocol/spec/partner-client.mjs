@@ -5,6 +5,7 @@ const BASE_URL = process.env.PARTNER_BASE_URL ?? "http://localhost:8211";
 const PARTNER_ID = process.env.PARTNER_ID ?? "acme";
 const SECRET = process.env.PARTNER_SECRET ?? "";
 const USER_ID = process.env.PARTNER_USER_ID ?? "u1";
+const LIBRARY = process.env.PARTNER_LIBRARY ?? "xhs";
 
 if (!SECRET) {
   console.error("set PARTNER_SECRET (and optionally PARTNER_BASE_URL / PARTNER_ID / PARTNER_USER_ID) first");
@@ -69,11 +70,11 @@ async function stream(pathWithQuery, onEvent) {
 const assembled = await call("POST", "/v1/assemble", {
   userId: USER_ID,
   name: `示例员工 ${new Date().toISOString()}`,
-  skills: [{ name: "hello", description: "用一句话问好", body: "# hello\n\n收到问候时回一句话。\n" }],
+  library: LIBRARY,
   soul: "语气克制，先给结论。",
 });
 console.log("employee", assembled.employee);
-console.log("skills", assembled.skills);
+console.log("granted", assembled.granted);
 console.log("soul", assembled.soul, assembled.soulError ?? "");
 
 const conversationId = `demo-${Date.now()}`;

@@ -5,6 +5,9 @@ import { bootProblems, readConfig } from "../src/config.ts";
 import {
   CREDENTIALS,
   IDENTITY_SECRET,
+  LIBRARY_KEY,
+  LIBRARY_PRINCIPAL,
+  LIBRARY_SCOPE,
   PARTNER_ID,
   PARTNER_SECRET,
   PRINCIPAL_ID,
@@ -20,8 +23,10 @@ import {
 
 test("config parsing keeps secrets out of the partner table and reports every problem at once", () => {
   const secrets = { CORE_SIGNING_SECRET: SIGNING_SECRET, PORTAL_IDENTITY_SECRET: IDENTITY_SECRET };
+  const library = { LIBRARY_SCOPES: `${LIBRARY_KEY}=${LIBRARY_SCOPE}`, LIBRARY_PRINCIPAL: LIBRARY_PRINCIPAL };
   const cfg = readConfig({
     ...secrets,
+    ...library,
     PORT: "8300",
     CORE_API_URL: "http://core.local:8081/",
     PARTNER_CREDENTIALS: ` ${PARTNER_ID}=${PARTNER_SECRET} , beta=${"b".repeat(32)} , `,
@@ -32,11 +37,19 @@ test("config parsing keeps secrets out of the partner table and reports every pr
   assert.equal(cfg.coreApiUrl, "http://core.local:8081");
   assert.equal(cfg.ratePerMin, 0);
   assert.deepEqual([...cfg.partners.keys()], [PARTNER_ID, "beta"]);
+  assert.deepEqual([...cfg.libraries.keys()], [LIBRARY_KEY]);
+  assert.equal(cfg.libraries.get(LIBRARY_KEY), LIBRARY_SCOPE);
+  assert.equal(cfg.libraryPrincipalId, LIBRARY_PRINCIPAL);
 
-  const blank = readConfig({ ...secrets, CORE_API_URL: "/", PARTNER_CREDENTIALS: CREDENTIALS });
+  const blank = readConfig({ ...secrets, ...library, CORE_API_URL: "/", PARTNER_CREDENTIALS: CREDENTIALS });
   assert.deepEqual(bootProblems(blank), ["CORE_API_URL is required (core base url, e.g. http://localhost:8081)"]);
 
-  const defaults = readConfig({ ...secrets, CORE_API_URL: "http://core.local", PARTNER_CREDENTIALS: CREDENTIALS });
+  const defaults = readConfig({
+    ...secrets,
+    ...library,
+    CORE_API_URL: "http://core.local",
+    PARTNER_CREDENTIALS: CREDENTIALS,
+  });
   assert.equal(defaults.port, 8211);
   assert.equal(defaults.ratePerMin, 120);
   assert.deepEqual(bootProblems(defaults), []);
@@ -45,10 +58,29 @@ test("config parsing keeps secrets out of the partner table and reports every pr
     CORE_SIGNING_SECRET: SIGNING_SECRET,
     CORE_API_URL: "http://core.local",
     PARTNER_CREDENTIALS: CREDENTIALS,
+    ...library,
   });
   assert.equal(derived.signingSecret, SIGNING_SECRET);
   assert.ok(derived.identitySecret.length > 0, "the identity secret must fall back to the signing secret");
   assert.deepEqual(bootProblems(derived), []);
+
+  const noLibrary = readConfig({ ...secrets, CORE_API_URL: "http://core.local", PARTNER_CREDENTIALS: CREDENTIALS });
+  assert.deepEqual(bootProblems(noLibrary), [
+    "LIBRARY_SCOPES is required (<key>=<scopeId>, comma separated)",
+    "LIBRARY_PRINCIPAL is required",
+  ]);
+
+  const badLibrary = readConfig({
+    ...secrets,
+    CORE_API_URL: "http://core.local",
+    PARTNER_CREDENTIALS: CREDENTIALS,
+    LIBRARY_SCOPES: "BAD=group:x,xhs=not-a-scope,dupe=group:z,dupe2=group:z",
+    LIBRARY_PRINCIPAL: LIBRARY_PRINCIPAL,
+  });
+  const problems = bootProblems(badLibrary);
+  assert.ok(problems.some((item) => /key "BAD" must match/.test(item)));
+  assert.ok(problems.some((item) => /binding "xhs" needs a scope id/.test(item)));
+  assert.ok(problems.some((item) => /binds "dupe2" and "dupe" to the same scope/.test(item)));
 });
 
 test("the gateway refuses to start when it is misconfigured", async () => {
@@ -87,6 +119,12 @@ test("the gateway refuses to start when it is misconfigured", async () => {
   const badRate = await exitOutput({ ...VALID_ENV, PARTNER_RATE_LIMIT_PER_MIN: "lots" });
   assert.notEqual(badRate.code, 0);
   assert.match(badRate.logged, /PARTNER_RATE_LIMIT_PER_MIN must be an integer/);
+
+  const noLibrary = await exitOutput(without(VALID_ENV, "LIBRARY_SCOPES", "LIBRARY_PRINCIPAL"));
+  assert.notEqual(noLibrary.code, 0);
+  assert.match(noLibrary.logged, /LIBRARY_SCOPES is required/);
+  assert.match(noLibrary.logged, /LIBRARY_PRINCIPAL is required/);
+  assert.match(noLibrary.logged, /refusing to start: 2 misconfiguration/);
 });
 
 test("the whole protocol closes against a stub core", async () => {
@@ -111,7 +149,7 @@ test("the whole protocol closes against a stub core", async () => {
       const assembleBody = JSON.stringify({
         userId: USER_ID,
         name: "Support",
-        skills: [{ name: "triage", description: "sorts tickets", body: "# triage\n" }],
+        library: LIBRARY_KEY,
         soul: "Be terse.",
       });
       const assembled = await fetch(`${base}/v1/assemble`, {
@@ -122,7 +160,7 @@ test("the whole protocol closes against a stub core", async () => {
       assert.equal(assembled.status, 201);
       assert.deepEqual(await assembled.json(), {
         employee: { id: "web-project-1", scopeId: "group:web-project-1", name: "Support" },
-        skills: [{ name: "triage", ok: true }],
+        granted: ["space-xhs-writer", "space-xhs-title"],
         soul: true,
         standingOrders: false,
       });
@@ -133,6 +171,20 @@ test("the whole protocol closes against a stub core", async () => {
       assert.ok(outbound.headers["x-timestamp"], "expected a source-auth timestamp");
       const claims = verifyPortalIdentity(outbound.headers["x-portal-identity"] ?? "", IDENTITY_SECRET, Date.now());
       assert.equal(claims?.p, PRINCIPAL_ID);
+
+      const skillList = core.calls.find((call) => call.path.startsWith("/v1/skills") && call.method === "GET");
+      assert.ok(skillList, "expected a library skill listing call");
+      const libraryClaims = verifyPortalIdentity(
+        skillList.headers["x-portal-identity"] ?? "",
+        IDENTITY_SECRET,
+        Date.now(),
+      );
+      assert.equal(libraryClaims?.p, LIBRARY_PRINCIPAL);
+
+      assert.ok(
+        core.calls.some((call) => call.path === "/v1/grants" && call.method === "POST"),
+        "expected a grant call",
+      );
 
       const turnBody = JSON.stringify({
         userId: USER_ID,

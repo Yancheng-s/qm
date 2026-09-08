@@ -3,7 +3,7 @@ export interface AppConfig {
   gatewayUrl: string;
   partnerId: string;
   partnerSecret: string;
-  skillsFile: string;
+  library: string;
   defaultEmployeeName: string;
   defaultSoul: string;
   defaultStandingOrders: string;
@@ -13,13 +13,13 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const gatewayUrl = (env.PARTNER_GATEWAY_URL || "http://localhost:8209").replace(/\/+$/, "");
   const partnerId = env.PARTNER_ID || "dev-partner";
   const partnerSecret = env.PARTNER_SECRET || "dev-instance-partner-0123456789abcdef";
-  const skillsFile = env.SKILLS_FILE || new URL("../skills/skills.json", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+  const library = env.LIBRARY || "xhs";
   return {
     port: Number(env.PORT || 8300),
     gatewayUrl,
     partnerId,
     partnerSecret,
-    skillsFile,
+    library,
     defaultEmployeeName: env.DEFAULT_EMPLOYEE_NAME || "小红书运营搭子",
     defaultSoul:
       env.DEFAULT_SOUL ||

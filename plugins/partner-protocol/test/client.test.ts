@@ -32,7 +32,7 @@ test("the sample client walks the whole protocol against a stub core", async () 
       const ran = await runClient(CLIENT_ENV, base);
       assert.equal(ran.code, 0, ran.output);
       assert.match(ran.output, /employee \{[^}]*scopeId: 'group:web-project-1'/);
-      assert.match(ran.output, /skills \[ \{ name: 'hello', ok: true \} \]/);
+      assert.match(ran.output, /granted \[ 'space-xhs-writer', 'space-xhs-title' \]/);
       assert.match(ran.output, /soul true/);
       assert.match(ran.output, /turn \{[^}]*runId: 'run-1'/);
       assert.match(ran.output, /threadRef: 'web:acme_u1:demo-/);
@@ -45,8 +45,10 @@ test("the sample client walks the whole protocol against a stub core", async () 
       assert.deepEqual(
         core.calls.map((call) => `${call.method} ${call.path}`),
         [
+          "GET /v1/skills",
           "POST /v1/projects",
-          "POST /v1/skills",
+          "POST /v1/grants",
+          "POST /v1/grants",
           "POST /v1/soul",
           "POST /v1/turns",
           "GET /v1/runs/run-1",

@@ -3,7 +3,6 @@ import { Readable } from "node:stream";
 import { configProblems, readConfig } from "./config.ts";
 import { createPartnerClient } from "./partner-client.ts";
 import { authenticate } from "./auth.ts";
-import { loadSkills } from "./skills.ts";
 import { MCP_TOOL, registerMcpRoutes } from "./mcp.ts";
 
 const config = readConfig();
@@ -44,15 +43,16 @@ app.get("/api/employees", async (req, reply) => {
   return reply.status(outcome.status).send(outcome.json);
 });
 
-app.post<{ Body: { name?: unknown } }>("/api/employees", async (req, reply) => {
+app.post<{ Body: { name?: unknown; library?: unknown } }>("/api/employees", async (req, reply) => {
   const auth = authenticate(req);
   if (!auth.ok) return reply.status(auth.status).send({ error: auth.error, message: auth.message });
   const name = typeof req.body?.name === "string" && req.body.name.trim() ? req.body.name.trim() : config.defaultEmployeeName;
-  const skills = await loadSkills(config.skillsFile);
+  const library =
+    typeof req.body?.library === "string" && req.body.library.trim() ? req.body.library.trim() : config.library;
   const outcome = await partner.call("POST", "/v1/assemble", {
     userId: auth.userId,
     name,
-    skills,
+    library,
     soul: config.defaultSoul,
     standingOrders: config.defaultStandingOrders,
   });

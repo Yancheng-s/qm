@@ -17,12 +17,18 @@ export const PRINCIPAL_ID = `${PARTNER_ID}_${USER_ID}`;
 export const SIGNING_SECRET = "gateway-test-signing-secret-0123456789";
 export const IDENTITY_SECRET = "gateway-test-identity-secret-0123456789";
 export const CREDENTIALS = `${PARTNER_ID}=${PARTNER_SECRET}`;
+export const LIBRARY_KEY = "xhs";
+export const LIBRARY_SCOPE = "group:web-project-lib";
+export const LIBRARY_PRINCIPAL = "lib-admin";
+export const LIBRARIES: ReadonlyMap<string, string> = new Map([[LIBRARY_KEY, LIBRARY_SCOPE]]);
 
 export const VALID_ENV = {
   CORE_API_URL: "http://127.0.0.1:9",
   CORE_SIGNING_SECRET: SIGNING_SECRET,
   PORTAL_IDENTITY_SECRET: IDENTITY_SECRET,
   PARTNER_CREDENTIALS: CREDENTIALS,
+  LIBRARY_SCOPES: `${LIBRARY_KEY}=${LIBRARY_SCOPE}`,
+  LIBRARY_PRINCIPAL: LIBRARY_PRINCIPAL,
 };
 
 export function partnerHeaders(method: string, pathWithQuery: string, raw = ""): Record<string, string> {
@@ -80,6 +86,8 @@ export async function startGateway(factory: (principalId: string) => CoreCall, r
     signingSecret: "test-signing-secret-not-used-outbound",
     identitySecret: "test-identity-secret-not-used-outbound",
     partners: PARTNERS,
+    libraries: LIBRARIES,
+    libraryPrincipalId: LIBRARY_PRINCIPAL,
     ratePerMin,
     core: factory,
   });
@@ -194,7 +202,17 @@ export async function startStubCore(): Promise<StubCore> {
           ],
         });
       }
-      if (pathname === "/v1/skills") return reply(201, { skill: { id: "skill-1", name: "triage" } });
+      if (pathname === "/v1/skills") {
+        return reply(200, {
+          skills: [
+            { id: "skill-writer", name: "space-xhs-writer", scopeId: LIBRARY_SCOPE, status: "active" },
+            { id: "skill-title", name: "space-xhs-title", scopeId: LIBRARY_SCOPE, status: "active" },
+            { id: "skill-old", name: "retired", scopeId: LIBRARY_SCOPE, status: "archived" },
+            { id: "skill-elsewhere", name: "elsewhere", scopeId: "group:other", status: "active" },
+          ],
+        });
+      }
+      if (pathname === "/v1/grants") return reply(200, { ok: true });
       if (pathname === "/v1/soul") return reply(200, { ok: true, version: 1 });
       if (pathname === "/v1/turns") return reply(202, { status: "queued", runId: "run-1" });
       if (pathname === "/v1/runs/run-1") {
