@@ -29,6 +29,15 @@ export function sendProblem(res: ServerResponse, found: Problem): void {
   sendJson(res, found.status, found.body);
 }
 
+export function sendHtml(res: ServerResponse, status: number, html: string): void {
+  res.writeHead(status, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+  });
+  res.end(html);
+}
+
 export type BodyRead = { ok: true; raw: string; body: Record<string, unknown> } | { ok: false; problem: Problem };
 
 export async function readJsonBody(req: IncomingMessage, maxBytes: number): Promise<BodyRead> {

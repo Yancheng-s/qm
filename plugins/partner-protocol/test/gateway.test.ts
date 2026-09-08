@@ -14,6 +14,7 @@ import {
   SIGNING_SECRET,
   USER_ID,
   VALID_ENV,
+  chatHeaders,
   exitOutput,
   partnerHeaders,
   startStubCore,
@@ -138,8 +139,14 @@ test("the whole protocol closes against a stub core", async () => {
       assert.equal(health.status, 200);
       assert.deepEqual(await health.json(), { ok: true });
 
-      const unsigned = await fetch(`${base}/v1/employees?userId=${USER_ID}`);
+      const unsigned = await fetch(`${base}/v1/assemble`, { method: "POST", body: "{}" });
       assert.equal(unsigned.status, 401);
+
+      const noCookie = await fetch(`${base}/v1/turn`, {
+        method: "POST",
+        body: JSON.stringify({ scopeId: "group:web-project-1", conversationId: "c1", text: "hi" }),
+      });
+      assert.equal(noCookie.status, 401);
 
       const unknown = await fetch(`${base}/v1/nope?userId=${USER_ID}`, {
         headers: partnerHeaders("GET", `/v1/nope?userId=${USER_ID}`),
@@ -186,8 +193,31 @@ test("the whole protocol closes against a stub core", async () => {
         "expected a grant call",
       );
 
-      const turnBody = JSON.stringify({
+      const chatSessionBody = JSON.stringify({
         userId: USER_ID,
+        scopeId: "group:web-project-1",
+        conversationId: "c1",
+      });
+      const chatSession = await fetch(`${base}/v1/chat-sessions`, {
+        method: "POST",
+        body: chatSessionBody,
+        headers: partnerHeaders("POST", "/v1/chat-sessions", chatSessionBody),
+      });
+      assert.equal(chatSession.status, 200);
+      const { chatUrl } = (await chatSession.json()) as { chatUrl: string };
+      assert.match(chatUrl, /^\/chat\?token=.+&scopeId=group%3Aweb-project-1&conversationId=c1&sessionId=s1$/);
+
+      const page = await fetch(`${base}${chatUrl}`);
+      assert.equal(page.status, 200);
+      assert.match(page.headers.get("content-type") ?? "", /text\/html/);
+      const setCookie = page.headers.get("set-cookie") ?? "";
+      assert.match(setCookie, /partner_chat=/);
+      assert.match(setCookie, /HttpOnly/);
+      const html = await page.text();
+      assert.match(html, /data-scope-id="group:web-project-1"/);
+      assert.match(html, /data-conversation-id="c1"/);
+
+      const turnBody = JSON.stringify({
         scopeId: "group:web-project-1",
         conversationId: "c1",
         text: "hello",
@@ -195,7 +225,7 @@ test("the whole protocol closes against a stub core", async () => {
       const turn = await fetch(`${base}/v1/turn`, {
         method: "POST",
         body: turnBody,
-        headers: partnerHeaders("POST", "/v1/turn", turnBody),
+        headers: chatHeaders(),
       });
       assert.equal(turn.status, 202);
       assert.deepEqual(await turn.json(), {
@@ -204,47 +234,17 @@ test("the whole protocol closes against a stub core", async () => {
         threadRef: `web:${PRINCIPAL_ID}:c1`,
       });
 
-      const events = await fetch(`${base}/v1/events?userId=${USER_ID}&runId=run-1`, {
-        headers: partnerHeaders("GET", `/v1/events?userId=${USER_ID}&runId=run-1`),
-      });
+      const events = await fetch(`${base}/v1/events?runId=run-1`, { headers: chatHeaders() });
       assert.equal(events.status, 200);
       assert.match(events.headers.get("content-type") ?? "", /text\/event-stream/);
       const stream = await events.text();
       assert.match(stream, /event: partial\ndata: \{"partial":"Hello back"\}/);
       assert.match(stream, /event: done\n/);
 
-      const listed = await fetch(`${base}/v1/sessions?userId=${USER_ID}`, {
-        headers: partnerHeaders("GET", `/v1/sessions?userId=${USER_ID}`),
-      });
-      assert.equal(listed.status, 200);
-      assert.deepEqual(await listed.json(), {
-        sessions: [
-          {
-            id: "s1",
-            type: "group",
-            scopeId: "group:web-project-1",
-            threadRef: `web:${PRINCIPAL_ID}:c1`,
-            title: "First",
-            createdAt: 1,
-            lastActivityAt: 2,
-          },
-        ],
-      });
-
-      const detail = await fetch(`${base}/v1/sessions/s1?userId=${USER_ID}`, {
-        headers: partnerHeaders("GET", `/v1/sessions/s1?userId=${USER_ID}`),
-      });
+      const detail = await fetch(`${base}/v1/sessions/s1`, { headers: chatHeaders() });
       assert.equal(detail.status, 200);
       const detailBody = (await detail.json()) as { entries: unknown[] };
       assert.deepEqual(detailBody.entries, [{ seq: 1, type: "user", payload: { text: "hi" } }]);
-
-      const employees = await fetch(`${base}/v1/employees?userId=${USER_ID}`, {
-        headers: partnerHeaders("GET", `/v1/employees?userId=${USER_ID}`),
-      });
-      assert.equal(employees.status, 200);
-      assert.deepEqual(await employees.json(), {
-        employees: [{ id: "web-project-1", name: "Support", scopeId: "group:web-project-1", createdAt: 1 }],
-      });
 
       assert.ok(
         core.calls.every((call) => !call.path.includes("admin")),
@@ -260,20 +260,33 @@ test("the partner quota answers 429 with a retry-after", async () => {
   const core = await startStubCore();
   try {
     await withGateway({ CORE_API_URL: core.url, PARTNER_RATE_LIMIT_PER_MIN: "1" }, async (base) => {
-      const pathWithQuery = `/v1/employees?userId=${USER_ID}`;
-      const first = await fetch(`${base}${pathWithQuery}`, { headers: partnerHeaders("GET", pathWithQuery) });
+      const path = "/v1/chat-sessions";
+      const body = JSON.stringify({ userId: USER_ID, scopeId: "group:web-project-1", conversationId: "c1" });
+      const first = await fetch(`${base}${path}`, {
+        method: "POST",
+        body,
+        headers: partnerHeaders("POST", path, body),
+      });
       assert.equal(first.status, 200);
       await first.text();
 
-      const second = await fetch(`${base}${pathWithQuery}`, { headers: partnerHeaders("GET", pathWithQuery) });
+      const second = await fetch(`${base}${path}`, {
+        method: "POST",
+        body,
+        headers: partnerHeaders("POST", path, body),
+      });
       assert.equal(second.status, 429);
       assert.ok(Number(second.headers.get("retry-after")) >= 1);
-      const body = (await second.json()) as { error: string; retryAfter: number };
-      assert.equal(body.error, "rate_limited");
-      assert.ok(body.retryAfter >= 1);
+      const secondBody = (await second.json()) as { error: string; retryAfter: number };
+      assert.equal(secondBody.error, "rate_limited");
+      assert.ok(secondBody.retryAfter >= 1);
 
-      const otherUser = `/v1/employees?userId=u2`;
-      const alsoLimited = await fetch(`${base}${otherUser}`, { headers: partnerHeaders("GET", otherUser) });
+      const otherBody = JSON.stringify({ userId: "u2", scopeId: "group:web-project-1", conversationId: "c1" });
+      const alsoLimited = await fetch(`${base}${path}`, {
+        method: "POST",
+        body: otherBody,
+        headers: partnerHeaders("POST", path, otherBody),
+      });
       assert.equal(alsoLimited.status, 429);
       await alsoLimited.text();
     });

@@ -1,4 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { IncomingMessage } from "node:http";
+import { cookie } from "../../chassis/src/http.ts";
+import { mintPortalIdentity, verifyPortalIdentity } from "../../chassis/src/portal-identity.ts";
 import { canonicalPayload, signRequest } from "../../chassis/src/source-auth-sign.ts";
 import type { Problem } from "./transport.ts";
 
@@ -65,4 +68,34 @@ export function principalFor(partnerId: string, candidate: unknown): DerivedIden
 
 export function threadRefFor(principalId: string, conversationId: string): string {
   return `web:${principalId}:${conversationId}`;
+}
+
+export const CHAT_COOKIE = "partner_chat";
+export const CHAT_TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
+
+export function mintChatToken(principalId: string, secret: string): string {
+  return mintPortalIdentity({ p: principalId, exp: Date.now() + CHAT_TOKEN_TTL_MS }, secret);
+}
+
+export type ChatIdentity =
+  | { ok: true; principalId: string; partnerId: string; token: string }
+  | { ok: false; problem: Problem };
+
+export function verifyChatToken(token: string | null, secret: string): ChatIdentity {
+  if (!token)
+    return { ok: false, problem: { status: 401, body: { error: "unauthorized", message: "missing chat session" } } };
+  const claims = verifyPortalIdentity(token, secret, Date.now());
+  if (!claims)
+    return {
+      ok: false,
+      problem: { status: 401, body: { error: "unauthorized", message: "chat session invalid or expired" } },
+    };
+  const principalId = claims.p;
+  const separator = principalId.indexOf("_");
+  const partnerId = separator > 0 ? principalId.slice(0, separator) : principalId;
+  return { ok: true, principalId, partnerId, token };
+}
+
+export function readChatCookie(req: IncomingMessage): string | null {
+  return cookie(req, CHAT_COOKIE);
 }

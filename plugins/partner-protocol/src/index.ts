@@ -20,6 +20,7 @@ const dispatch = createHandler({
   libraries: cfg.libraries,
   libraryPrincipalId: cfg.libraryPrincipalId,
   ratePerMin: cfg.ratePerMin,
+  chatCookieSecure: cfg.chatCookieSecure,
 });
 
 const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {

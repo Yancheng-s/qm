@@ -2,32 +2,13 @@ export interface Employee {
   id: string;
   name: string;
   scopeId: string;
-  createdAt: number;
 }
 
-export interface RuntimeConfig {
+export interface Conversation {
+  conversationId: string;
   scopeId: string;
-  harnesses: string[];
-  modelsByHarness: Record<string, string[]>;
-  modelCatalog: Record<string, { name?: string; provider?: string }>;
-  effective: { harnessId?: string; modelId?: string } | null;
-}
-
-export interface SessionSummary {
-  id: string;
-  type?: string;
-  scopeId?: string;
-  threadRef?: string;
-  title?: string;
-  createdAt?: number;
-  lastActivityAt?: number;
-}
-
-export interface TurnOutcome {
-  runId?: string;
-  status?: string;
-  error?: string;
-  message?: string;
+  employeeName: string;
+  updatedAt: number;
 }
 
 let userId = localStorage.getItem("userId") || "";
@@ -44,7 +25,7 @@ export function setUserId(next: string): void {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
-    headers: { "x-user-id": userId, ...(init?.headers ?? {}) },
+    headers: { "x-user-id": userId, ...init?.headers },
   });
   const text = await response.text();
   let json: unknown = null;
@@ -61,33 +42,52 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  listEmployees: () => request<{ employees: Employee[] }>("/api/employees"),
   createEmployee: (name?: string) =>
-    request<{ employee: Employee; skills?: { name: string; ok: boolean; error?: string }[]; soul?: boolean }>(
-      "/api/employees",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(name ? { name } : {}),
-      },
-    ),
-  runtime: (scopeId: string) => request<RuntimeConfig>(`/api/runtime?scopeId=${encodeURIComponent(scopeId)}`),
-  sendTurn: (body: Record<string, unknown>) =>
-    request<TurnOutcome>("/api/turn", {
+    request<{ employee: Employee; granted?: string[]; soul?: boolean }>("/api/employees", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(name ? { name } : {}),
     }),
-  listSessions: (scopeId?: string) =>
-    request<{ sessions: SessionSummary[] }>(
-      `/api/sessions${scopeId ? `?scopeId=${encodeURIComponent(scopeId)}` : ""}`,
-    ),
-  sessionHistory: (id: string, tailTurns = 20) =>
-    request<{ session: SessionSummary; entries: unknown[]; earlierEntries?: number }>(
-      `/api/sessions/${encodeURIComponent(id)}?tailTurns=${tailTurns}`,
-    ),
-  eventsUrl: (params: Record<string, string>) => {
-    const query = new URLSearchParams(params);
-    return `/api/events?${query.toString()}`;
-  },
+  openChatSession: (scopeId: string, conversationId?: string) =>
+    request<{ chatUrl: string; conversationId: string }>("/api/chat-sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(conversationId ? { scopeId, conversationId } : { scopeId }),
+    }),
 };
+
+const EMPLOYEES_KEY = "employees";
+const CONVERSATIONS_KEY = "conversations";
+
+function readList<T>(key: string): T[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || "[]") as unknown;
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeList<T>(key: string, list: T[]): void {
+  localStorage.setItem(key, JSON.stringify(list));
+}
+
+export function listEmployees(): Employee[] {
+  return readList<Employee>(EMPLOYEES_KEY);
+}
+
+export function rememberEmployee(employee: Employee): void {
+  const rest = listEmployees().filter((item) => item.scopeId !== employee.scopeId);
+  writeList(EMPLOYEES_KEY, [employee, ...rest]);
+}
+
+export function listConversations(): Conversation[] {
+  return readList<Conversation>(CONVERSATIONS_KEY);
+}
+
+export function rememberConversation(conversation: Conversation): void {
+  const rest = listConversations().filter(
+    (item) => !(item.scopeId === conversation.scopeId && item.conversationId === conversation.conversationId),
+  );
+  writeList(CONVERSATIONS_KEY, [conversation, ...rest]);
+}

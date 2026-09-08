@@ -6,13 +6,10 @@ export interface PartnerClientOptions {
   partnerSecret: string;
 }
 
-export type PartnerOutcome =
-  | { ok: true; status: number; json: unknown }
-  | { ok: false; status: number; json: unknown };
+export type PartnerOutcome = { ok: true; status: number; json: unknown } | { ok: false; status: number; json: unknown };
 
 export interface PartnerClient {
   call(method: string, pathWithQuery: string, body?: unknown): Promise<PartnerOutcome>;
-  stream(method: string, pathWithQuery: string): Promise<Response>;
 }
 
 export function partnerHeaders(
@@ -53,13 +50,6 @@ export function createPartnerClient(options: PartnerClientOptions): PartnerClien
         json = { raw: text };
       }
       return response.ok ? { ok: true, status: response.status, json } : { ok: false, status: response.status, json };
-    },
-
-    stream(method, pathWithQuery) {
-      return fetch(`${options.gatewayUrl}${pathWithQuery}`, {
-        method,
-        headers: sign(method, pathWithQuery, ""),
-      });
     },
   };
 }

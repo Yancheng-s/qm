@@ -1,12 +1,13 @@
 ﻿import test from "node:test";
 import assert from "node:assert/strict";
-import { request } from "node:http";
 import { routes } from "../src/routes/index.ts";
 import {
   LIBRARY_KEY,
   LIBRARY_SCOPE,
   PRINCIPAL_ID,
   USER_ID,
+  chatHeaders,
+  chatToken,
   ok,
   parseSse,
   partnerHeaders,
@@ -24,24 +25,17 @@ async function post(base: string, path: string, body: unknown): Promise<Response
   return fetch(`${base}${path}`, { method: "POST", body: raw, headers: partnerHeaders("POST", path, raw) });
 }
 
-async function get(base: string, pathWithQuery: string): Promise<Response> {
-  return fetch(`${base}${pathWithQuery}`, { headers: partnerHeaders("GET", pathWithQuery) });
+async function chatPost(base: string, path: string, body: unknown): Promise<Response> {
+  const raw = JSON.stringify(body);
+  return fetch(`${base}${path}`, {
+    method: "POST",
+    body: raw,
+    headers: { ...chatHeaders(), "content-type": "application/json" },
+  });
 }
 
-function rawGet(base: string, path: string, signedPath = path): Promise<{ status: number; body: string }> {
-  const origin = new URL(base);
-  return new Promise((resolve, reject) => {
-    const req = request(
-      { host: origin.hostname, port: origin.port, method: "GET", path, headers: partnerHeaders("GET", signedPath) },
-      (res) => {
-        const chunks: Buffer[] = [];
-        res.on("data", (chunk: Buffer) => chunks.push(chunk));
-        res.on("end", () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
-      },
-    );
-    req.on("error", reject);
-    req.end();
-  });
+async function chatGet(base: string, pathWithQuery: string): Promise<Response> {
+  return fetch(`${base}${pathWithQuery}`, { headers: chatHeaders() });
 }
 
 async function withGateway(script: CoreScript | undefined, run: (base: string) => Promise<void>): Promise<void> {
@@ -54,45 +48,42 @@ async function withGateway(script: CoreScript | undefined, run: (base: string) =
   }
 }
 
-test("the whitelist is exactly the seven documented endpoints with their body limits", () => {
+test("the whitelist is exactly the six documented routes with their body limits", () => {
   assert.deepEqual(
     routes.map((route) => `${route.method} ${route.path} ${route.limit}`),
     [
-      "GET /v1/employees 0",
-      "GET /v1/runtime 0",
       "POST /v1/assemble 128000",
+      "POST /v1/chat-sessions 4000",
+      "GET /chat 0",
       "POST /v1/turn 64000",
       "GET /v1/events 0",
-      "GET /v1/sessions 0",
       "GET /v1/sessions/:id 0",
     ],
   );
 });
 
-test("unsigned, unknown, and identity-less requests are refused before any core call", async () => {
+test("unsigned partner calls and cookie-less chat calls are refused before any core call", async () => {
   const core = recordingCore();
   const gateway = await startGateway(core.factory);
   try {
-    const unsigned = await fetch(`${gateway.base}/v1/employees?userId=${USER_ID}`);
+    const unsigned = await fetch(`${gateway.base}/v1/chat-sessions`, { method: "POST", body: "{}" });
     assert.equal(unsigned.status, 401);
-    assert.deepEqual(await unsigned.json(), {
-      error: "unauthorized",
-      message: "missing x-partner-id header",
-    });
+    assert.deepEqual(await unsigned.json(), { error: "unauthorized", message: "missing x-partner-id header" });
 
-    const unknown = await get(gateway.base, `/v1/admin/grants?userId=${USER_ID}`);
+    const noCookie = await fetch(`${gateway.base}/v1/turn`, {
+      method: "POST",
+      body: JSON.stringify({ scopeId: SCOPE, text: "hi" }),
+    });
+    assert.equal(noCookie.status, 401);
+    assert.deepEqual(await noCookie.json(), { error: "unauthorized", message: "missing chat session" });
+
+    const unknown = await post(gateway.base, "/v1/admin/grants", { userId: USER_ID });
     assert.equal(unknown.status, 404);
     assert.deepEqual(await unknown.json(), { error: "not_found", message: "no such endpoint" });
 
-    const wrongMethod = await post(gateway.base, "/v1/employees", { userId: USER_ID });
-    assert.equal(wrongMethod.status, 404);
-
-    const anonymous = await get(gateway.base, "/v1/employees");
+    const anonymous = await post(gateway.base, "/v1/chat-sessions", { scopeId: SCOPE });
     assert.equal(anonymous.status, 400);
     assert.deepEqual(await anonymous.json(), { error: "bad_request", message: "userId is required" });
-
-    const colon = await get(gateway.base, "/v1/employees?userId=a%3Ab");
-    assert.equal(colon.status, 400);
 
     assert.equal(core.calls.length, 0);
   } finally {
@@ -102,62 +93,80 @@ test("unsigned, unknown, and identity-less requests are refused before any core 
 
 test("every response carries the protocol version header", async () => {
   await withGateway(
-    () => ok(200, { projects: [] }),
+    () => ok(200, { sessions: [] }),
     async (base) => {
-      const response = await get(base, `/v1/employees?userId=${USER_ID}`);
+      const response = await post(base, "/v1/chat-sessions", { userId: USER_ID, scopeId: SCOPE, conversationId: "c1" });
       assert.equal(response.headers.get("x-partner-protocol"), "1");
       assert.equal(response.headers.get("cache-control"), "no-store");
+      await response.text();
     },
   );
 });
 
-test("employees are narrowed to id, name, scopeId and createdAt", async () => {
-  const core = recordingCore(() =>
-    ok(200, {
-      projects: [
-        {
-          id: "web-project-1",
-          orgId: "acme",
-          name: "Support",
-          ownerId: PRINCIPAL_ID,
-          memberIds: [PRINCIPAL_ID],
-          members: [{ id: PRINCIPAL_ID, role: "owner" }],
-          scopeId: SCOPE,
-          createdAt: 1700000000000,
-          updatedAt: 1700000000001,
-        },
-      ],
-    }),
+test("chat-sessions mints a cookie token and resolves the session for the conversation", async () => {
+  const core = recordingCore((call) =>
+    call.path.startsWith("/v1/sessions?")
+      ? ok(200, { sessions: [{ id: "s1", threadRef: `web:${PRINCIPAL_ID}:c1`, scopeId: SCOPE }] })
+      : ok(200, {}),
   );
   const gateway = await startGateway(core.factory);
   try {
-    const response = await get(gateway.base, `/v1/employees?userId=${USER_ID}`);
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), {
-      employees: [{ id: "web-project-1", name: "Support", scopeId: SCOPE, createdAt: 1700000000000 }],
+    const response = await post(gateway.base, "/v1/chat-sessions", {
+      userId: USER_ID,
+      scopeId: SCOPE,
+      conversationId: "c1",
     });
-    assert.deepEqual(
-      core.calls.map((call) => [call.method, call.path, call.principalId]),
-      [["GET", `/v1/projects?principalId=${PRINCIPAL_ID}`, PRINCIPAL_ID]],
-    );
+    assert.equal(response.status, 200);
+    const { chatUrl } = (await response.json()) as { chatUrl: string };
+    const url = new URL(chatUrl, "http://gateway.local");
+    assert.equal(url.pathname, "/chat");
+    assert.equal(url.searchParams.get("scopeId"), SCOPE);
+    assert.equal(url.searchParams.get("conversationId"), "c1");
+    assert.equal(url.searchParams.get("sessionId"), "s1");
+    assert.ok((url.searchParams.get("token") ?? "").includes("."), "expected a signed token");
+
+    const badScope = await post(gateway.base, "/v1/chat-sessions", {
+      userId: USER_ID,
+      scopeId: `personal:${PRINCIPAL_ID}`,
+      conversationId: "c1",
+    });
+    assert.equal(badScope.status, 400);
+    assert.match(await badScope.text(), /digital employee scope/);
   } finally {
     await gateway.close();
   }
 });
 
-test("a core failure surfaces as upstream_error with the upstream status", async () => {
-  await withGateway(
-    () => ok(403, { error: "forbidden" }),
-    async (base) => {
-      const response = await get(base, `/v1/employees?userId=${USER_ID}`);
-      assert.equal(response.status, 502);
-      assert.deepEqual(await response.json(), {
-        error: "upstream_error",
-        message: "employee listing failed",
-        upstream: { status: 403, error: "forbidden" },
-      });
-    },
-  );
+test("chat serves the page, sets the cookie, and rejects a bad ticket or scope", async () => {
+  const gateway = await startGateway(recordingCore(() => ok(200, {})).factory);
+  try {
+    const token = chatToken();
+    const page = await fetch(
+      `${gateway.base}/chat?token=${token}&scopeId=${encodeURIComponent(SCOPE)}&conversationId=c1&sessionId=s1`,
+    );
+    assert.equal(page.status, 200);
+    assert.match(page.headers.get("content-type") ?? "", /text\/html/);
+    const setCookie = page.headers.get("set-cookie") ?? "";
+    assert.match(setCookie, /partner_chat=/);
+    assert.match(setCookie, /HttpOnly/);
+    assert.match(setCookie, /SameSite=Strict/);
+    const html = await page.text();
+    assert.match(html, /data-scope-id="group:web-project-1"/);
+    assert.match(html, /data-conversation-id="c1"/);
+    assert.match(html, /data-session-id="s1"/);
+
+    const badTicket = await fetch(
+      `${gateway.base}/chat?token=garbage&scopeId=${encodeURIComponent(SCOPE)}&conversationId=c1`,
+    );
+    assert.equal(badTicket.status, 401);
+
+    const badScope = await fetch(
+      `${gateway.base}/chat?token=${token}&scopeId=personal%3Ax&conversationId=c1`,
+    );
+    assert.equal(badScope.status, 400);
+  } finally {
+    await gateway.close();
+  }
 });
 
 test("turn builds the conversation coordinates and relays the queued run", async () => {
@@ -167,8 +176,7 @@ test("turn builds the conversation coordinates and relays the queued run", async
   });
   const gateway = await startGateway(core.factory);
   try {
-    const response = await post(gateway.base, "/v1/turn", {
-      userId: USER_ID,
+    const response = await chatPost(gateway.base, "/v1/turn", {
       scopeId: SCOPE,
       conversationId: "ticket-42",
       text: "hello",
@@ -207,7 +215,7 @@ test("turn defaults the conversation and validates its inputs", async () => {
   const core = recordingCore(() => ok(202, { status: "queued", runId: "run-1" }));
   const gateway = await startGateway(core.factory);
   try {
-    const defaulted = await post(gateway.base, "/v1/turn", { userId: USER_ID, scopeId: SCOPE, text: "hi" });
+    const defaulted = await chatPost(gateway.base, "/v1/turn", { scopeId: SCOPE, text: "hi" });
     assert.equal(defaulted.status, 202);
     assert.deepEqual(await defaulted.json(), {
       status: "queued",
@@ -215,19 +223,14 @@ test("turn defaults the conversation and validates its inputs", async () => {
       threadRef: `web:${PRINCIPAL_ID}:default`,
     });
 
-    const personal = await post(gateway.base, "/v1/turn", {
-      userId: USER_ID,
-      scopeId: `personal:${PRINCIPAL_ID}`,
-      text: "hi",
-    });
+    const personal = await chatPost(gateway.base, "/v1/turn", { scopeId: `personal:${PRINCIPAL_ID}`, text: "hi" });
     assert.equal(personal.status, 400);
     assert.match(await personal.text(), /digital employee scope/);
 
-    const missingScope = await post(gateway.base, "/v1/turn", { userId: USER_ID, text: "hi" });
+    const missingScope = await chatPost(gateway.base, "/v1/turn", { text: "hi" });
     assert.equal(missingScope.status, 400);
 
-    const badConversation = await post(gateway.base, "/v1/turn", {
-      userId: USER_ID,
+    const badConversation = await chatPost(gateway.base, "/v1/turn", {
       scopeId: SCOPE,
       conversationId: "a:b",
       text: "hi",
@@ -235,12 +238,11 @@ test("turn defaults the conversation and validates its inputs", async () => {
     assert.equal(badConversation.status, 400);
     assert.match(await badConversation.text(), /conversationId must match/);
 
-    const empty = await post(gateway.base, "/v1/turn", { userId: USER_ID, scopeId: SCOPE, text: "   " });
+    const empty = await chatPost(gateway.base, "/v1/turn", { scopeId: SCOPE, text: "   " });
     assert.equal(empty.status, 400);
     assert.match(await empty.text(), /text is required/);
 
-    const badApproval = await post(gateway.base, "/v1/turn", {
-      userId: USER_ID,
+    const badApproval = await chatPost(gateway.base, "/v1/turn", {
       scopeId: SCOPE,
       text: "hi",
       approval: { requestId: "r1" },
@@ -258,8 +260,7 @@ test("turn carries an approval receipt on its own", async () => {
   const core = recordingCore(() => ok(202, { status: "queued", runId: "run-2" }));
   const gateway = await startGateway(core.factory);
   try {
-    const response = await post(gateway.base, "/v1/turn", {
-      userId: USER_ID,
+    const response = await chatPost(gateway.base, "/v1/turn", {
       scopeId: SCOPE,
       conversationId: "c1",
       approval: { requestId: "req-1", approved: true, scope: "session", extra: "dropped" },
@@ -277,47 +278,45 @@ test("turn relays a refusal from core as a protocol error", async () => {
   await withGateway(
     () => ok(403, { status: "refused", reason: "screened" }),
     async (base) => {
-      const response = await post(base, "/v1/turn", { userId: USER_ID, scopeId: SCOPE, text: "hi" });
+      const response = await chatPost(base, "/v1/turn", { scopeId: SCOPE, text: "hi" });
       assert.equal(response.status, 403);
       assert.deepEqual(await response.json(), { error: "refused", message: "screened" });
     },
   );
 });
 
-test("the signature covers the request target exactly as it arrived on the wire", async () => {
-  const core = recordingCore(() => ok(200, { projects: [] }));
+test("the partner signature covers the target and body exactly as sent", async () => {
+  const core = recordingCore(() => ok(200, { sessions: [] }));
   const gateway = await startGateway(core.factory);
   try {
-    const dotted = await rawGet(gateway.base, `/v1/employees/../employees?userId=${USER_ID}`);
-    assert.equal(dotted.status, 200, dotted.body);
-    assert.deepEqual(JSON.parse(dotted.body) as unknown, { employees: [] });
-    assert.equal(core.calls[0]?.path, `/v1/projects?principalId=${PRINCIPAL_ID}`);
+    const body = JSON.stringify({ userId: USER_ID, scopeId: SCOPE, conversationId: "c1" });
+    const wrongBody = await fetch(`${gateway.base}/v1/chat-sessions`, {
+      method: "POST",
+      body,
+      headers: partnerHeaders("POST", "/v1/chat-sessions", "{}"),
+    });
+    assert.equal(wrongBody.status, 401);
+    assert.match(await wrongBody.text(), /signature mismatch/);
 
-    const tampered = await rawGet(
-      gateway.base,
-      `/v1/employees?userId=${USER_ID}&extra=1`,
-      `/v1/employees?userId=${USER_ID}`,
-    );
-    assert.equal(tampered.status, 401);
-    assert.match(tampered.body, /signature mismatch/);
-    assert.equal(core.calls.length, 1);
+    const wrongPath = await fetch(`${gateway.base}/v1/chat-sessions`, {
+      method: "POST",
+      body,
+      headers: partnerHeaders("POST", "/v1/assemble", body),
+    });
+    assert.equal(wrongPath.status, 401);
+    assert.match(await wrongPath.text(), /signature mismatch/);
+
+    assert.equal(core.calls.length, 0);
   } finally {
     await gateway.close();
   }
 });
 
 test("relayed core errors fall back to documented protocol codes", async () => {
-  const core = recordingCore((call) => {
-    if (call.path.startsWith("/v1/runtime-config")) return ok(403, {});
-    return ok(400, {});
-  });
+  const core = recordingCore(() => ok(400, {}));
   const gateway = await startGateway(core.factory);
   try {
-    const refused = await get(gateway.base, `/v1/runtime?userId=${USER_ID}&scopeId=${encodeURIComponent(SCOPE)}`);
-    assert.equal(refused.status, 403);
-    assert.deepEqual(await refused.json(), { error: "refused", message: "core replied 403" });
-
-    const badTurn = await post(gateway.base, "/v1/turn", { userId: USER_ID, scopeId: SCOPE, text: "hi" });
+    const badTurn = await chatPost(gateway.base, "/v1/turn", { scopeId: SCOPE, text: "hi" });
     assert.equal(badTurn.status, 400);
     assert.deepEqual(await badTurn.json(), { error: "bad_request", message: "core replied 400" });
   } finally {
@@ -346,7 +345,7 @@ test("events stream partial then done for a run id", async () => {
     });
     const gateway = await startGateway(core.factory);
     try {
-      return await readSse(gateway.base, `/v1/events?userId=${USER_ID}&runId=run-1`);
+      return await readSse(gateway.base, "/v1/events?runId=run-1");
     } finally {
       await gateway.close();
     }
@@ -375,8 +374,7 @@ test("events resolve the active run from the conversation and go idle without on
   );
   const gateway = await startGateway(core.factory);
   try {
-    const pathWithQuery = `/v1/events?userId=${USER_ID}&scopeId=${encodeURIComponent(SCOPE)}&conversationId=c1`;
-    const events = await readSse(gateway.base, pathWithQuery);
+    const events = await readSse(gateway.base, `/v1/events?scopeId=${encodeURIComponent(SCOPE)}&conversationId=c1`);
     assert.deepEqual(events, [{ event: "idle", data: {} }]);
     assert.equal(core.calls[0]?.path, `/v1/runs?threadRef=${encodeURIComponent(`web:${PRINCIPAL_ID}:c1`)}`);
   } finally {
@@ -400,7 +398,7 @@ test("events follow the active run when it exists", async () => {
   });
   const gateway = await startGateway(core.factory);
   try {
-    const events = await readSse(gateway.base, `/v1/events?userId=${USER_ID}&scopeId=${encodeURIComponent(SCOPE)}`);
+    const events = await readSse(gateway.base, `/v1/events?scopeId=${encodeURIComponent(SCOPE)}`);
     assert.deepEqual(
       events.map((item) => item.event),
       ["partial", "done"],
@@ -415,11 +413,11 @@ test("events reject a malformed run id and a missing conversation scope", async 
   const core = recordingCore();
   const gateway = await startGateway(core.factory);
   try {
-    const badRun = await get(gateway.base, `/v1/events?userId=${USER_ID}&runId=not%20valid`);
+    const badRun = await chatGet(gateway.base, "/v1/events?runId=not%20valid");
     assert.equal(badRun.status, 400);
     assert.match(await badRun.text(), /runId must match/);
 
-    const missingScope = await get(gateway.base, `/v1/events?userId=${USER_ID}`);
+    const missingScope = await chatGet(gateway.base, "/v1/events");
     assert.equal(missingScope.status, 400);
     assert.match(await missingScope.text(), /scopeId is required/);
 
@@ -433,10 +431,9 @@ test("events stop polling once the client hangs up", async () => {
   const core = recordingCore(() => ok(200, { status: "running", partial: "", activity: [], alive: true }));
   const gateway = await startGateway(core.factory);
   try {
-    const pathWithQuery = `/v1/events?userId=${USER_ID}&runId=run-1`;
     const controller = new AbortController();
-    const pending = fetch(`${gateway.base}${pathWithQuery}`, {
-      headers: partnerHeaders("GET", pathWithQuery),
+    const pending = fetch(`${gateway.base}/v1/events?runId=run-1`, {
+      headers: chatHeaders(),
       signal: controller.signal,
     }).catch(() => null);
     await sleep(300);
@@ -456,79 +453,8 @@ test("events report an unreachable core as failed", async () => {
   const core = recordingCore((call) => (call.path.startsWith("/v1/runs/") ? ok(500, {}) : ok(200, {})));
   const gateway = await startGateway(core.factory);
   try {
-    const events = await readSse(gateway.base, `/v1/events?userId=${USER_ID}&runId=run-1`);
+    const events = await readSse(gateway.base, "/v1/events?runId=run-1");
     assert.deepEqual(events, [{ event: "failed", data: { reason: "HTTP 500" } }]);
-    assert.equal(core.calls.length, 2);
-  } finally {
-    await gateway.close();
-  }
-});
-
-test("sessions are narrowed and can be filtered by employee scope", async () => {
-  const listed = [
-    {
-      id: "s1",
-      type: "group",
-      scopeId: SCOPE,
-      threadRef: `web:${PRINCIPAL_ID}:c1`,
-      surface: "web",
-      title: "First",
-      createdAt: 1,
-      lastActivityAt: 5,
-      working: true,
-      awaitingInput: false,
-      archived: true,
-      pinned: true,
-      color: "red",
-      hasEntries: true,
-    },
-    {
-      id: "s2",
-      type: "group",
-      scopeId: "group:web-project-2",
-      threadRef: `web:${PRINCIPAL_ID}:c2`,
-      title: null,
-      createdAt: 2,
-    },
-  ];
-  const core = recordingCore(() => ok(200, { sessions: listed }));
-  const gateway = await startGateway(core.factory);
-  try {
-    const all = await get(gateway.base, `/v1/sessions?userId=${USER_ID}`);
-    assert.equal(all.status, 200);
-    assert.deepEqual(await all.json(), {
-      sessions: [
-        {
-          id: "s1",
-          type: "group",
-          scopeId: SCOPE,
-          threadRef: `web:${PRINCIPAL_ID}:c1`,
-          title: "First",
-          createdAt: 1,
-          lastActivityAt: 5,
-          working: true,
-          awaitingInput: false,
-        },
-        {
-          id: "s2",
-          type: "group",
-          scopeId: "group:web-project-2",
-          threadRef: `web:${PRINCIPAL_ID}:c2`,
-          title: null,
-          createdAt: 2,
-        },
-      ],
-    });
-
-    const filtered = await get(gateway.base, `/v1/sessions?userId=${USER_ID}&scopeId=${encodeURIComponent(SCOPE)}`);
-    const narrowed = (await filtered.json()) as { sessions: { id: string }[] };
-    assert.deepEqual(
-      narrowed.sessions.map((session) => session.id),
-      ["s1"],
-    );
-
-    const rejected = await get(gateway.base, `/v1/sessions?userId=${USER_ID}&scopeId=personal%3Aacme_u1`);
-    assert.equal(rejected.status, 400);
     assert.equal(core.calls.length, 2);
   } finally {
     await gateway.close();
@@ -555,7 +481,7 @@ test("a single session returns its narrowed header and transcript", async () => 
   });
   const gateway = await startGateway(core.factory);
   try {
-    const response = await get(gateway.base, `/v1/sessions/s1?userId=${USER_ID}&tailTurns=2`);
+    const response = await chatGet(gateway.base, "/v1/sessions/s1?tailTurns=2");
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), {
       session: {
@@ -583,18 +509,15 @@ test("session detail refuses bad ids, bad windows, and unknown sessions", async 
   const core = recordingCore(() => ok(404, { error: "not_found" }));
   const gateway = await startGateway(core.factory);
   try {
-    const badId = await get(gateway.base, `/v1/sessions/not%20an%20id?userId=${USER_ID}`);
+    const badId = await chatGet(gateway.base, "/v1/sessions/not%20an%20id");
     assert.equal(badId.status, 404);
     assert.deepEqual(await badId.json(), { error: "not_found", message: "unknown session" });
 
-    const traversal = await get(gateway.base, `/v1/sessions/a/b?userId=${USER_ID}`);
-    assert.equal(traversal.status, 404);
-
-    const badWindow = await get(gateway.base, `/v1/sessions/s1?userId=${USER_ID}&tailTurns=0`);
+    const badWindow = await chatGet(gateway.base, "/v1/sessions/s1?tailTurns=0");
     assert.equal(badWindow.status, 400);
     assert.match(await badWindow.text(), /tailTurns must be an integer >= 1/);
 
-    const missing = await get(gateway.base, `/v1/sessions/s1?userId=${USER_ID}`);
+    const missing = await chatGet(gateway.base, "/v1/sessions/s1");
     assert.equal(missing.status, 404);
     assert.deepEqual(await missing.json(), { error: "not_found", message: "unknown session" });
 
@@ -659,16 +582,16 @@ test("a body that is not JSON is refused before verification is even attempted",
     const response = await fetch(`${gateway.base}/v1/turn`, {
       method: "POST",
       body: raw,
-      headers: partnerHeaders("POST", "/v1/turn", raw),
+      headers: { ...chatHeaders(), "content-type": "application/json" },
     });
     assert.equal(response.status, 400);
     assert.deepEqual(await response.json(), { error: "bad_json", message: "request body must be valid JSON" });
 
     const arrayBody = "[1,2]";
-    const rejected = await fetch(`${gateway.base}/v1/turn`, {
+    const rejected = await fetch(`${gateway.base}/v1/chat-sessions`, {
       method: "POST",
       body: arrayBody,
-      headers: partnerHeaders("POST", "/v1/turn", arrayBody),
+      headers: partnerHeaders("POST", "/v1/chat-sessions", arrayBody),
     });
     assert.equal(rejected.status, 400);
     assert.match(await rejected.text(), /must be a JSON object/);
@@ -680,53 +603,4 @@ test("a body that is not JSON is refused before verification is even attempted",
 
 test("parseSse ignores comment lines", () => {
   assert.deepEqual(parseSse(": open\n\nevent: idle\ndata: {}\n\n: ping\n\n"), [{ event: "idle", data: {} }]);
-});
-
-test("runtime relays the core runtime catalog narrowed to the protocol fields", async () => {
-  const core = recordingCore(() =>
-    ok(200, {
-      scopeId: "group:web-project-1",
-      approvedHarnesses: ["pi", "codex"],
-      modelsByHarness: { pi: ["gpt-x", "glm-y"], codex: ["gpt-x"] },
-      modelCatalog: { "gpt-x": { name: "GPT X", provider: "openai" }, "glm-y": { name: "GLM Y", provider: "zhipu" } },
-      orgDefault: { harnessId: "pi", revision: 3 },
-      effective: { harnessId: "pi", modelId: "gpt-x" },
-      upgradeAvailable: false,
-      fastModeModelIds: ["gpt-x"],
-    }),
-  );
-  const gateway = await startGateway(core.factory);
-  try {
-    const missingScope = await get(gateway.base, `/v1/runtime?userId=${USER_ID}`);
-    assert.equal(missingScope.status, 400);
-
-    const badScope = await get(gateway.base, `/v1/runtime?userId=${USER_ID}&scopeId=personal%3Aother`);
-    assert.equal(badScope.status, 400);
-    assert.equal(core.calls.length, 0);
-
-    const response = await get(gateway.base, `/v1/runtime?userId=${USER_ID}&scopeId=${encodeURIComponent(SCOPE)}`);
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), {
-      scopeId: SCOPE,
-      harnesses: ["pi", "codex"],
-      modelsByHarness: { pi: ["gpt-x", "glm-y"], codex: ["gpt-x"] },
-      modelCatalog: { "gpt-x": { name: "GPT X", provider: "openai" }, "glm-y": { name: "GLM Y", provider: "zhipu" } },
-      effective: { harnessId: "pi", modelId: "gpt-x" },
-    });
-
-    const query = new URLSearchParams(core.calls[0]?.path.split("?")[1] ?? "");
-    assert.equal(core.calls[0]?.path.startsWith("/v1/runtime-config"), true);
-    assert.equal(query.get("principalId"), PRINCIPAL_ID);
-    assert.equal(query.get("scopeId"), SCOPE);
-
-    const refused = await startGateway(recordingCore(() => ok(403, { error: "forbidden" })).factory);
-    try {
-      const denied = await get(refused.base, `/v1/runtime?userId=${USER_ID}&scopeId=${encodeURIComponent(SCOPE)}`);
-      assert.equal(denied.status, 403);
-    } finally {
-      await refused.close();
-    }
-  } finally {
-    await gateway.close();
-  }
 });

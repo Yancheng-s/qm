@@ -16,6 +16,7 @@ export interface PartnerConfig {
   libraries: ReadonlyMap<string, string>;
   libraryPrincipalId: string;
   ratePerMin: number;
+  chatCookieSecure: boolean;
   credentialProblems: readonly string[];
   libraryProblems: readonly string[];
 }
@@ -102,6 +103,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): PartnerConfig 
     libraries,
     libraryPrincipalId,
     ratePerMin,
+    chatCookieSecure: (env.CHAT_COOKIE_SECURE ?? "").trim() !== "false",
     credentialProblems,
     libraryProblems,
   };

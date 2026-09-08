@@ -34,13 +34,12 @@ test("the sample client walks the whole protocol against a stub core", async () 
       assert.match(ran.output, /employee \{[^}]*scopeId: 'group:web-project-1'/);
       assert.match(ran.output, /granted \[ 'space-xhs-writer', 'space-xhs-title' \]/);
       assert.match(ran.output, /soul true/);
+      assert.match(ran.output, /chatUrl \/chat\?token=/);
       assert.match(ran.output, /turn \{[^}]*runId: 'run-1'/);
-      assert.match(ran.output, /threadRef: 'web:acme_u1:demo-/);
+      assert.match(ran.output, /threadRef: 'web:acme_u1:c1'/);
       assert.match(ran.output, /partial Hello back/);
       assert.match(ran.output, /done \{/);
-      assert.match(ran.output, /sessions \[/);
       assert.match(ran.output, /history 1 0/);
-      assert.match(ran.output, /employees \{/);
 
       assert.deepEqual(
         core.calls.map((call) => `${call.method} ${call.path}`),
@@ -50,12 +49,11 @@ test("the sample client walks the whole protocol against a stub core", async () 
           "POST /v1/grants",
           "POST /v1/grants",
           "POST /v1/soul",
+          "GET /v1/sessions",
           "POST /v1/turns",
           "GET /v1/runs/run-1",
           "GET /v1/runs/run-1",
-          "GET /v1/sessions",
           "GET /v1/sessions/s1",
-          "GET /v1/projects",
         ],
       );
     });

@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>对话</title>
+    <style>
+      :root {
+        --bg: #0b0d10;
+        --panel: #12161b;
+        --field: #171c22;
+        --line: #232a32;
+        --text: #e6e9ec;
+        --accent: #4f8cff;
+        --user: #2b3a55;
+        --ai: #1a2027;
+        --err: #ff6b6b;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei",
+          sans-serif;
+      }
+      .chat {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+      .msgs {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .bub {
+        max-width: 76%;
+        padding: 10px 14px;
+        border-radius: 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .bub.user {
+        align-self: flex-end;
+        background: var(--user);
+      }
+      .bub.ai {
+        align-self: flex-start;
+        background: var(--ai);
+        border: 1px solid var(--line);
+      }
+      .bub[data-err="1"] {
+        color: var(--err);
+      }
+      .composer {
+        border-top: 1px solid var(--line);
+        background: var(--panel);
+        padding: 12px 16px;
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+      }
+      .composer textarea {
+        flex: 1;
+        resize: none;
+        min-height: 44px;
+        max-height: 160px;
+        background: var(--field);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        color: var(--text);
+        padding: 9px 12px;
+        font: inherit;
+      }
+      .composer textarea:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      .btn {
+        background: var(--accent);
+        border: none;
+        border-radius: 8px;
+        color: #fff;
+        padding: 9px 16px;
+        font: inherit;
+        cursor: pointer;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    </style>
+  </head>
+  <body
+    data-scope-id="__SCOPE_ID__"
+    data-conversation-id="__CONVERSATION_ID__"
+    data-session-id="__SESSION_ID__"
+    data-user-id="__USER_ID__"
+  >
+    <div class="chat">
+      <div id="msgs" class="msgs"></div>
+      <div class="composer">
+        <textarea id="input" placeholder="输入消息，Enter 发送 / Shift+Enter 换行"></textarea>
+        <button id="send" class="btn">发送</button>
+      </div>
+    </div>
+    <script>
+      (() => {
+        const ds = document.body.dataset;
+        const scopeId = ds.scopeId || "";
+        const conversationId = ds.conversationId || "default";
+        const sessionId = ds.sessionId || "";
+        const msgs = document.getElementById("msgs");
+        const input = document.getElementById("input");
+        const sendBtn = document.getElementById("send");
+        const MAX_RUN_MS = 240000;
+        let busy = false;
+        let source = null;
+
+        function scrollBottom() {
+          msgs.scrollTop = msgs.scrollHeight;
+        }
+
+        function addBubble(role, text) {
+          const div = document.createElement("div");
+          div.className = "bub " + role;
+          const span = document.createElement("span");
+          span.className = "txt";
+          span.textContent = text;
+          div.appendChild(span);
+          msgs.appendChild(div);
+          scrollBottom();
+          return span;
+        }
+
+        function markError(span, text) {
+          span.textContent = text;
+          span.parentNode.setAttribute("data-err", "1");
+        }
+
+        function extractReply(activity) {
+          for (const a of activity) {
+            if (
+              a &&
+              a.type === "tool_call" &&
+              a.payload &&
+              a.payload.tool === "web" &&
+              a.payload.action === "post" &&
+              typeof a.payload.text === "string"
+            )
+              return a.payload.text;
+          }
+          return "";
+        }
+
+        async function loadHistory() {
+          if (!sessionId) return;
+          try {
+            const r = await fetch(`/v1/sessions/${encodeURIComponent(sessionId)}?tailTurns=50`, {
+              credentials: "same-origin",
+            });
+            if (!r.ok) return;
+            const data = await r.json();
+            const entries = Array.isArray(data.entries) ? data.entries : [];
+            for (const entry of entries) {
+              const p = entry.payload;
+              if (entry.type === "user" && p && typeof p.display === "string" && p.display) addBubble("user", p.display);
+              else if (entry.type === "assistant" && p && typeof p.text === "string" && p.text) addBubble("ai", p.text);
+              else if (
+                entry.type === "tool_call" &&
+                p &&
+                p.tool === "web" &&
+                p.action === "post" &&
+                typeof p.text === "string"
+              )
+                addBubble("ai", p.text);
+            }
+          } catch {}
+        }
+
+        function follow(runId, aiSpan) {
+          return new Promise((resolve) => {
+            let partial = "";
+            let reply = "";
+            let settled = false;
+            source = new EventSource(`/v1/events?runId=${encodeURIComponent(runId)}`);
+            const finish = () => {
+              if (settled) return;
+              settled = true;
+              clearTimeout(guard);
+              source.close();
+              source = null;
+              resolve(reply || partial);
+            };
+            const guard = setTimeout(() => {
+              markError(aiSpan, reply || partial || "运行超时");
+              finish();
+            }, MAX_RUN_MS);
+            source.addEventListener("partial", (e) => {
+              const d = JSON.parse(e.data);
+              if (typeof d.partial === "string") {
+                partial = d.partial;
+                aiSpan.textContent = partial;
+                scrollBottom();
+              }
+            });
+            source.addEventListener("activity", (e) => {
+              const d = JSON.parse(e.data);
+              if (Array.isArray(d.activity)) {
+                reply = extractReply(d.activity) || reply;
+                if (reply) {
+                  aiSpan.textContent = reply;
+                  scrollBottom();
+                }
+              }
+            });
+            source.addEventListener("done", (e) => {
+              const d = JSON.parse(e.data);
+              reply = Array.isArray(d.activity) ? extractReply(d.activity) || partial || reply : partial || reply;
+              if (reply) aiSpan.textContent = reply;
+              finish();
+            });
+            source.addEventListener("failed", (e) => {
+              const d = JSON.parse(e.data);
+              markError(aiSpan, reply || partial || "运行失败：" + (d.reason || ""));
+              finish();
+            });
+            source.onerror = () => {
+              if (settled) return;
+              markError(aiSpan, reply || partial || "事件流中断");
+              finish();
+            };
+          });
+        }
+
+        async function send() {
+          const text = input.value.trim();
+          if (!text || busy) return;
+          input.value = "";
+          busy = true;
+          sendBtn.disabled = true;
+          addBubble("user", text);
+          const aiSpan = addBubble("ai", "…");
+          try {
+            const r = await fetch("/v1/turn", {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ scopeId, conversationId, text }),
+            });
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(data.message || data.error || "HTTP " + r.status);
+            if (!data.runId) throw new Error("未返回 runId");
+            await follow(data.runId, aiSpan);
+          } catch (e) {
+            markError(aiSpan, "发送失败：" + (e && e.message ? e.message : String(e)));
+          } finally {
+            busy = false;
+            sendBtn.disabled = false;
+            scrollBottom();
+            input.focus();
+          }
+        }
+
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            send();
+          }
+        });
+        sendBtn.addEventListener("click", send);
+        loadHistory();
+        input.focus();
+      })();
+    </script>
+  </body>
+</html>

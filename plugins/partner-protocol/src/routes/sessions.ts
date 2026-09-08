@@ -1,5 +1,5 @@
 import { asObject, booleanField, numberField, stringField, upstreamProblem } from "../core-client.ts";
-import { problem, requireGroupScope, sendJson, sendProblem, type Problem } from "../transport.ts";
+import { problem, sendJson, sendProblem, type Problem } from "../transport.ts";
 import type { Ctx } from "./index.ts";
 
 const SESSION_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -42,32 +42,6 @@ function narrowSession(source: unknown): Record<string, unknown> | null {
     ...(working === undefined ? {} : { working }),
     ...(awaitingInput === undefined ? {} : { awaitingInput }),
   };
-}
-
-export async function handleSessions(c: Ctx): Promise<void> {
-  const scopeRaw = c.url.searchParams.get("scopeId");
-  let scopeRef: string | null = null;
-  if (scopeRaw !== null && scopeRaw !== "") {
-    const scope = requireGroupScope(scopeRaw);
-    if (!scope.ok) return sendProblem(c.res, scope.problem);
-    scopeRef = scope.scopeId;
-  }
-
-  const outcome = await c.core("GET", `/v1/sessions?principalId=${encodeURIComponent(c.principalId)}`);
-  if (!outcome.ok) return sendProblem(c.res, outcome.problem);
-  if (outcome.status !== 200)
-    return sendProblem(c.res, upstreamProblem(outcome.status, outcome.json, "session listing failed"));
-
-  const listed = asObject(outcome.json)?.sessions;
-  if (!Array.isArray(listed))
-    return sendProblem(c.res, upstreamProblem(outcome.status, outcome.json, "core returned an unexpected listing"));
-
-  const sessions = listed
-    .map((entry) => narrowSession(entry))
-    .filter((entry): entry is Record<string, unknown> => entry !== null)
-    .filter((entry) => scopeRef === null || entry.scopeId === scopeRef);
-
-  sendJson(c.res, 200, { sessions });
 }
 
 export async function handleSessionById(c: Ctx): Promise<void> {

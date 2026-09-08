@@ -181,7 +181,7 @@ test("env assembly precedence: caller > login shell > dev.env > worktree .env; h
   mkdirSync(join(worktree, ".git"));
   writeFileSync(
     join(worktree, ".env"),
-    "ANTHROPIC_API_KEY=from-dotenv\nCORE_SIGNING_SECRET=sekrit\nCAPABILITY_SECRET=cap\nPORTAL_IDENTITY_SECRET=identity\nCONNECTOR_SECRET_KEY=connector\nPORTAL_SESSION_SECRET=session\nBOTH=dotenv\n",
+    "ANTHROPIC_API_KEY=from-dotenv\nCORE_SIGNING_SECRET=sekrit\nCAPABILITY_SECRET=cap\nPORTAL_IDENTITY_SECRET=identity\nCONNECTOR_SECRET_KEY=connector\nPORTAL_SESSION_SECRET=session\nBOTH=dotenv\nLIBRARY_SCOPES=dotenv-lib\nLIBRARY_PRINCIPAL=dotenv-admin\n",
   );
   const liveEnv = join(worktree, "dev.env");
   writeFileSync(liveEnv, "ANTHROPIC_API_KEY=from-liveenv\nLIVE_ONLY=live\n");
@@ -276,6 +276,8 @@ test("env assembly precedence: caller > login shell > dev.env > worktree .env; h
   });
   assert.equal(fromDotenv.env.ANTHROPIC_API_KEY, "from-dotenv");
   assert.equal(fromDotenv.anthropicKeySource, "the worktree .env");
+  assert.equal(fromDotenv.env.LIBRARY_SCOPES, "dotenv-lib");
+  assert.equal(fromDotenv.env.LIBRARY_PRINCIPAL, "dotenv-admin");
 
   writeFileSync(join(worktree, ".env"), "");
   await assert.rejects(
@@ -444,9 +446,17 @@ test("partner child defaults credentials and honors overrides", () => {
   assert.equal(partner.env.CORE_API_URL, `http://localhost:${inputs.ports.core}`);
   assert.equal(partner.env.PORT, String(inputs.ports.partner));
   assert.equal(partner.env.PARTNER_CREDENTIALS, "dev-partner=dev-instance-partner-0123456789abcdef");
-  inputs.baseEnv = { PARTNER_CREDENTIALS: "acme=0123456789012345678901234567890123" };
+  assert.equal(partner.env.LIBRARY_SCOPES, "xhs=org:acme");
+  assert.equal(partner.env.LIBRARY_PRINCIPAL, "dev-admin");
+  inputs.baseEnv = {
+    PARTNER_CREDENTIALS: "acme=0123456789012345678901234567890123",
+    LIBRARY_SCOPES: "xhs=group:web-project-lib",
+    LIBRARY_PRINCIPAL: "lib_admin",
+  };
   const overridden = buildChildSpecs(inputs).find((spec) => spec.name === "partner")!;
   assert.equal(overridden.env.PARTNER_CREDENTIALS, "acme=0123456789012345678901234567890123");
+  assert.equal(overridden.env.LIBRARY_SCOPES, "xhs=group:web-project-lib");
+  assert.equal(overridden.env.LIBRARY_PRINCIPAL, "lib_admin");
 });
 
 test("formatAge renders the bash-compatible shapes", () => {

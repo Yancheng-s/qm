@@ -229,11 +229,11 @@ export function parseBootstrapArgs(
     else single.set(flag, value);
     i++;
   }
-  const packUrl = single.get("--url")?.trim() ?? "";
-  const projectName = single.get("--name")?.trim() ?? "";
+  const packUrl = single.get("--url")?.trim() || env.LIBRARY_PACK_URL?.trim() || "";
+  const projectName = single.get("--name")?.trim() || env.LIBRARY_PROJECT_NAME?.trim() || "";
   const adminPrincipalId = single.get("--admin")?.trim() || env.LIBRARY_PRINCIPAL?.trim() || "";
-  if (!packUrl) return { problem: "--url <git repository> is required" };
-  if (!projectName) return { problem: "--name <library project name> is required" };
+  if (!packUrl) return { problem: "--url <git repository> or LIBRARY_PACK_URL is required" };
+  if (!projectName) return { problem: "--name <library project name> or LIBRARY_PROJECT_NAME is required" };
   if (!adminPrincipalId) return { problem: "--admin <principalId> or LIBRARY_PRINCIPAL is required" };
   if (projectName.length > MAX_NAME_CHARS) return { problem: "--name is too long (max 200 chars)" };
   if (adminPrincipalId.length > MAX_ID_CHARS) return { problem: "--admin is too long (max 200 chars)" };
@@ -256,7 +256,10 @@ async function runCli(): Promise<void> {
   if ("problem" in parsed) {
     console.error(`[partner-bootstrap] ${parsed.problem}`);
     console.error(
-      "usage: node bootstrap/bootstrap-library.ts --url <git repository> --name <library project> [--admin <principalId>] [--ref <git ref>] [--skill <name>]...",
+      "usage: node bootstrap/bootstrap-library.ts [--url <git>] [--name <project>] [--admin <principal>] [--ref <git ref>] [--skill <name>]...",
+    );
+    console.error(
+      "       env fallbacks: LIBRARY_PACK_URL, LIBRARY_PROJECT_NAME, LIBRARY_PRINCIPAL (all overridable by flags)",
     );
     process.exitCode = 1;
     return;

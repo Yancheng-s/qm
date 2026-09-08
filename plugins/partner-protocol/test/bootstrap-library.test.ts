@@ -147,15 +147,40 @@ test("parseBootstrapArgs validates flags and falls back to LIBRARY_PRINCIPAL", (
     selected: ["a", "b"],
   });
 
-  assert.deepEqual(parseBootstrapArgs([], {}), { problem: "--url <git repository> is required" });
+  assert.deepEqual(parseBootstrapArgs([], {}), { problem: "--url <git repository> or LIBRARY_PACK_URL is required" });
   assert.deepEqual(parseBootstrapArgs(["--url", "u"], {}), {
-    problem: "--name <library project name> is required",
+    problem: "--name <library project name> or LIBRARY_PROJECT_NAME is required",
   });
   assert.deepEqual(parseBootstrapArgs(["--url", "u", "--name", "n"], {}), {
     problem: "--admin <principalId> or LIBRARY_PRINCIPAL is required",
   });
   assert.deepEqual(parseBootstrapArgs(["--oops", "x"], {}), { problem: "unknown flag: --oops" });
   assert.deepEqual(parseBootstrapArgs(["--url"], {}), { problem: "--url requires a value" });
+
+  const envOnly = parseBootstrapArgs([], {
+    LIBRARY_PACK_URL: "https://env.example/repo.git",
+    LIBRARY_PROJECT_NAME: "env-lib",
+    LIBRARY_PRINCIPAL: "env-admin",
+  });
+  assert.deepEqual(envOnly, {
+    adminPrincipalId: "env-admin",
+    projectName: "env-lib",
+    packUrl: "https://env.example/repo.git",
+  });
+
+  const flagsOverrideEnv = parseBootstrapArgs(
+    ["--url", "https://flag.example/repo.git", "--name", "flag-lib", "--admin", "flag-admin"],
+    {
+      LIBRARY_PACK_URL: "https://env.example/repo.git",
+      LIBRARY_PROJECT_NAME: "env-lib",
+      LIBRARY_PRINCIPAL: "env-admin",
+    },
+  );
+  assert.deepEqual(flagsOverrideEnv, {
+    adminPrincipalId: "flag-admin",
+    projectName: "flag-lib",
+    packUrl: "https://flag.example/repo.git",
+  });
 });
 
 test("adminActorHeader appends the org suffix exactly once", () => {

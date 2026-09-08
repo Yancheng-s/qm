@@ -1,14 +1,16 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { findRoute } from "../../../chassis/src/router.ts";
-import { principalFor, verifySignedRequest } from "../auth.ts";
+import { principalFor, readChatCookie, verifyChatToken, verifySignedRequest } from "../auth.ts";
 import { createCoreCall, type CoreCall } from "../core-client.ts";
 import { createRateLimiter, problem, readJsonBody, sendProblem, type RateLimiter } from "../transport.ts";
 import { handleAssemble } from "./assemble.ts";
-import { handleEmployees } from "./employees.ts";
+import { handleChat } from "./chat.ts";
+import { handleChatSessions } from "./chat-sessions.ts";
 import { handleEvents } from "./events.ts";
-import { handleRuntime } from "./runtime.ts";
-import { handleSessionById, handleSessions } from "./sessions.ts";
+import { handleSessionById } from "./sessions.ts";
 import { handleTurn } from "./turn.ts";
+
+export type RouteAuth = "partner" | "chat-cookie" | "chat-ticket";
 
 export interface Ctx {
   req: IncomingMessage;
@@ -23,23 +25,26 @@ export interface Ctx {
   libraryCore: CoreCall;
   libraries: ReadonlyMap<string, string>;
   libraryPrincipalId: string;
+  identitySecret: string;
+  chatCookieSecure: boolean;
+  chatToken: string;
 }
 
 export interface Route {
   method: string;
   path: string;
   limit: number;
+  auth: RouteAuth;
   handle: (c: Ctx) => Promise<void>;
 }
 
 export const routes: readonly Route[] = [
-  { method: "GET", path: "/v1/employees", limit: 0, handle: handleEmployees },
-  { method: "GET", path: "/v1/runtime", limit: 0, handle: handleRuntime },
-  { method: "POST", path: "/v1/assemble", limit: 128_000, handle: handleAssemble },
-  { method: "POST", path: "/v1/turn", limit: 64_000, handle: handleTurn },
-  { method: "GET", path: "/v1/events", limit: 0, handle: handleEvents },
-  { method: "GET", path: "/v1/sessions", limit: 0, handle: handleSessions },
-  { method: "GET", path: "/v1/sessions/:id", limit: 0, handle: handleSessionById },
+  { method: "POST", path: "/v1/assemble", limit: 128_000, auth: "partner", handle: handleAssemble },
+  { method: "POST", path: "/v1/chat-sessions", limit: 4_000, auth: "partner", handle: handleChatSessions },
+  { method: "GET", path: "/chat", limit: 0, auth: "chat-ticket", handle: handleChat },
+  { method: "POST", path: "/v1/turn", limit: 64_000, auth: "chat-cookie", handle: handleTurn },
+  { method: "GET", path: "/v1/events", limit: 0, auth: "chat-cookie", handle: handleEvents },
+  { method: "GET", path: "/v1/sessions/:id", limit: 0, auth: "chat-cookie", handle: handleSessionById },
 ];
 
 const UNKNOWN_PATH_BODY_LIMIT = 512_000;
@@ -52,10 +57,18 @@ export interface GatewayDeps {
   libraries: ReadonlyMap<string, string>;
   libraryPrincipalId: string;
   ratePerMin: number;
+  chatCookieSecure: boolean;
   core?: (principalId: string) => CoreCall;
 }
 
 export type Handler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
+
+interface ResolvedIdentity {
+  partnerId: string;
+  userId: string;
+  principalId: string;
+  chatToken: string;
+}
 
 export function createHandler(deps: GatewayDeps): Handler {
   const limiter: RateLimiter = createRateLimiter(deps.ratePerMin);
@@ -87,25 +100,45 @@ export function createHandler(deps: GatewayDeps): Handler {
     const read = await readJsonBody(req, found?.route.limit ?? UNKNOWN_PATH_BODY_LIMIT);
     if (!read.ok) return sendProblem(res, read.problem);
 
-    const verified = verifySignedRequest({
-      partners: deps.partners,
-      method,
-      pathWithQuery,
-      raw: read.raw,
-      header: (name) => {
-        const value = req.headers[name];
-        return Array.isArray(value) ? value[0] : value;
-      },
-    });
-    if (!verified.ok) return sendProblem(res, verified.problem);
+    const auth: RouteAuth = found?.route.auth ?? "partner";
+    let identity: ResolvedIdentity;
+    if (auth === "partner") {
+      const verified = verifySignedRequest({
+        partners: deps.partners,
+        method,
+        pathWithQuery,
+        raw: read.raw,
+        header: (name) => {
+          const value = req.headers[name];
+          return Array.isArray(value) ? value[0] : value;
+        },
+      });
+      if (!verified.ok) return sendProblem(res, verified.problem);
+      const derived = principalFor(
+        verified.partnerId,
+        method === "GET" ? url.searchParams.get("userId") : read.body.userId,
+      );
+      if (!derived.ok) return sendProblem(res, derived.problem);
+      identity = {
+        partnerId: verified.partnerId,
+        userId: derived.userId,
+        principalId: derived.principalId,
+        chatToken: "",
+      };
+    } else {
+      const token = auth === "chat-ticket" ? url.searchParams.get("token") : readChatCookie(req);
+      const verified = verifyChatToken(token, deps.identitySecret);
+      if (!verified.ok) return sendProblem(res, verified.problem);
+      const separator = verified.principalId.indexOf("_");
+      identity = {
+        partnerId: verified.partnerId,
+        userId: separator > 0 ? verified.principalId.slice(separator + 1) : "",
+        principalId: verified.principalId,
+        chatToken: verified.token,
+      };
+    }
 
-    const identity = principalFor(
-      verified.partnerId,
-      method === "GET" ? url.searchParams.get("userId") : read.body.userId,
-    );
-    if (!identity.ok) return sendProblem(res, identity.problem);
-
-    const retryAfter = limiter.take(verified.partnerId);
+    const retryAfter = limiter.take(identity.partnerId);
     if (retryAfter !== null) {
       res.setHeader("retry-after", String(retryAfter));
       return sendProblem(
@@ -123,7 +156,7 @@ export function createHandler(deps: GatewayDeps): Handler {
       res,
       url,
       params: found.params,
-      partnerId: verified.partnerId,
+      partnerId: identity.partnerId,
       userId: identity.userId,
       principalId: identity.principalId,
       body: read.body,
@@ -131,6 +164,9 @@ export function createHandler(deps: GatewayDeps): Handler {
       libraryCore,
       libraries: deps.libraries,
       libraryPrincipalId: deps.libraryPrincipalId,
+      identitySecret: deps.identitySecret,
+      chatCookieSecure: deps.chatCookieSecure,
+      chatToken: identity.chatToken,
     });
   };
 }

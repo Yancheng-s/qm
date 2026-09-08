@@ -390,7 +390,7 @@ async function assembleAndPrepare(spec: BootSpec): Promise<SpecInputs> {
   const portalSessionSecret = assembled.env.PORTAL_SESSION_SECRET!;
   log(`h5 gateway: http://localhost:${ports.h5} -- portal id sign-in (enter any user id) and POST /assemble`);
   log(
-    `partner gateway: http://localhost:${ports.partner} -- signed /v1 partner API (partnerId from PARTNER_CREDENTIALS)`,
+    `partner gateway: http://localhost:${ports.partner} -- signed /v1 assemble + chat-sessions and the /chat page (partnerId from PARTNER_CREDENTIALS)`,
   );
 
   const tokens = slackOn(spec) ? slotTokens(slot, store) : null;

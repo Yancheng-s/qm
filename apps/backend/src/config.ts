@@ -1,6 +1,7 @@
 export interface AppConfig {
   port: number;
   gatewayUrl: string;
+  gatewayPublicUrl: string;
   partnerId: string;
   partnerSecret: string;
   library: string;
@@ -11,12 +12,14 @@ export interface AppConfig {
 
 export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const gatewayUrl = (env.PARTNER_GATEWAY_URL || "http://localhost:8209").replace(/\/+$/, "");
+  const gatewayPublicUrl = (env.PARTNER_PUBLIC_URL || gatewayUrl).replace(/\/+$/, "");
   const partnerId = env.PARTNER_ID || "dev-partner";
   const partnerSecret = env.PARTNER_SECRET || "dev-instance-partner-0123456789abcdef";
   const library = env.LIBRARY || "xhs";
   return {
     port: Number(env.PORT || 8300),
     gatewayUrl,
+    gatewayPublicUrl,
     partnerId,
     partnerSecret,
     library,
@@ -34,6 +37,7 @@ export function configProblems(config: AppConfig): string[] {
   const problems: string[] = [];
   if (!Number.isFinite(config.port) || config.port <= 0) problems.push("PORT must be a positive number");
   if (!/^https?:\/\//.test(config.gatewayUrl)) problems.push("PARTNER_GATEWAY_URL must be an http(s) URL");
+  if (!/^https?:\/\//.test(config.gatewayPublicUrl)) problems.push("PARTNER_PUBLIC_URL must be an http(s) URL");
   if (config.partnerSecret.length < 32) problems.push("PARTNER_SECRET must be at least 32 characters");
   return problems;
 }

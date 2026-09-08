@@ -21,6 +21,7 @@ const IDLOGIN_CLIENT_ID = "qm-portal";
 const IDLOGIN_CLIENT_SECRET = "dev-instance-idlogin-0123456789abcdef";
 const PROFILES_DEV_LIBRARY_PRINCIPAL = "dev-admin";
 const PARTNER_DEV_CREDENTIALS = "dev-partner=dev-instance-partner-0123456789abcdef";
+const PARTNER_DEV_LIBRARY_PRINCIPAL = "dev-admin";
 
 export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
   const watchArgs = i.watch ? ["--watch"] : [];
@@ -152,6 +153,8 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         PORT: String(i.ports.partner),
         CORE_API_URL: `http://localhost:${i.ports.core}`,
         PARTNER_CREDENTIALS: i.baseEnv.PARTNER_CREDENTIALS || PARTNER_DEV_CREDENTIALS,
+        LIBRARY_SCOPES: i.baseEnv.LIBRARY_SCOPES || `xhs=org:${orgId}`,
+        LIBRARY_PRINCIPAL: i.baseEnv.LIBRARY_PRINCIPAL || PARTNER_DEV_LIBRARY_PRINCIPAL,
       },
       port: i.ports.partner,
       readiness: { kind: "log", pattern: `gateway on http://localhost:${i.ports.partner}` },

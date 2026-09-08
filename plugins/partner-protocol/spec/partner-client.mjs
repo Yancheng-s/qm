@@ -12,7 +12,7 @@ if (!SECRET) {
   process.exit(1);
 }
 
-function headers(method, pathWithQuery, raw) {
+function signedHeaders(method, pathWithQuery, raw) {
   const timestamp = Math.floor(Date.now() / 1000);
   const canonical = `${method}\n${pathWithQuery}\n${raw}`;
   const digest = createHmac("sha256", SECRET).update(`v0:${timestamp}:${canonical}`, "utf8").digest("hex");
@@ -24,11 +24,41 @@ function headers(method, pathWithQuery, raw) {
   };
 }
 
-async function call(method, pathWithQuery, body) {
+async function callPartner(method, pathWithQuery, body) {
   const raw = body === undefined ? "" : JSON.stringify(body);
   const response = await fetch(`${BASE_URL}${pathWithQuery}`, {
     method,
-    headers: headers(method, pathWithQuery, raw),
+    headers: signedHeaders(method, pathWithQuery, raw),
+    ...(raw ? { body: raw } : {}),
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`${method} ${pathWithQuery} -> ${response.status} ${text}`);
+  return text ? JSON.parse(text) : null;
+}
+
+function readChatCookie(response) {
+  const entries =
+    typeof response.headers.getSetCookie === "function"
+      ? response.headers.getSetCookie()
+      : [response.headers.get("set-cookie") ?? ""];
+  const cookie = entries.find((entry) => entry.startsWith("partner_chat="));
+  return cookie ? cookie.split(";")[0] : "";
+}
+
+async function openChatPage(chatUrl) {
+  const response = await fetch(`${BASE_URL}${chatUrl}`);
+  const html = await response.text();
+  if (!response.ok) throw new Error(`GET ${chatUrl} -> ${response.status} ${html}`);
+  const cookie = readChatCookie(response);
+  if (!cookie) throw new Error("chat page did not set a partner_chat cookie");
+  return cookie;
+}
+
+async function callChat(method, pathWithQuery, body, cookie) {
+  const raw = body === undefined ? "" : JSON.stringify(body);
+  const response = await fetch(`${BASE_URL}${pathWithQuery}`, {
+    method,
+    headers: { "content-type": "application/json", cookie },
     ...(raw ? { body: raw } : {}),
   });
   const text = await response.text();
@@ -46,8 +76,8 @@ function parseBlock(block) {
   return data ? { event, data: JSON.parse(data) } : null;
 }
 
-async function stream(pathWithQuery, onEvent) {
-  const response = await fetch(`${BASE_URL}${pathWithQuery}`, { headers: headers("GET", pathWithQuery, "") });
+async function streamChat(pathWithQuery, cookie, onEvent) {
+  const response = await fetch(`${BASE_URL}${pathWithQuery}`, { headers: { cookie } });
   if (!response.ok || !response.body)
     throw new Error(`GET ${pathWithQuery} -> ${response.status} ${await response.text()}`);
   const reader = response.body.getReader();
@@ -67,7 +97,7 @@ async function stream(pathWithQuery, onEvent) {
   }
 }
 
-const assembled = await call("POST", "/v1/assemble", {
+const assembled = await callPartner("POST", "/v1/assemble", {
   userId: USER_ID,
   name: `示例员工 ${new Date().toISOString()}`,
   library: LIBRARY,
@@ -77,29 +107,25 @@ console.log("employee", assembled.employee);
 console.log("granted", assembled.granted);
 console.log("soul", assembled.soul, assembled.soulError ?? "");
 
-const conversationId = `demo-${Date.now()}`;
 const scopeId = assembled.employee.scopeId;
-const turn = await call("POST", "/v1/turn", {
-  userId: USER_ID,
-  scopeId,
-  conversationId,
-  text: "你好，介绍一下你自己。",
-});
+const conversationId = "c1";
+
+const chatSession = await callPartner("POST", "/v1/chat-sessions", { userId: USER_ID, scopeId, conversationId });
+console.log("chatUrl", chatSession.chatUrl);
+
+const cookie = await openChatPage(chatSession.chatUrl);
+
+const turn = await callChat("POST", "/v1/turn", { scopeId, conversationId, text: "你好，介绍一下你自己。" }, cookie);
 console.log("turn", turn);
 
-await stream(`/v1/events?userId=${USER_ID}&runId=${turn.runId}`, (event, data) => {
+await streamChat(`/v1/events?runId=${turn.runId}`, cookie, (event, data) => {
   if (event === "partial") return console.log("partial", String(data.partial).slice(-120));
   if (event === "activity") return console.log("activity", data.activity.length);
   return console.log(event, data);
 });
 
-const listed = await call("GET", `/v1/sessions?userId=${USER_ID}&scopeId=${encodeURIComponent(scopeId)}`);
-console.log("sessions", listed.sessions);
-
-const current = listed.sessions.find((session) => session.threadRef === turn.threadRef) ?? listed.sessions.at(-1);
-if (current) {
-  const history = await call("GET", `/v1/sessions/${current.id}?userId=${USER_ID}&tailTurns=1`);
+const sessionId = new URL(chatSession.chatUrl, BASE_URL).searchParams.get("sessionId");
+if (sessionId) {
+  const history = await callChat("GET", `/v1/sessions/${sessionId}?tailTurns=1`, undefined, cookie);
   console.log("history", history.entries.length, history.earlierEntries ?? 0);
 }
-
-console.log("employees", await call("GET", `/v1/employees?userId=${USER_ID}`));

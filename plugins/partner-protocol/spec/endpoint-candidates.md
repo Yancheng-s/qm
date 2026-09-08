@@ -1,6 +1,6 @@
 # v1 待选端点清单
 
-基于 core 现有能力与协议已有 7 个端点（employees / runtime / assemble / turn / events / sessions / sessions/:id）的差集，筛除 admin、Slack、浏览器专属端点后，甲方场景下有意义的候选。按分组勾选后一次性实现（网关路由 + 测试 + protocol.md + demo 接入）。
+基于 core 现有能力与协议已有 6 个端点（assemble / chat-sessions / chat 页面 / turn / events / sessions/:id）的差集，筛除 admin、Slack、浏览器专属端点后，甲方场景下有意义的候选。按分组勾选后一次性实现（网关路由 + 测试 + protocol.md + demo 接入）。
 
 ## A. 消息运行时（跟 turn/events 直接相关，价值最高）
 
