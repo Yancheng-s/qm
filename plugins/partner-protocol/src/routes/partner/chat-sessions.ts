@@ -1,7 +1,7 @@
-import { mintChatToken, threadRefFor } from "../auth.ts";
-import { asObject, stringField } from "../core-client.ts";
-import { readConversationId, requireGroupScope, sendJson, sendProblem } from "../transport.ts";
-import type { Ctx } from "./index.ts";
+import { mintChatToken, threadRefFor } from "../../auth.ts";
+import { asObject, stringField } from "../../core-client.ts";
+import { readConversationId, requireGroupScope, sendJson, sendProblem } from "../../transport.ts";
+import type { Ctx } from "../index.ts";
 
 async function resolveSessionId(c: Ctx, threadRef: string): Promise<string> {
   const listed = await c.core("GET", `/v1/sessions?principalId=${encodeURIComponent(c.principalId)}`);

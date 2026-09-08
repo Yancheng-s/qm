@@ -1,7 +1,7 @@
-import { threadRefFor } from "../auth.ts";
-import { asObject, booleanField, numberField, stringField, upstreamProblem } from "../core-client.ts";
-import { openSse, problem, readConversationId, requireGroupScope, sendProblem, sseEvent, sleep } from "../transport.ts";
-import type { Ctx } from "./index.ts";
+import { threadRefFor } from "../../auth.ts";
+import { asObject, booleanField, numberField, stringField, upstreamProblem } from "../../core-client.ts";
+import { openSse, problem, readConversationId, requireGroupScope, sendProblem, sseEvent, sleep } from "../../transport.ts";
+import type { Ctx } from "../index.ts";
 
 const RUN_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const CORE_POLL_MS = 100;

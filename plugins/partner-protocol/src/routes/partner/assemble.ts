@@ -1,6 +1,6 @@
-import { asObject, stringField, upstreamProblem, type CoreCall, type CoreOutcome } from "../core-client.ts";
-import { problem, sendJson, sendProblem, type Problem } from "../transport.ts";
-import type { Ctx } from "./index.ts";
+import { asObject, stringField, upstreamProblem, type CoreCall, type CoreOutcome } from "../../core-client.ts";
+import { problem, sendJson, sendProblem, type Problem } from "../../transport.ts";
+import type { Ctx } from "../index.ts";
 
 export const MAX_NAME_CHARS = 200;
 export const MAX_LIBRARY_SKILLS = 50;

@@ -1,7 +1,7 @@
-import { threadRefFor } from "../auth.ts";
-import { asObject, relayProblem, upstreamProblem } from "../core-client.ts";
-import { problem, readConversationId, requireGroupScope, sendJson, sendProblem, type Problem } from "../transport.ts";
-import type { Ctx } from "./index.ts";
+import { threadRefFor } from "../../auth.ts";
+import { asObject, relayProblem, upstreamProblem } from "../../core-client.ts";
+import { problem, readConversationId, requireGroupScope, sendJson, sendProblem, type Problem } from "../../transport.ts";
+import type { Ctx } from "../index.ts";
 
 const OPTIONAL_STRINGS = ["model", "harness", "thinkingLevel", "timezone"] as const;
 const APPROVAL_SCOPES = ["once", "session", "always"] as const;

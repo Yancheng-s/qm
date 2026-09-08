@@ -3,12 +3,12 @@ import { findRoute } from "../../../chassis/src/router.ts";
 import { principalFor, readChatCookie, verifyChatToken, verifySignedRequest } from "../auth.ts";
 import { createCoreCall, type CoreCall } from "../core-client.ts";
 import { createRateLimiter, problem, readJsonBody, sendProblem, type RateLimiter } from "../transport.ts";
-import { handleAssemble } from "./assemble.ts";
-import { handleChat } from "./chat.ts";
-import { handleChatSessions } from "./chat-sessions.ts";
-import { handleEvents } from "./events.ts";
-import { handleSessionById } from "./sessions.ts";
-import { handleTurn } from "./turn.ts";
+import { handleAssemble } from "./partner/assemble.ts";
+import { handleChatSessions } from "./partner/chat-sessions.ts";
+import { handleChat } from "./chat/chat.ts";
+import { handleEvents } from "./chat/events.ts";
+import { handleSessionById } from "./chat/sessions.ts";
+import { handleTurn } from "./chat/turn.ts";
 
 export type RouteAuth = "partner" | "chat-cookie" | "chat-ticket";
 

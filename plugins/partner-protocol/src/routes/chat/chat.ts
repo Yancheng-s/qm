@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { escapeHtml } from "../../../chassis/src/http.ts";
-import { CHAT_COOKIE, CHAT_TOKEN_TTL_MS } from "../auth.ts";
-import { readConversationId, requireGroupScope, sendHtml, sendProblem } from "../transport.ts";
-import type { Ctx } from "./index.ts";
+import { escapeHtml } from "../../../../chassis/src/http.ts";
+import { CHAT_COOKIE, CHAT_TOKEN_TTL_MS } from "../../auth.ts";
+import { readConversationId, requireGroupScope, sendHtml, sendProblem } from "../../transport.ts";
+import type { Ctx } from "../index.ts";
 
-const CHAT_HTML = readFileSync(fileURLToPath(new URL("../../web/chat.html", import.meta.url)), "utf8");
+const CHAT_HTML = readFileSync(fileURLToPath(new URL("../../../web/chat.html", import.meta.url)), "utf8");
 const COOKIE_MAX_AGE_S = Math.floor(CHAT_TOKEN_TTL_MS / 1000);
 
 export async function handleChat(c: Ctx): Promise<void> {

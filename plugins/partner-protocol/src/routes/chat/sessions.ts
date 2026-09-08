@@ -1,6 +1,6 @@
-import { asObject, booleanField, numberField, stringField, upstreamProblem } from "../core-client.ts";
-import { problem, sendJson, sendProblem, type Problem } from "../transport.ts";
-import type { Ctx } from "./index.ts";
+import { asObject, booleanField, numberField, stringField, upstreamProblem } from "../../core-client.ts";
+import { problem, sendJson, sendProblem, type Problem } from "../../transport.ts";
+import type { Ctx } from "../index.ts";
 
 const SESSION_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const WINDOW_PARAMS = { tailTurns: 1, sinceSeq: 0, beforeSeq: 1 } as const;

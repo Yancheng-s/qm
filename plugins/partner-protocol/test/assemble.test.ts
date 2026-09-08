@@ -9,7 +9,7 @@ import {
   parseAssembleBody,
   type AssembleDeps,
   type AssembleInput,
-} from "../src/routes/assemble.ts";
+} from "../src/routes/partner/assemble.ts";
 import {
   LIBRARIES,
   LIBRARY_KEY,
