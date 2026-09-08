@@ -6,6 +6,7 @@ import { createRateLimiter, problem, readJsonBody, sendProblem, type RateLimiter
 import { handleAssemble } from "./assemble.ts";
 import { handleEmployees } from "./employees.ts";
 import { handleEvents } from "./events.ts";
+import { handleRuntime } from "./runtime.ts";
 import { handleSessionById, handleSessions } from "./sessions.ts";
 import { handleSkillCreate } from "./skills.ts";
 import { handleTurn } from "./turn.ts";
@@ -31,6 +32,7 @@ export interface Route {
 
 export const routes: readonly Route[] = [
   { method: "GET", path: "/v1/employees", limit: 0, handle: handleEmployees },
+  { method: "GET", path: "/v1/runtime", limit: 0, handle: handleRuntime },
   { method: "POST", path: "/v1/assemble", limit: 512_000, handle: handleAssemble },
   { method: "POST", path: "/v1/skills", limit: 160_000, handle: handleSkillCreate },
   { method: "POST", path: "/v1/turn", limit: 64_000, handle: handleTurn },

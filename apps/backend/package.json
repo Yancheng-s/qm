@@ -1,0 +1,24 @@
+{
+  "name": "qm-partner-app-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Partner-side backend: signs partner-protocol requests, serves the Vue frontend API.",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node src/index.ts",
+    "dev": "node --watch src/index.ts",
+    "skills": "node skills/flatten-skills.mjs",
+    "register-mcp": "node --env-file-if-exists=../../.env bootstrap/register-mcp.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fastify": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.2"
+  }
+}

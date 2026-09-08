@@ -96,14 +96,14 @@ principalId = partnerId + "_" + userId
 }
 ```
 
-| 字段                   | 约束                                                                             |
-| ---------------------- | -------------------------------------------------------------------------------- |
-| `name`                 | 必填，去空格后非空，≤ **200** 字符                                               |
-| `skills`               | 可选数组，≤ **20** 条，同一请求内不得重名                                        |
-| `skills[].name`        | 必填，合 `^[a-z0-9][a-z0-9_-]{0,63}$`                                            |
-| `skills[].description` | 必填，非空，≤ **500** 字符。这是模型选技能时唯一看到的说明，请写清「什么时候用」 |
-| `skills[].body`        | 必填，去空格后非空，≤ **128KB**（131,072 字节）。markdown，可内联代码            |
-| `soul`                 | 可选字符串，≤ **8KB**（8,192 字节）。该员工的**人格**：语气、行事风格、价值观     |
+| 字段                   | 约束                                                                                                                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`                 | 必填，去空格后非空，≤ **200** 字符                                                                                                                                                                           |
+| `skills`               | 可选数组，≤ **20** 条，同一请求内不得重名                                                                                                                                                                    |
+| `skills[].name`        | 必填，合 `^[a-z0-9][a-z0-9_-]{0,63}$`                                                                                                                                                                        |
+| `skills[].description` | 必填，非空，≤ **500** 字符。这是模型选技能时唯一看到的说明，请写清「什么时候用」                                                                                                                             |
+| `skills[].body`        | 必填，去空格后非空，≤ **128KB**（131,072 字节）。markdown，可内联代码                                                                                                                                        |
+| `soul`                 | 可选字符串，≤ **8KB**（8,192 字节）。该员工的**人格**：语气、行事风格、价值观                                                                                                                                |
 | `standingOrders`       | 可选字符串，≤ **20,000** 字符。该员工的**对外形象/身份**：名字、职务、自我介绍口径。每回合随唤醒信封注入且标注「必须照做」，能压过平台默认自称；仅对非 DM 会话生效（本协议建出的员工均为 group scope，生效） |
 
 响应：
@@ -126,7 +126,7 @@ principalId = partnerId + "_" + userId
 | 项目没建成   | `502 {"error":"upstream_error",…}`                        | **员工可能已经建了一半**，重试前先用 `GET /v1/employees` 按名字核对 |
 | 某条技能失败 | 仍 `201`；`skills[i].ok=false` 带 `error`；后续技能继续建 | 用 `POST /v1/skills` 补建失败的那几条                               |
 | 人格写入失败 | 仍 `201`；`soul:false` + `soulError`                      | 员工可用；v1 没有单独重写人格的端点，只能重建员工                   |
-| 形象写入失败 | 仍 `201`；`standingOrders:false` + `standingOrdersError`  | 员工可用但自称回落平台默认；重建员工或请运营侧补写 context policy    |
+| 形象写入失败 | 仍 `201`；`standingOrders:false` + `standingOrdersError`  | 员工可用但自称回落平台默认；重建员工或请运营侧补写 context policy   |
 
 **这个接口不是幂等的**：重复调用会创建多个员工（多个不同 `scopeId`）。
 
@@ -159,6 +159,29 @@ principalId = partnerId + "_" + userId
 
 技能写进员工 scope 后**立即生效**（下一轮对话就能看到），不需要额外授权或重启。
 
+### `GET /v1/runtime?userId=&scopeId=`
+
+拉取该员工可用的模型与 harness 选择器。返回的是**当前实际生效的候选集**（运营侧在后台配置的），直接用它渲染下拉框即可：
+
+```
+200 {
+  "scopeId": "group:web-project-1",
+  "harnesses": ["pi", "codex"],
+  "modelsByHarness": {"pi": ["gpt-x", "glm-y"], "codex": ["gpt-x"]},
+  "modelCatalog": {"gpt-x": {"name": "GPT X", "provider": "openai"}, …},
+  "effective": {"harnessId": "pi", "modelId": "gpt-x"}
+}
+```
+
+| 字段              | 含义                                       |
+| ----------------- | ------------------------------------------ |
+| `harnesses`       | 可选 harness 列表                          |
+| `modelsByHarness` | 每个 harness 下可选的 `modelId` 列表       |
+| `modelCatalog`    | `modelId` → `{name, provider}`，用于展示名 |
+| `effective`       | 不带 `model`/`harness` 发 turn 时的默认值  |
+
+把选中的值随 `POST /v1/turn` 的 `model`/`harness` 字段传回即可（见下）。不传则用 `effective`。`403 {"error":"refused",…}` 表示该员工 scope 不属于这个 `userId`。
+
 ### `POST /v1/turn`
 
 发一条消息。
@@ -184,7 +207,7 @@ principalId = partnerId + "_" + userId
 | `scopeId`                                          | 必填，`group:…`                                            |
 | `conversationId`                                   | 可选，合 `^[A-Za-z0-9._-]{1,120}$`，缺省 `"default"`       |
 | `text`                                             | 与 `approval` 至少有一个；只有 `approval` 时 `text` 可为空 |
-| `model` / `harness` / `thinkingLevel` / `timezone` | 可选字符串，原样透传                                       |
+| `model` / `harness` / `thinkingLevel` / `timezone` | 可选字符串，原样透传；候选集来自 `GET /v1/runtime`         |
 | `approval.scope`                                   | 可选，`once` \| `session` \| `always`                      |
 
 其它字段（包括 `attachments`、`principalId`、`proactiveOpener`）一律丢弃。
@@ -321,13 +344,13 @@ SSE 长连接在整个订阅期间只占用一次配额。
 
 ## 7. 重试与幂等
 
-| 端点                                                      | 幂等             | 建议                                                                                                          |
-| --------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------- |
-| `GET /v1/employees` / `/v1/sessions` / `/v1/sessions/:id` | 是               | 随便重试                                                                                                      |
-| `GET /v1/events`                                          | 是               | 断流后按 §4 重连                                                                                              |
-| `POST /v1/skills`                                         | 是（重名 `409`） | 重试安全，`409` 当作已存在                                                                                    |
-| `POST /v1/turn`                                           | **否**           | `502`/`500` 时重试可能产生两条消息；先 `GET /v1/sessions/:id` 看最后一条是不是你刚发的，不是再重发            |
-| `POST /v1/assemble`                                       | **否**           | 任何 `502` 都先 `GET /v1/employees` 核对，确认没建出来再重试；`201` 之后的局部失败只能用 `POST /v1/skills` 补 |
+| 端点                                                                      | 幂等             | 建议                                                                                                          |
+| ------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/employees` / `/v1/sessions` / `/v1/sessions/:id` / `/v1/runtime` | 是               | 随便重试                                                                                                      |
+| `GET /v1/events`                                                          | 是               | 断流后按 §4 重连                                                                                              |
+| `POST /v1/skills`                                                         | 是（重名 `409`） | 重试安全，`409` 当作已存在                                                                                    |
+| `POST /v1/turn`                                                           | **否**           | `502`/`500` 时重试可能产生两条消息；先 `GET /v1/sessions/:id` 看最后一条是不是你刚发的，不是再重发            |
+| `POST /v1/assemble`                                                       | **否**           | 任何 `502` 都先 `GET /v1/employees` 核对，确认没建出来再重试；`201` 之后的局部失败只能用 `POST /v1/skills` 补 |
 
 网络层请设**读超时**：普通请求 15 秒（网关调后端的超时就是 15 秒）；SSE 不设读超时，但要自己定总时长上限（见 §4 的 `GET /v1/events`）。
 

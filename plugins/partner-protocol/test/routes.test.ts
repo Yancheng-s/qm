@@ -1,4 +1,4 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
 import { request } from "node:http";
 import { routes } from "../src/routes/index.ts";
@@ -52,11 +52,12 @@ async function withGateway(script: CoreScript | undefined, run: (base: string) =
   }
 }
 
-test("the whitelist is exactly the seven documented endpoints with their body limits", () => {
+test("the whitelist is exactly the eight documented endpoints with their body limits", () => {
   assert.deepEqual(
     routes.map((route) => `${route.method} ${route.path} ${route.limit}`),
     [
       "GET /v1/employees 0",
+      "GET /v1/runtime 0",
       "POST /v1/assemble 512000",
       "POST /v1/skills 160000",
       "POST /v1/turn 64000",
@@ -743,4 +744,53 @@ test("a body that is not JSON is refused before verification is even attempted",
 
 test("parseSse ignores comment lines", () => {
   assert.deepEqual(parseSse(": open\n\nevent: idle\ndata: {}\n\n: ping\n\n"), [{ event: "idle", data: {} }]);
+});
+
+test("runtime relays the core runtime catalog narrowed to the protocol fields", async () => {
+  const core = recordingCore(() =>
+    ok(200, {
+      scopeId: "group:web-project-1",
+      approvedHarnesses: ["pi", "codex"],
+      modelsByHarness: { pi: ["gpt-x", "glm-y"], codex: ["gpt-x"] },
+      modelCatalog: { "gpt-x": { name: "GPT X", provider: "openai" }, "glm-y": { name: "GLM Y", provider: "zhipu" } },
+      orgDefault: { harnessId: "pi", revision: 3 },
+      effective: { harnessId: "pi", modelId: "gpt-x" },
+      upgradeAvailable: false,
+      fastModeModelIds: ["gpt-x"],
+    }),
+  );
+  const gateway = await startGateway(core.factory);
+  try {
+    const missingScope = await get(gateway.base, `/v1/runtime?userId=${USER_ID}`);
+    assert.equal(missingScope.status, 400);
+
+    const badScope = await get(gateway.base, `/v1/runtime?userId=${USER_ID}&scopeId=personal%3Aother`);
+    assert.equal(badScope.status, 400);
+    assert.equal(core.calls.length, 0);
+
+    const response = await get(gateway.base, `/v1/runtime?userId=${USER_ID}&scopeId=${encodeURIComponent(SCOPE)}`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      scopeId: SCOPE,
+      harnesses: ["pi", "codex"],
+      modelsByHarness: { pi: ["gpt-x", "glm-y"], codex: ["gpt-x"] },
+      modelCatalog: { "gpt-x": { name: "GPT X", provider: "openai" }, "glm-y": { name: "GLM Y", provider: "zhipu" } },
+      effective: { harnessId: "pi", modelId: "gpt-x" },
+    });
+
+    const query = new URLSearchParams(core.calls[0]?.path.split("?")[1] ?? "");
+    assert.equal(core.calls[0]?.path.startsWith("/v1/runtime-config"), true);
+    assert.equal(query.get("principalId"), PRINCIPAL_ID);
+    assert.equal(query.get("scopeId"), SCOPE);
+
+    const refused = await startGateway(recordingCore(() => ok(403, { error: "forbidden" })).factory);
+    try {
+      const denied = await get(refused.base, `/v1/runtime?userId=${USER_ID}&scopeId=${encodeURIComponent(SCOPE)}`);
+      assert.equal(denied.status, 403);
+    } finally {
+      await refused.close();
+    }
+  } finally {
+    await gateway.close();
+  }
 });
