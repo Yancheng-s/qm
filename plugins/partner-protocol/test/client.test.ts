@@ -1,8 +1,19 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { PARTNER_ID, PARTNER_SECRET, ROOT, USER_ID, startStubCore, withGateway } from "./support.ts";
+import { createCoreCall } from "../src/core-client.ts";
+import {
+  IDENTITY_SECRET,
+  PARTNER_ID,
+  PARTNER_SECRET,
+  ROOT,
+  SIGNING_SECRET,
+  USER_ID,
+  startStubCore,
+  withGateway,
+} from "./support.ts";
 
 interface ClientRun {
   code: number | null;
@@ -66,4 +77,24 @@ test("the sample client refuses to run without a secret", async () => {
   const ran = await runClient({ PARTNER_ID, PARTNER_SECRET: undefined, PARTNER_USER_ID: USER_ID });
   assert.equal(ran.code, 1);
   assert.match(ran.output, /set PARTNER_SECRET/);
+});
+
+test("core client stages binary blobs with source auth bound to the sha256", async () => {
+  const core = await startStubCore();
+  try {
+    const client = createCoreCall(
+      { coreApiUrl: core.url, signingSecret: SIGNING_SECRET, identitySecret: IDENTITY_SECRET },
+      "acme_u1",
+    );
+    const bytes = Buffer.from("hello");
+    const outcome = await client.stageBlob!(bytes);
+    assert.equal(outcome.ok, true);
+    assert.equal(outcome.ok ? outcome.status : 0, 200);
+    assert.equal(core.calls.at(-1)?.path, "/v1/blobs");
+    assert.equal(core.calls.at(-1)?.body, "hello");
+    assert.equal(core.calls.at(-1)?.headers["x-content-sha256"], createHash("sha256").update(bytes).digest("hex"));
+    assert.ok(core.calls.at(-1)?.headers["x-signature"]);
+  } finally {
+    await core.close();
+  }
 });

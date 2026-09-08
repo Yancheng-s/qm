@@ -11,13 +11,14 @@ export interface AppConfig {
 }
 
 export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
+  const port = Number(env.PORT || 8300);
   const gatewayUrl = (env.PARTNER_GATEWAY_URL || "http://localhost:8209").replace(/\/+$/, "");
   const gatewayPublicUrl = (env.PARTNER_PUBLIC_URL || gatewayUrl).replace(/\/+$/, "");
   const partnerId = env.PARTNER_ID || "dev-partner";
   const partnerSecret = env.PARTNER_SECRET || "dev-instance-partner-0123456789abcdef";
   const library = env.LIBRARY || "xhs";
   return {
-    port: Number(env.PORT || 8300),
+    port,
     gatewayUrl,
     gatewayPublicUrl,
     partnerId,

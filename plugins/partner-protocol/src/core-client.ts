@@ -1,4 +1,10 @@
-import { signedHeaders, withSourceAuthNonce, type HttpMethod } from "../../chassis/src/core-client.ts";
+import { createHash } from "node:crypto";
+import {
+  signedHeaders,
+  signedRequestHeaders,
+  withSourceAuthNonce,
+  type HttpMethod,
+} from "../../chassis/src/core-client.ts";
 import { PORTAL_IDENTITY_HEADER, mintPortalIdentity } from "../../chassis/src/portal-identity.ts";
 import { problem, type Problem } from "./transport.ts";
 
@@ -14,10 +20,26 @@ export interface CoreDeps {
 
 export type CoreOutcome = { ok: true; status: number; json: unknown } | { ok: false; problem: Problem };
 
-export type CoreCall = (method: HttpMethod, pathWithQuery: string, body?: unknown) => Promise<CoreOutcome>;
+export interface CoreCall {
+  (method: HttpMethod, pathWithQuery: string, body?: unknown): Promise<CoreOutcome>;
+  stageBlob?(data: Uint8Array): Promise<CoreOutcome>;
+}
 
 export function createCoreCall(deps: CoreDeps, principalId: string): CoreCall {
-  return async (method, pathWithQuery, body) => {
+  const parseJsonResponse = async (response: Response): Promise<CoreOutcome> => {
+    const text = await response.text();
+    if (!text) return { ok: true, status: response.status, json: null };
+    try {
+      return { ok: true, status: response.status, json: JSON.parse(text) as unknown };
+    } catch {
+      return {
+        ok: false,
+        problem: problem(502, "upstream_error", `core returned a non-JSON ${response.status} response`),
+      };
+    }
+  };
+
+  const call = async (method: HttpMethod, pathWithQuery: string, body?: unknown): Promise<CoreOutcome> => {
     const raw = body === undefined ? "" : JSON.stringify(body);
     const path = withSourceAuthNonce(pathWithQuery, deps.signingSecret);
     let response: Response;
@@ -38,17 +60,37 @@ export function createCoreCall(deps: CoreDeps, principalId: string): CoreCall {
     } catch {
       return { ok: false, problem: problem(502, "upstream_error", "core unreachable") };
     }
-    const text = await response.text();
-    if (!text) return { ok: true, status: response.status, json: null };
-    try {
-      return { ok: true, status: response.status, json: JSON.parse(text) as unknown };
-    } catch {
-      return {
-        ok: false,
-        problem: problem(502, "upstream_error", `core returned a non-JSON ${response.status} response`),
-      };
-    }
+    return parseJsonResponse(response);
   };
+
+  return Object.assign(call, {
+    async stageBlob(data: Uint8Array): Promise<CoreOutcome> {
+      const path = withSourceAuthNonce("/v1/blobs", deps.signingSecret);
+      const sha256 = createHash("sha256").update(data).digest("hex");
+      let response: Response;
+      try {
+        response = await fetch(`${deps.coreApiUrl}${path}`, {
+          method: "POST",
+          headers: {
+            ...signedRequestHeaders(deps.signingSecret, "POST", path, sha256, {
+              "content-type": "application/octet-stream",
+              "x-content-sha256": sha256,
+            }),
+            [PORTAL_IDENTITY_HEADER]: mintPortalIdentity(
+              { p: principalId, exp: Date.now() + IDENTITY_TTL_MS },
+              deps.identitySecret,
+            ),
+          },
+          body: Buffer.from(data),
+          redirect: "manual",
+          signal: AbortSignal.timeout(deps.timeoutMs ?? CORE_TIMEOUT_MS),
+        });
+      } catch {
+        return { ok: false, problem: problem(502, "upstream_error", "core unreachable") };
+      }
+      return parseJsonResponse(response);
+    },
+  });
 }
 
 export function asObject(value: unknown): Record<string, unknown> | null {

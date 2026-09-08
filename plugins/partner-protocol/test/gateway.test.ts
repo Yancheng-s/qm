@@ -170,6 +170,7 @@ test("the whole protocol closes against a stub core", async () => {
         granted: ["space-xhs-writer", "space-xhs-title"],
         soul: true,
         standingOrders: false,
+        files: [],
       });
 
       const outbound = core.calls.find((call) => call.path === "/v1/projects" && call.method === "POST");

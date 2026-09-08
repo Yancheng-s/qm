@@ -140,6 +140,7 @@ test("assemble lists library skills, builds the project, grants each by referenc
   assert.deepEqual(outcome.granted, ["space-xhs-writer", "space-xhs-title"]);
   assert.equal(outcome.grantFailures, undefined);
   assert.equal(outcome.soul, true);
+  assert.deepEqual(outcome.files, []);
 });
 
 test("a single bound library is used when the request omits the library field", async () => {
@@ -346,6 +347,80 @@ test("standing orders are written to the context policy after the soul", async (
   assert.equal(outcome.standingOrders, true);
 });
 
+test("assemble imports files into the employee scope after project creation", async () => {
+  const core = stubCore();
+  const imported = await assembleEmployee(
+    {
+      ...depsFor(core),
+      importFiles: async ({ principalId, scopeId, files }) => {
+        assert.equal(principalId, PRINCIPAL);
+        assert.equal(scopeId, "group:web-project-1");
+        assert.deepEqual(files, [
+          {
+            url: "https://files.example.test/profile.md",
+            name: "profile.md",
+            mimetype: "text/markdown",
+            sha256: "a".repeat(64),
+            sizeBytes: 12,
+          },
+        ]);
+        return [{ ok: true, file: { id: "file-1", name: "profile.md", mimetype: "text/markdown", sizeBytes: 12 } }];
+      },
+    },
+    {
+      principalId: PRINCIPAL,
+      name: "Support",
+      library: LIBRARY_KEY,
+      skills: [],
+      files: [
+        {
+          url: "https://files.example.test/profile.md",
+          name: "profile.md",
+          mimetype: "text/markdown",
+          sha256: "a".repeat(64),
+          sizeBytes: 12,
+        },
+      ],
+    },
+  );
+
+  assert.equal(imported.status, "assembled");
+  if (imported.status !== "assembled") return;
+  assert.deepEqual(imported.files, [{ id: "file-1", name: "profile.md", mimetype: "text/markdown", sizeBytes: 12 }]);
+  assert.equal(imported.fileFailures, undefined);
+});
+
+test("file import failures leave the employee valid and report the reason", async () => {
+  const core = stubCore();
+  const outcome = await assembleEmployee(
+    {
+      ...depsFor(core),
+      importFiles: async () => [
+        {
+          ok: false,
+          url: "https://files.example.test/missing.md",
+          name: "missing.md",
+          error: "file download replied 404",
+        },
+      ],
+    },
+    {
+      principalId: PRINCIPAL,
+      name: "Support",
+      library: LIBRARY_KEY,
+      skills: [],
+      files: [{ url: "https://files.example.test/missing.md", name: "missing.md" }],
+    },
+  );
+
+  assert.equal(outcome.status, "assembled");
+  if (outcome.status !== "assembled") return;
+  assert.deepEqual(outcome.files, []);
+  assert.deepEqual(outcome.fileFailures, [
+    { url: "https://files.example.test/missing.md", name: "missing.md", error: "file download replied 404" },
+  ]);
+});
+
 test("a rejected context policy leaves the employee valid and reports the reason", async () => {
   const core = stubCore({ policyStatus: 403 });
   const outcome = await assembleEmployee(depsFor(core), {
@@ -411,6 +486,13 @@ test("parseAssembleBody refuses malformed requests before any core call", () => 
     problemOf({ name: "ok", standingOrders: "x".repeat(MAX_STANDING_ORDERS_CHARS + 1) }),
     /standingOrders exceeds/,
   );
+  assert.match(problemOf({ name: "ok", files: {} }), /files must be an array/);
+  assert.match(problemOf({ name: "ok", files: [{ url: "" }] }), /each file requires url/);
+  assert.match(problemOf({ name: "ok", files: [{ url: "http://files.example.test/a.txt" }] }), /must use https/);
+  assert.match(
+    problemOf({ name: "ok", files: [{ url: "https://files.example.test/a.txt", sha256: "bad" }] }),
+    /sha256/,
+  );
 });
 
 test("parseAssembleBody accepts a valid request and drops empty optionals", () => {
@@ -424,6 +506,32 @@ test("parseAssembleBody accepts a valid request and drops empty optionals", () =
   assert.equal(parsed.ok, true);
   if (!parsed.ok) return;
   assert.deepEqual(parsed.request, { name: "Support", library: "xhs", skills: ["space-xhs-writer"] });
+});
+
+test("parseAssembleBody accepts file metadata", () => {
+  const parsed = parseAssembleBody({
+    name: "Support",
+    files: [
+      {
+        url: "https://files.example.test/profile.md",
+        name: " profile.md ",
+        mimetype: " text/markdown ",
+        sha256: "A".repeat(64),
+        sizeBytes: 7,
+      },
+    ],
+  });
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.request.files, [
+    {
+      url: "https://files.example.test/profile.md",
+      name: "profile.md",
+      mimetype: "text/markdown",
+      sha256: "a".repeat(64),
+      sizeBytes: 7,
+    },
+  ]);
 });
 
 test("AssembleInput carries the derived principal and nothing from the request body", () => {

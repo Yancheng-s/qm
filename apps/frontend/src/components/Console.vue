@@ -18,6 +18,7 @@ const conversations = ref<Conversation[]>([]);
 const newName = ref("");
 const busy = ref(false);
 const error = ref("");
+const notice = ref("");
 
 function reload(): void {
   employees.value = listEmployees();
@@ -32,10 +33,16 @@ async function create(): Promise<void> {
   if (busy.value || !userId.value.trim()) return;
   busy.value = true;
   error.value = "";
+  notice.value = "";
   try {
     setUserId(userId.value);
     const result = await api.createEmployee(newName.value.trim() || undefined);
     rememberEmployee(result.employee);
+    if (result.fileFailures?.length) {
+      notice.value = `默认文件导入失败：${result.fileFailures.map((item) => item.name || item.url).join("、")}`;
+    } else if (result.files?.length) {
+      notice.value = `已导入默认文件：${result.files.map((item) => item.name).join("、")}`;
+    }
     newName.value = "";
     reload();
   } catch (e) {
@@ -90,6 +97,7 @@ onMounted(reload);
       </div>
 
       <div v-if="error" class="err">{{ error }}</div>
+      <div v-if="notice" class="notice">{{ notice }}</div>
 
       <div v-if="employees.length" class="list">
         <div v-for="employee in employees" :key="employee.scopeId" class="emp">
@@ -151,6 +159,11 @@ h1 {
 }
 .err {
   color: var(--err);
+  margin: 6px 0;
+  font-size: 13px;
+}
+.notice {
+  color: var(--muted);
   margin: 6px 0;
   font-size: 13px;
 }

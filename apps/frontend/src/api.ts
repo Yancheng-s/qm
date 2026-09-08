@@ -4,6 +4,19 @@ export interface Employee {
   scopeId: string;
 }
 
+export interface EmployeeFile {
+  id: string;
+  name: string;
+  mimetype: string;
+  sizeBytes: number;
+}
+
+export interface EmployeeFileFailure {
+  url: string;
+  name?: string;
+  error: string;
+}
+
 export interface Conversation {
   conversationId: string;
   scopeId: string;
@@ -43,7 +56,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   createEmployee: (name?: string) =>
-    request<{ employee: Employee; granted?: string[]; soul?: boolean }>("/api/employees", {
+    request<{
+      employee: Employee;
+      granted?: string[];
+      soul?: boolean;
+      files?: EmployeeFile[];
+      fileFailures?: EmployeeFileFailure[];
+    }>("/api/employees", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(name ? { name } : {}),

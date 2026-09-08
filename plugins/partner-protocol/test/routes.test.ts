@@ -160,9 +160,7 @@ test("chat serves the page, sets the cookie, and rejects a bad ticket or scope",
     );
     assert.equal(badTicket.status, 401);
 
-    const badScope = await fetch(
-      `${gateway.base}/chat?token=${token}&scopeId=personal%3Ax&conversationId=c1`,
-    );
+    const badScope = await fetch(`${gateway.base}/chat?token=${token}&scopeId=personal%3Ax&conversationId=c1`);
     assert.equal(badScope.status, 400);
   } finally {
     await gateway.close();
@@ -564,6 +562,7 @@ test("assemble is reachable end to end through the pipeline", async () => {
       granted: ["space-xhs-writer", "space-xhs-title"],
       soul: true,
       standingOrders: false,
+      files: [],
     });
     assert.deepEqual(
       core.calls.map((call) => call.path.split("?")[0]),

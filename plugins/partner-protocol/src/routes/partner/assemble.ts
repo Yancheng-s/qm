@@ -1,4 +1,11 @@
 import { asObject, stringField, upstreamProblem, type CoreCall, type CoreOutcome } from "../../core-client.ts";
+import {
+  importAssembleFiles,
+  parseAssembleFiles,
+  type AssembleFile,
+  type FileImportOutcome,
+  type ImportedFile,
+} from "../../file-import.ts";
 import { problem, sendJson, sendProblem, type Problem } from "../../transport.ts";
 import type { Ctx } from "../index.ts";
 
@@ -12,6 +19,7 @@ interface AssembleRequest {
   name: string;
   library?: string;
   skills: readonly string[];
+  files?: readonly AssembleFile[];
   soul?: string;
   standingOrders?: string;
 }
@@ -25,6 +33,12 @@ export interface AssembleDeps {
   libraryCore: CoreCall;
   libraries: ReadonlyMap<string, string>;
   libraryPrincipalId: string;
+  importFiles?: (input: {
+    core: CoreCall;
+    principalId: string;
+    scopeId: string;
+    files: readonly AssembleFile[];
+  }) => Promise<FileImportOutcome[]>;
 }
 
 interface LibrarySkill {
@@ -42,6 +56,8 @@ export type AssembleOutcome =
       soulError?: string;
       standingOrders: boolean;
       standingOrdersError?: string;
+      files: readonly ImportedFile[];
+      fileFailures?: readonly { url: string; name?: string; error: string }[];
     }
   | { status: "failed"; problem: Problem };
 
@@ -89,6 +105,9 @@ export function parseAssembleBody(body: Record<string, unknown>): AssembleParse 
     }
   }
 
+  const parsedFiles = parseAssembleFiles(body.files);
+  if (!parsedFiles.ok) return parsedFiles;
+
   let soul: string | undefined;
   if (body.soul !== undefined && body.soul !== null && body.soul !== "") {
     if (typeof body.soul !== "string")
@@ -115,6 +134,7 @@ export function parseAssembleBody(body: Record<string, unknown>): AssembleParse 
     request: {
       name,
       skills,
+      ...(parsedFiles.files.length ? { files: parsedFiles.files } : {}),
       ...(library ? { library } : {}),
       ...(soul ? { soul } : {}),
       ...(standingOrders ? { standingOrders } : {}),
@@ -210,6 +230,26 @@ export async function assembleEmployee(deps: AssembleDeps, input: AssembleInput)
     else grantFailures.push({ name: skill.name, error: failureMessage(outcome) });
   }
 
+  const importedFiles: ImportedFile[] = [];
+  const fileFailures: { url: string; name?: string; error: string }[] = [];
+  if (input.files?.length) {
+    const outcomes = await (deps.importFiles ?? importAssembleFiles)({
+      core: deps.core,
+      principalId: input.principalId,
+      scopeId,
+      files: input.files,
+    });
+    for (const outcome of outcomes) {
+      if (outcome.ok) importedFiles.push(outcome.file);
+      else
+        fileFailures.push({
+          url: outcome.url,
+          ...(outcome.name ? { name: outcome.name } : {}),
+          error: outcome.error,
+        });
+    }
+  }
+
   let soul = false;
   let soulError: string | undefined;
   if (input.soul) {
@@ -243,6 +283,8 @@ export async function assembleEmployee(deps: AssembleDeps, input: AssembleInput)
     ...(soulError ? { soulError } : {}),
     standingOrders,
     ...(standingOrdersError ? { standingOrdersError } : {}),
+    files: importedFiles,
+    ...(fileFailures.length ? { fileFailures } : {}),
   };
 }
 
@@ -267,5 +309,7 @@ export async function handleAssemble(c: Ctx): Promise<void> {
     ...(outcome.soulError ? { soulError: outcome.soulError } : {}),
     standingOrders: outcome.standingOrders,
     ...(outcome.standingOrdersError ? { standingOrdersError: outcome.standingOrdersError } : {}),
+    files: outcome.files,
+    ...(outcome.fileFailures ? { fileFailures: outcome.fileFailures } : {}),
   });
 }

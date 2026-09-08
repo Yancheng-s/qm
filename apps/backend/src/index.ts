@@ -19,6 +19,14 @@ const partner = createPartnerClient({
 
 const app = Fastify({ logger: false });
 
+const defaultFiles = [
+  {
+    url: "https://xmzl-headportrait.oss-cn-beijing.aliyuncs.com/xmzl/lun_tai/1786689504191020500.txt",
+    name: "xhs-user-profile.txt",
+    mimetype: "text/plain",
+  },
+];
+
 app.addHook("onRequest", async (req, reply) => {
   reply.header("access-control-allow-origin", req.headers.origin ?? "*");
   reply.header("access-control-allow-headers", "content-type,x-user-id");
@@ -30,12 +38,13 @@ app.get("/healthz", async () => ({
   ok: true,
   gateway: config.gatewayUrl,
   partnerId: config.partnerId,
+  defaultFiles: defaultFiles.length,
   mcp: { path: "/mcp", tools: [MCP_TOOL.name] },
 }));
 
 registerMcpRoutes(app, { name: "partner-app-mcp", version: "1.0.0" });
 
-app.post<{ Body: { name?: unknown; library?: unknown } }>("/api/employees", async (req, reply) => {
+app.post<{ Body: { name?: unknown; library?: unknown; files?: unknown } }>("/api/employees", async (req, reply) => {
   const auth = authenticate(req);
   if (!auth.ok) return reply.status(auth.status).send({ error: auth.error, message: auth.message });
   const name =
@@ -46,6 +55,7 @@ app.post<{ Body: { name?: unknown; library?: unknown } }>("/api/employees", asyn
     userId: auth.userId,
     name,
     library,
+    files: req.body?.files ?? defaultFiles,
     soul: config.defaultSoul,
     standingOrders: config.defaultStandingOrders,
   });

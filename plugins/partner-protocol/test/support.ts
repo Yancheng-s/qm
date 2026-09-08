@@ -143,6 +143,7 @@ export function sleep(ms: number): Promise<void> {
 export interface StubCoreCall {
   method: string;
   path: string;
+  body: string;
   headers: Record<string, string | undefined>;
 }
 
@@ -152,11 +153,11 @@ export interface StubCore {
   close: () => Promise<void>;
 }
 
-function readRequest(req: IncomingMessage): Promise<string> {
+function readRequest(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
     req.on("data", (chunk: Buffer) => chunks.push(chunk));
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
   });
 }
 
@@ -178,13 +179,15 @@ export async function startStubCore(): Promise<StubCore> {
   let projects = 0;
   const server: Server = createServer((req, res) => {
     const { pathname } = new URL(req.url ?? "/", "http://core.local");
-    void readRequest(req).then(() => {
+    void readRequest(req).then((body) => {
       calls.push({
         method: req.method ?? "GET",
         path: pathname,
+        body: body.toString("utf8"),
         headers: {
           "x-timestamp": req.headers["x-timestamp"] as string | undefined,
           "x-signature": req.headers["x-signature"] as string | undefined,
+          "x-content-sha256": req.headers["x-content-sha256"] as string | undefined,
           "x-portal-identity": req.headers["x-portal-identity"] as string | undefined,
         },
       });
@@ -224,6 +227,23 @@ export async function startStubCore(): Promise<StubCore> {
       }
       if (pathname === "/v1/grants") return reply(200, { ok: true });
       if (pathname === "/v1/soul") return reply(200, { ok: true, version: 1 });
+      if (pathname === "/v1/blobs" && req.method === "POST") return reply(200, { blobId: "blob-1", sizeBytes: body.length });
+      if (pathname === "/v1/files/upload" && req.method === "POST") {
+        const parsed = JSON.parse(body.toString("utf8")) as { name?: string; mimetype?: string };
+        return reply(200, {
+          file: {
+            id: "file-1",
+            ownerScopeId: "personal:acme_u1",
+            name: parsed.name ?? "file",
+            mimetype: parsed.mimetype ?? "application/octet-stream",
+            sizeBytes: 5,
+            direction: "in",
+            createdAt: 1,
+            createdInScope: "group:web-project-1",
+            openable: true,
+          },
+        });
+      }
       if (pathname === "/v1/turns") return reply(202, { status: "queued", runId: "run-1" });
       if (pathname === "/v1/runs/run-1") {
         runPolls += 1;
