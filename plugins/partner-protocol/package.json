@@ -9,6 +9,8 @@
   },
   "scripts": {
     "start": "node src/index.ts",
+    "bootstrap": "node bootstrap/bootstrap-library.ts",
+    "register-mcp": "node --env-file-if-exists=../../.env bootstrap/register-mcp.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"test/*.test.ts\""
   },

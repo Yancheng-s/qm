@@ -6,6 +6,7 @@ const ORG = process.env.CORE_ORG_ID || "acme";
 const ACTOR = process.env.ADMIN_ACTOR || `admin@acme.dev@${ORG}`;
 const MCP_ID = process.env.MCP_ID || "demo-directory";
 const MCP_URL = process.env.MCP_URL || "http://localhost:8300/mcp";
+const MCP_NAME = process.env.MCP_NAME || "甲方用户目录";
 
 if (!SECRET) {
   console.error("CORE_SIGNING_SECRET missing — run with: node --env-file-if-exists=../../.env bootstrap/register-mcp.mjs");
@@ -33,7 +34,7 @@ await show("preflight POST /mcp tools/list", fetch(MCP_URL, {
   method: "POST", headers: { "content-type": "application/json" },
   body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
 }));
-const putBody = JSON.stringify({ url: MCP_URL, name: "甲方用户目录", auth: "none", readOnly: true, enabled: true, validate: true });
+const putBody = JSON.stringify({ url: MCP_URL, name: MCP_NAME, auth: "none", readOnly: true, enabled: true, validate: true });
 await show(`PUT /v1/admin/mcp-servers/${MCP_ID}`, fetch(`${CORE}/v1/admin/mcp-servers/${MCP_ID}`, {
   method: "PUT", headers: adminHeaders("PUT", `/v1/admin/mcp-servers/${MCP_ID}`, putBody), body: putBody,
 }));
