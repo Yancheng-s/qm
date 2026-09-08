@@ -238,12 +238,16 @@ export function parseBootstrapArgs(
   if (projectName.length > MAX_NAME_CHARS) return { problem: "--name is too long (max 200 chars)" };
   if (adminPrincipalId.length > MAX_ID_CHARS) return { problem: "--admin is too long (max 200 chars)" };
   const packRef = single.get("--ref")?.trim() ?? "";
+  const envSkills = env.LIBRARY_SKILLS?.trim()
+    ? env.LIBRARY_SKILLS.split(",").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const mergedSelected = selected.length ? selected : envSkills;
   return {
     adminPrincipalId,
     projectName,
     packUrl,
     ...(packRef ? { packRef } : {}),
-    ...(selected.length ? { selected } : {}),
+    ...(mergedSelected.length ? { selected: mergedSelected } : {}),
   };
 }
 

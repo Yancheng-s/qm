@@ -168,6 +168,19 @@ test("parseBootstrapArgs validates flags and falls back to LIBRARY_PRINCIPAL", (
     packUrl: "https://env.example/repo.git",
   });
 
+  const envSkillsOnly = parseBootstrapArgs([], {
+    LIBRARY_PACK_URL: "https://env.example/repo.git",
+    LIBRARY_PROJECT_NAME: "env-lib",
+    LIBRARY_PRINCIPAL: "env-admin",
+    LIBRARY_SKILLS: "skill-a, skill-b , skill-c",
+  });
+  assert.deepEqual(envSkillsOnly, {
+    adminPrincipalId: "env-admin",
+    projectName: "env-lib",
+    packUrl: "https://env.example/repo.git",
+    selected: ["skill-a", "skill-b", "skill-c"],
+  });
+
   const flagsOverrideEnv = parseBootstrapArgs(
     ["--url", "https://flag.example/repo.git", "--name", "flag-lib", "--admin", "flag-admin"],
     {
