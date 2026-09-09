@@ -4,7 +4,6 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { canonicalPayload, signRequest } from "../../chassis/src/source-auth-sign.ts";
 import type { HttpMethod } from "../../chassis/src/core-client.ts";
-import { CHAT_COOKIE, mintChatToken } from "../src/auth.ts";
 import type { CoreCall, CoreOutcome } from "../src/core-client.ts";
 import { createHandler } from "../src/routes/index.ts";
 
@@ -40,14 +39,6 @@ export function partnerHeaders(method: string, pathWithQuery: string, raw = ""):
     "x-timestamp": String(timestamp),
     "x-signature": signRequest(PARTNER_SECRET, timestamp, canonicalPayload(method, pathWithQuery, raw)),
   };
-}
-
-export function chatToken(principalId = PRINCIPAL_ID): string {
-  return mintChatToken(principalId, IDENTITY_SECRET);
-}
-
-export function chatHeaders(principalId = PRINCIPAL_ID): Record<string, string> {
-  return { cookie: `${CHAT_COOKIE}=${chatToken(principalId)}` };
 }
 
 export interface RecordedCall {
@@ -98,7 +89,8 @@ export async function startGateway(factory: (principalId: string) => CoreCall, r
     libraries: LIBRARIES,
     libraryPrincipalId: LIBRARY_PRINCIPAL,
     ratePerMin,
-    chatCookieSecure: false,
+    portalUrl: "http://portal.invalid",
+    partnerWebRedirectUrl: "http://localhost:5175/chat/",
     core: factory,
   });
   const server: Server = createServer((req, res) => {
@@ -109,31 +101,6 @@ export async function startGateway(factory: (principalId: string) => CoreCall, r
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
   return listenOn(server);
-}
-
-export interface SseEvent {
-  event: string;
-  data: unknown;
-}
-
-export function parseSse(text: string): SseEvent[] {
-  const events: SseEvent[] = [];
-  for (const block of text.split("\n\n")) {
-    let event = "message";
-    let data = "";
-    for (const line of block.split("\n")) {
-      if (line.startsWith("event: ")) event = line.slice("event: ".length);
-      else if (line.startsWith("data: ")) data += line.slice("data: ".length);
-    }
-    if (data) events.push({ event, data: JSON.parse(data) as unknown });
-  }
-  return events;
-}
-
-export async function readSse(base: string, pathWithQuery: string): Promise<SseEvent[]> {
-  const response = await fetch(`${base}${pathWithQuery}`, { headers: chatHeaders() });
-  if (response.status !== 200) throw new Error(`events replied ${response.status}: ${await response.text()}`);
-  return parseSse(await response.text());
 }
 
 export function sleep(ms: number): Promise<void> {

@@ -12,7 +12,8 @@ import {
 import { readBody, PayloadTooLargeError, escapeHtml, serveEmojiFavicon } from "../../../chassis/src/http.ts";
 import { signedHeaders, withSourceAuthNonce } from "../../../chassis/src/core-client.ts";
 import { errMessage } from "../../../chassis/src/errors.ts";
-import { CORE_API_URL, CORE_SIGNING_SECRET } from "../../../chassis/src/env.ts";
+import { CORE_API_URL, CORE_SIGNING_SECRET, PORTAL_IDENTITY_SECRET } from "../../../chassis/src/env.ts";
+import { verifyPortalIdentity } from "../../../chassis/src/portal-identity.ts";
 import { readSignedBody } from "../signed-request.ts";
 import { createMemoryUserRegistry, createPostgresUserRegistry, type UserRegistry } from "./users.ts";
 
@@ -415,8 +416,39 @@ export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, 
   async function authorizeForm(res: ServerResponse, params: URLSearchParams): Promise<void> {
     const parsed = readAuthorizeParams(params);
     if ("problem" in parsed) return problem(res, 400, "无法开始登录", parsed.problem);
+    if (await silentAuthorize(res, params, parsed.request)) return;
     const sealed = await sealRequest(parsed.request);
     sendHtml(res, 200, idFormPage({ brandName: cfg.brandName, action: "/authorize", requestToken: sealed.token }));
+  }
+
+  async function silentAuthorize(res: ServerResponse, params: URLSearchParams, request: AuthRequest): Promise<boolean> {
+    const id = (params.get("id") ?? "").trim();
+    const assertion = params.get("assertion") ?? "";
+    if (!id || !assertion) return false;
+    const claims = verifyPortalIdentity(assertion, PORTAL_IDENTITY_SECRET ?? "", Date.now());
+    if (!claims || claims.p !== id) return false;
+    const previous = await users.get(id);
+    const displayName = previous?.name || id;
+    await users.put({ id, name: displayName });
+    const code = await seal(
+      "code",
+      {
+        cid: request.clientId,
+        ru: request.redirectUri,
+        no: request.nonce,
+        cc: request.codeChallenge,
+        id,
+        nm: displayName,
+      },
+      cfg.codeTtlS,
+    );
+    void syncDirectory().catch((e) => console.error(`[idlogin] directory push failed: ${errMessage(e)}`));
+    const destination = new URL(request.redirectUri);
+    destination.searchParams.set("code", code.token);
+    destination.searchParams.set("state", request.state);
+    res.writeHead(302, noStore({ location: destination.toString() }));
+    res.end();
+    return true;
   }
 
   async function syncDirectory(): Promise<void> {

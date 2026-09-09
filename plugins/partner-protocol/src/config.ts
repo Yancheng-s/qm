@@ -4,6 +4,8 @@ const PARTNER_ID = /^[a-z][a-z0-9-]{0,31}$/;
 const MIN_SECRET_CHARS = 32;
 const DEFAULT_RATE_PER_MIN = 120;
 const DEFAULT_PORT = 8211;
+const DEFAULT_PORTAL_URL = "http://localhost:8129";
+const DEFAULT_PARTNER_WEB_REDIRECT_URL = "http://localhost:5175/chat/";
 const LIBRARY_KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const SCOPE_ID = /^[a-z]+:.+$/;
 
@@ -16,7 +18,8 @@ export interface PartnerConfig {
   libraries: ReadonlyMap<string, string>;
   libraryPrincipalId: string;
   ratePerMin: number;
-  chatCookieSecure: boolean;
+  portalUrl: string;
+  partnerWebRedirectUrl: string;
   credentialProblems: readonly string[];
   libraryProblems: readonly string[];
 }
@@ -24,6 +27,10 @@ export interface PartnerConfig {
 function trimmed(value: string | undefined): string | undefined {
   const candidate = value?.trim();
   return candidate ? candidate : undefined;
+}
+
+function partnerWebRedirectUrl(env: NodeJS.ProcessEnv): string {
+  return trimmed(env.PARTNER_WEB_REDIRECT_URL) ?? DEFAULT_PARTNER_WEB_REDIRECT_URL;
 }
 
 export function readConfig(env: NodeJS.ProcessEnv = process.env): PartnerConfig {
@@ -103,7 +110,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): PartnerConfig 
     libraries,
     libraryPrincipalId,
     ratePerMin,
-    chatCookieSecure: (env.CHAT_COOKIE_SECURE ?? "").trim() !== "false",
+    portalUrl: trimmed(env.PORTAL_URL)?.replace(/\/+$/, "") ?? DEFAULT_PORTAL_URL,
+    partnerWebRedirectUrl: partnerWebRedirectUrl(env),
     credentialProblems,
     libraryProblems,
   };

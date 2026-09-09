@@ -14,7 +14,6 @@ import {
   SIGNING_SECRET,
   USER_ID,
   VALID_ENV,
-  chatHeaders,
   exitOutput,
   partnerHeaders,
   startStubCore,
@@ -53,6 +52,8 @@ test("config parsing keeps secrets out of the partner table and reports every pr
   });
   assert.equal(defaults.port, 8211);
   assert.equal(defaults.ratePerMin, 120);
+  assert.equal(defaults.partnerWebRedirectUrl, "http://localhost:5175/chat/");
+  assert.equal(defaults.portalUrl, "http://localhost:8129");
   assert.deepEqual(bootProblems(defaults), []);
 
   const derived = readConfig({
@@ -142,12 +143,6 @@ test("the whole protocol closes against a stub core", async () => {
       const unsigned = await fetch(`${base}/v1/assemble`, { method: "POST", body: "{}" });
       assert.equal(unsigned.status, 401);
 
-      const noCookie = await fetch(`${base}/v1/turn`, {
-        method: "POST",
-        body: JSON.stringify({ scopeId: "group:web-project-1", conversationId: "c1", text: "hi" }),
-      });
-      assert.equal(noCookie.status, 401);
-
       const unknown = await fetch(`${base}/v1/nope?userId=${USER_ID}`, {
         headers: partnerHeaders("GET", `/v1/nope?userId=${USER_ID}`),
       });
@@ -206,46 +201,14 @@ test("the whole protocol closes against a stub core", async () => {
       });
       assert.equal(chatSession.status, 200);
       const { chatUrl } = (await chatSession.json()) as { chatUrl: string };
-      assert.match(chatUrl, /^\/chat\?token=.+&scopeId=group%3Aweb-project-1&conversationId=c1&sessionId=s1$/);
-
-      const page = await fetch(`${base}${chatUrl}`);
-      assert.equal(page.status, 200);
-      assert.match(page.headers.get("content-type") ?? "", /text\/html/);
-      const setCookie = page.headers.get("set-cookie") ?? "";
-      assert.match(setCookie, /partner_chat=/);
-      assert.match(setCookie, /HttpOnly/);
-      const html = await page.text();
-      assert.match(html, /data-scope-id="group:web-project-1"/);
-      assert.match(html, /data-conversation-id="c1"/);
-
-      const turnBody = JSON.stringify({
-        scopeId: "group:web-project-1",
-        conversationId: "c1",
-        text: "hello",
-      });
-      const turn = await fetch(`${base}/v1/turn`, {
-        method: "POST",
-        body: turnBody,
-        headers: chatHeaders(),
-      });
-      assert.equal(turn.status, 202);
-      assert.deepEqual(await turn.json(), {
-        status: "queued",
-        runId: "run-1",
-        threadRef: `web:${PRINCIPAL_ID}:c1`,
-      });
-
-      const events = await fetch(`${base}/v1/events?runId=run-1`, { headers: chatHeaders() });
-      assert.equal(events.status, 200);
-      assert.match(events.headers.get("content-type") ?? "", /text\/event-stream/);
-      const stream = await events.text();
-      assert.match(stream, /event: partial\ndata: \{"partial":"Hello back"\}/);
-      assert.match(stream, /event: done\n/);
-
-      const detail = await fetch(`${base}/v1/sessions/s1`, { headers: chatHeaders() });
-      assert.equal(detail.status, 200);
-      const detailBody = (await detail.json()) as { entries: unknown[] };
-      assert.deepEqual(detailBody.entries, [{ seq: 1, type: "user", payload: { text: "hi" } }]);
+      const url = new URL(chatUrl, base);
+      assert.equal(url.pathname, "/auth/login");
+      assert.equal(
+        url.searchParams.get("returnTo"),
+        `/chat/?scopeId=${encodeURIComponent("group:web-project-1")}&conversationId=c1&session=s1`,
+      );
+      const assertion = verifyPortalIdentity(url.searchParams.get("assertion") ?? "", IDENTITY_SECRET, Date.now());
+      assert.equal(assertion?.p, PRINCIPAL_ID);
 
       assert.ok(
         core.calls.every((call) => !call.path.includes("admin")),
