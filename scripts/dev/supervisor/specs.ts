@@ -19,7 +19,6 @@ export interface SpecInputs {
 
 const IDLOGIN_CLIENT_ID = "qm-portal";
 const IDLOGIN_CLIENT_SECRET = "dev-instance-idlogin-0123456789abcdef";
-const PROFILES_DEV_LIBRARY_PRINCIPAL = "dev-admin";
 const PARTNER_DEV_CREDENTIALS = "dev-partner=dev-instance-partner-0123456789abcdef";
 const PARTNER_DEV_LIBRARY_PRINCIPAL = "dev-admin";
 
@@ -106,9 +105,6 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         IDLOGIN_CLIENT_ID,
         IDLOGIN_CLIENT_SECRET,
         IDLOGIN_REDIRECT_URI: `http://localhost:${i.ports.partner}/auth/callback`,
-        WEB_UI_API_URL: `http://localhost:${i.ports.web}`,
-        PROFILES_LIBRARY_SCOPES: i.baseEnv.PROFILES_LIBRARY_SCOPES || `dev=org:${orgId}`,
-        PROFILES_LIBRARY_PRINCIPAL: i.baseEnv.PROFILES_LIBRARY_PRINCIPAL || PROFILES_DEV_LIBRARY_PRINCIPAL,
       },
       port: i.ports.h5,
       readiness: { kind: "log", pattern: `gateway on http://localhost:${i.ports.h5}` },

@@ -395,7 +395,7 @@ test("child specs omit Slack env when no Slack tokens are supplied", () => {
   assert.equal(core.env.CORE_ORG_ID, "acme");
 });
 
-test("h5 child defaults the library to the dev org and honors overrides", () => {
+test("h5 child gets the signing secret and database url", () => {
   const inputs: SpecInputs = {
     worktree: "/tmp/worktree",
     ports: slotPorts("pool1"),
@@ -411,18 +411,10 @@ test("h5 child defaults the library to the dev org and honors overrides", () => 
     sandboxEnv: {},
   };
   const h5 = buildChildSpecs(inputs).find((spec) => spec.name === "h5")!;
-  assert.equal(h5.env.PROFILES_LIBRARY_SCOPES, "dev=org:acme");
-  assert.equal(h5.env.PROFILES_LIBRARY_PRINCIPAL, "dev-admin");
   assert.equal(h5.env.CORE_SIGNING_SECRET, "dev-core-signing-secret");
   assert.equal(h5.env.DATABASE_URL, "postgres://dev");
-  inputs.baseEnv = {
-    DEV_INSTANCE_ORG_ID: "beta",
-    PROFILES_LIBRARY_SCOPES: "xhs=group:web-project-lib,ecom=group:web-project-shop",
-    PROFILES_LIBRARY_PRINCIPAL: "app_admin",
-  };
+  inputs.baseEnv = { DEV_INSTANCE_ORG_ID: "beta" };
   const overridden = buildChildSpecs(inputs).find((spec) => spec.name === "h5")!;
-  assert.equal(overridden.env.PROFILES_LIBRARY_SCOPES, "xhs=group:web-project-lib,ecom=group:web-project-shop");
-  assert.equal(overridden.env.PROFILES_LIBRARY_PRINCIPAL, "app_admin");
   assert.equal(overridden.env.CORE_ORG_ID, "beta");
 });
 

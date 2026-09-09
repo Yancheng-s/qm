@@ -3,13 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "H5 gateway: id sign-in (OIDC) and project assembly behind one port.",
+  "description": "H5 gateway: id sign-in (OIDC) behind one port.",
   "engines": {
     "node": ">=24.0.0"
   },
   "scripts": {
     "start": "node src/index.ts",
-    "bootstrap": "node bootstrap/bootstrap-library.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"test/*.test.ts\""
   },

@@ -15,9 +15,6 @@ const VALID_ENV = {
   IDLOGIN_CLIENT_ID: "qm-portal",
   IDLOGIN_CLIENT_SECRET: "gateway-test-secret-0123456789abcdef",
   IDLOGIN_REDIRECT_URI: "http://h5.test/auth/callback",
-  PROFILES_LIBRARY_SCOPES: "xhs=group:web-project-lib",
-  PROFILES_LIBRARY_PRINCIPAL: "app_admin",
-  WEB_UI_API_URL: "http://127.0.0.1:9",
   CORE_SIGNING_SECRET: SIGNING_SECRET,
 };
 
@@ -35,16 +32,6 @@ function startStubCore(): Promise<{ url: string; calls: string[]; close: () => P
       req.once("end", () => {
         calls.push(url.split("?")[0]!);
         res.setHeader("content-type", "application/json");
-        if (url.startsWith("/v1/skills")) {
-          res.writeHead(200);
-          const skills = [{ id: "skill-1", name: "space-xhs-title", scopeId: "group:web-project-lib" }];
-          return void res.end(JSON.stringify({ skills }));
-        }
-        if (url.startsWith("/v1/projects")) {
-          res.writeHead(201);
-          const project = { id: "web-project-1", scopeId: "group:web-project-1" };
-          return void res.end(JSON.stringify({ project }));
-        }
         res.writeHead(200);
         res.end(JSON.stringify({ ok: true }));
       });
@@ -120,35 +107,15 @@ async function withGateway(
   }
 }
 
-test("one port serves health, assemble, id sign-in, and the app login api", async () => {
+test("one port serves health, id sign-in, and the app login api", async () => {
   const core = await startStubCore();
   try {
     await withGateway({ CORE_API_URL: core.url }, async (base, banner) => {
-      assert.match(banner, /assemble libraries xhs=group:web-project-lib/);
+      assert.match(banner, /id sign-in issuer http:\/\/h5\.test/);
 
       const health = await fetch(`${base}/healthz`);
       assert.equal(health.status, 200);
       assert.deepEqual(await health.json(), { ok: true });
-
-      const unsigned = await fetch(`${base}/assemble`, {
-        method: "POST",
-        body: JSON.stringify({ library: "xhs", name: "p", principalId: "app_u1" }),
-      });
-      assert.equal(unsigned.status, 401);
-      assert.deepEqual(await unsigned.json(), {
-        error: "unauthorized",
-        message: "missing signature (unsigned request)",
-      });
-
-      const assemble = await fetch(
-        `${base}/assemble`,
-        signedPost("/assemble", JSON.stringify({ library: "xhs", name: "p", principalId: "app_u1" })),
-      );
-      assert.equal(assemble.status, 200);
-      const assembled = (await assemble.json()) as { status: string; projectId: string; granted: string[] };
-      assert.equal(assembled.status, "assembled");
-      assert.equal(assembled.projectId, "web-project-1");
-      assert.deepEqual(assembled.granted, ["space-xhs-title"]);
 
       const authorize = await fetch(`${base}/authorize`);
       assert.equal(authorize.status, 400);
@@ -180,31 +147,13 @@ test("one port serves health, assemble, id sign-in, and the app login api", asyn
   }
 });
 
-test("gateway refuses to start when either service is misconfigured", async () => {
-  const { child, output } = bootGateway({
-    ...VALID_ENV,
-    IDLOGIN_CLIENT_ID: "",
-    PROFILES_LIBRARY_SCOPES: "",
-  });
+test("gateway refuses to start when idlogin is misconfigured", async () => {
+  const { child, output } = bootGateway({ ...VALID_ENV, IDLOGIN_CLIENT_ID: "" });
   const code = await new Promise<number | null>((resolve) => child.once("exit", (exitCode) => resolve(exitCode)));
   assert.notEqual(code, 0);
   const logged = output.join("");
   assert.match(logged, /IDLOGIN_CLIENT_ID is required/);
-  assert.match(logged, /PROFILES_LIBRARY_SCOPES is required/);
-  assert.match(logged, /h5 refusing to start: 2 misconfiguration/);
-});
-
-test("gateway refuses to start when a library binding is malformed", async () => {
-  const { child, output } = bootGateway({
-    ...VALID_ENV,
-    PROFILES_LIBRARY_SCOPES: "xhs=group:web-project-lib,XHS=group:c,xhs=group:d",
-  });
-  const code = await new Promise<number | null>((resolve) => child.once("exit", (exitCode) => resolve(exitCode)));
-  assert.notEqual(code, 0);
-  const logged = output.join("");
-  assert.match(logged, /key "XHS" must match/);
-  assert.match(logged, /binds "xhs" twice/);
-  assert.match(logged, /h5 refusing to start: 2 misconfiguration/);
+  assert.match(logged, /h5 refusing to start: 1 misconfiguration/);
 });
 
 test("gateway refuses to start without the signing secret", async () => {

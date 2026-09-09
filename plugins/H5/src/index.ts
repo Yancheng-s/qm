@@ -4,21 +4,13 @@ import { json } from "../../chassis/src/http.ts";
 import { errMessage } from "../../chassis/src/errors.ts";
 import { CORE_SIGNING_SECRET, portFromEnv } from "../../chassis/src/env.ts";
 import { bootIdLogin, bootProblems as idLoginBootProblems, readConfig as readIdLoginConfig } from "./idlogin/server.ts";
-import { bootProfiles } from "./profiles/server.ts";
-import { bootProblems as profilesBootProblems, readConfig as readProfilesConfig } from "./profiles/config.ts";
-import { bootDirect } from "./direct/server.ts";
-import { bootProblems as directBootProblems, readConfig as readDirectConfig } from "./direct/config.ts";
 
 const PORT = portFromEnv(8193);
 
 const env = process.env;
 const idLoginConfig = readIdLoginConfig(env);
-const profilesConfig = readProfilesConfig(env);
-const directConfig = readDirectConfig();
 const problems = [
   ...idLoginBootProblems(idLoginConfig),
-  ...profilesBootProblems(profilesConfig),
-  ...directBootProblems(directConfig),
   ...(CORE_SIGNING_SECRET ? [] : ["CORE_SIGNING_SECRET is required"]),
 ];
 if (problems.length) {
@@ -27,15 +19,11 @@ if (problems.length) {
 }
 
 const idLogin = await bootIdLogin(idLoginConfig, env.DATABASE_URL);
-const profiles = await bootProfiles(profilesConfig, env.DATABASE_URL);
-const direct = bootDirect(directConfig);
 
 const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
   const method = req.method ?? "GET";
   const { pathname } = new URL(req.url ?? "/", `http://localhost:${PORT}`);
   if (method === "GET" && pathname === "/healthz") return json(res, 200, { ok: true });
-  if (method === "POST" && pathname === "/assemble") return profiles(req, res);
-  if (pathname === "/me" || pathname.startsWith("/api/")) return direct.handle(req, res);
   return idLogin.handle(req, res);
 };
 
@@ -49,8 +37,7 @@ const server = createServer((req, res) => {
 
 server.listen(PORT, () => {
   const port = (server.address() as AddressInfo).port;
-  const libraries = profilesConfig.libraries.map((binding) => `${binding.key}=${binding.scopeId}`).join(", ");
   console.log(
-    `[h5] gateway on http://localhost:${port} (id sign-in issuer ${idLoginConfig.issuer}, key ${idLogin.kid}; assemble libraries ${libraries})`,
+    `[h5] gateway on http://localhost:${port} (id sign-in issuer ${idLoginConfig.issuer}, key ${idLogin.kid})`,
   );
 });

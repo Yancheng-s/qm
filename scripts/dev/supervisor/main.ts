@@ -388,7 +388,7 @@ async function assembleAndPrepare(spec: BootSpec): Promise<SpecInputs> {
 
   completeDevSecuritySecrets(assembled.env, databaseUrl || worktree);
   const portalSessionSecret = assembled.env.PORTAL_SESSION_SECRET!;
-  log(`h5 gateway: http://localhost:${ports.h5} -- portal id sign-in (enter any user id) and POST /assemble`);
+  log(`h5 gateway: http://localhost:${ports.h5} -- portal id sign-in (enter any user id)`);
   log(
     `partner gateway: http://localhost:${ports.partner} -- signed /v1 assemble + chat-sessions and the /chat page (partnerId from PARTNER_CREDENTIALS)`,
   );
