@@ -48,13 +48,14 @@ async function withGateway(script: CoreScript | undefined, run: (base: string) =
   }
 }
 
-test("the whitelist is exactly the six documented routes with their body limits", () => {
+test("the whitelist is exactly the documented routes with their body limits", () => {
   assert.deepEqual(
     routes.map((route) => `${route.method} ${route.path} ${route.limit}`),
     [
       "POST /v1/assemble 128000",
       "POST /v1/chat-sessions 4000",
       "GET /chat 0",
+      "GET /chat/assets/:name 0",
       "POST /v1/turn 64000",
       "GET /v1/events 0",
       "GET /v1/sessions/:id 0",
@@ -76,6 +77,10 @@ test("unsigned partner calls and cookie-less chat calls are refused before any c
     });
     assert.equal(noCookie.status, 401);
     assert.deepEqual(await noCookie.json(), { error: "unauthorized", message: "missing chat session" });
+
+    const noAssetCookie = await fetch(`${gateway.base}/chat/assets/main.js`);
+    assert.equal(noAssetCookie.status, 401);
+    assert.deepEqual(await noAssetCookie.json(), { error: "unauthorized", message: "missing chat session" });
 
     const unknown = await post(gateway.base, "/v1/admin/grants", { userId: USER_ID });
     assert.equal(unknown.status, 404);
@@ -154,6 +159,16 @@ test("chat serves the page, sets the cookie, and rejects a bad ticket or scope",
     assert.match(html, /data-scope-id="group:web-project-1"/);
     assert.match(html, /data-conversation-id="c1"/);
     assert.match(html, /data-session-id="s1"/);
+    assert.match(html, /href="\/chat\/assets\/styles.css"/);
+    assert.match(html, /src="\/chat\/assets\/main.js"/);
+
+    const asset = await chatGet(gateway.base, "/chat/assets/main.js");
+    assert.equal(asset.status, 200);
+    assert.match(asset.headers.get("content-type") ?? "", /text\/javascript/);
+    assert.match(await asset.text(), /postTurn/);
+
+    const missingAsset = await chatGet(gateway.base, "/chat/assets/missing.js");
+    assert.equal(missingAsset.status, 404);
 
     const badTicket = await fetch(
       `${gateway.base}/chat?token=garbage&scopeId=${encodeURIComponent(SCOPE)}&conversationId=c1`,

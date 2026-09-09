@@ -5,6 +5,7 @@ import { createCoreCall, type CoreCall } from "../core-client.ts";
 import { createRateLimiter, problem, readJsonBody, sendProblem, type RateLimiter } from "../transport.ts";
 import { handleAssemble } from "./partner/assemble.ts";
 import { handleChatSessions } from "./partner/chat-sessions.ts";
+import { handleChatAsset } from "./chat/assets.ts";
 import { handleChat } from "./chat/chat.ts";
 import { handleEvents } from "./chat/events.ts";
 import { handleSessionById } from "./chat/sessions.ts";
@@ -42,6 +43,7 @@ export const routes: readonly Route[] = [
   { method: "POST", path: "/v1/assemble", limit: 128_000, auth: "partner", handle: handleAssemble },
   { method: "POST", path: "/v1/chat-sessions", limit: 4_000, auth: "partner", handle: handleChatSessions },
   { method: "GET", path: "/chat", limit: 0, auth: "chat-ticket", handle: handleChat },
+  { method: "GET", path: "/chat/assets/:name", limit: 0, auth: "chat-cookie", handle: handleChatAsset },
   { method: "POST", path: "/v1/turn", limit: 64_000, auth: "chat-cookie", handle: handleTurn },
   { method: "GET", path: "/v1/events", limit: 0, auth: "chat-cookie", handle: handleEvents },
   { method: "GET", path: "/v1/sessions/:id", limit: 0, auth: "chat-cookie", handle: handleSessionById },

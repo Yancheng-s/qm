@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>对话</title>
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body
+    data-scope-id="__SCOPE_ID__"
+    data-conversation-id="__CONVERSATION_ID__"
+    data-session-id="__SESSION_ID__"
+    data-user-id="__USER_ID__"
+  >
+    <main class="chat" aria-label="对话">
+      <section id="msgs" class="msgs" aria-live="polite"></section>
+      <form id="composer" class="composer">
+        <textarea id="input" placeholder="输入消息，Enter 发送 / Shift+Enter 换行" rows="1"></textarea>
+        <button id="send" class="btn" type="submit">发送</button>
+      </form>
+    </main>
+  </body>
+</html>

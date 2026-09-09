@@ -38,6 +38,15 @@ export function sendHtml(res: ServerResponse, status: number, html: string): voi
   res.end(html);
 }
 
+export function sendText(res: ServerResponse, status: number, contentType: string, body: string): void {
+  res.writeHead(status, {
+    "content-type": contentType,
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+  });
+  res.end(body);
+}
+
 export type BodyRead = { ok: true; raw: string; body: Record<string, unknown> } | { ok: false; problem: Problem };
 
 export async function readJsonBody(req: IncomingMessage, maxBytes: number): Promise<BodyRead> {

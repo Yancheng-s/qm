@@ -18,7 +18,7 @@
 | 鉴权方式       | 谁用             | 覆盖端点                                                               | 凭据                                   |
 | -------------- | ---------------- | ---------------------------------------------------------------------- | -------------------------------------- |
 | **合作方签名** | 你的**服务端**   | `POST /v1/assemble`、`POST /v1/chat-sessions`                          | HMAC 共享密钥（永不下发到浏览器）      |
-| **对话会话**   | 用户的**浏览器** | `GET /chat`、`POST /v1/turn`、`GET /v1/events`、`GET /v1/sessions/:id` | 签名令牌 / HttpOnly cookie（网关下发） |
+| **对话会话**   | 用户的**浏览器** | `GET /chat`、`GET /chat/assets/:name`、`POST /v1/turn`、`GET /v1/events`、`GET /v1/sessions/:id` | 签名令牌 / HttpOnly cookie（网关下发） |
 
 典型接入流程：
 
@@ -83,7 +83,7 @@ set-cookie: partner_chat=<令牌>; Path=/; HttpOnly; SameSite=Strict; Max-Age=43
 - `SameSite=Strict`：只有从网关自身页面发起的同站请求会带上它。
 - `Secure`：仅在部署方开启（生产 HTTPS）时附加。
 
-之后对话页面里的 `POST /v1/turn`、`GET /v1/events`、`GET /v1/sessions/:id` 都靠这个 cookie 鉴权，请求里**不需要也不接受** `userId`——身份从令牌解出。`EventSource` 不能设自定义头，正好靠 cookie 透明携带，这也是对话走 cookie 而非签名的原因。
+之后对话页面里的 `GET /chat/assets/:name`、`POST /v1/turn`、`GET /v1/events`、`GET /v1/sessions/:id` 都靠这个 cookie 鉴权，请求里**不需要也不接受** `userId`——身份从令牌解出。`EventSource` 不能设自定义头，正好靠 cookie 透明携带，这也是对话走 cookie 而非签名的原因。
 
 令牌/cookie 缺失或失效时：
 
@@ -215,6 +215,10 @@ principalId = partnerId + "_" + userId
 ### `GET /chat?token=&scopeId=&conversationId=[&sessionId=]` （对话页面入口）
 
 浏览器跳转的目标，**通常不由你的服务端直接调用**。网关验票（`token`）→ 下发 `partner_chat` cookie（见 §1.2）→ 返回内嵌的对话页面 HTML。页面里已注入 `scopeId`/`conversationId`/`sessionId`，加载后自动：有 `sessionId` 就拉历史渲染上下文区，然后用户输入 → `POST /v1/turn` → `GET /v1/events` 流式显示回复。
+
+### `GET /chat/assets/:name` （对话页面资源）
+
+对话页面加载的 CSS 与 JavaScript 模块。和 `POST /v1/turn`、`GET /v1/events` 一样靠 `partner_chat` cookie 鉴权，不接受 partner HMAC，也不接受请求体里的身份字段。
 
 - `token` 缺失/失效 → `401`（`missing chat session` / `chat session invalid or expired`）。
 - `scopeId` 非 `group:` 或 `conversationId` 非法 → `400`。
@@ -357,6 +361,7 @@ retry-after: 37
 | ------------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | `POST /v1/chat-sessions` | 是     | 只是签令牌 + 查会话，随便重试                                                                                                     |
 | `GET /chat`              | 是     | 验票下发 cookie + 返回页面，可重复访问（令牌未过期时）                                                                            |
+| `GET /chat/assets/:name` | 是     | 静态页面资源，靠 cookie 鉴权                                                                                                      |
 | `GET /v1/events`         | 是     | 断流后按 §4 重连                                                                                                                  |
 | `GET /v1/sessions/:id`   | 是     | 随便重试                                                                                                                          |
 | `POST /v1/turn`          | **否** | `502`/`500` 时重试可能产生两条消息；先 `GET /v1/sessions/:id` 看最后一条是不是你刚发的，不是再重发                                |
