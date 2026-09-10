@@ -5,6 +5,17 @@
   "ignoreDependencies": ["@openai/codex", "opencode-ai"],
   "ignoreIssues": {
     "scripts/migrate-principals-to-email.d.mts": ["files"],
+    "apps/backend/src/auth.ts": ["files"],
+    "apps/backend/src/config.ts": ["files"],
+    "apps/backend/src/index.ts": ["files"],
+    "apps/backend/src/mcp.ts": ["files"],
+    "apps/backend/src/partner-client.ts": ["files"],
+    "aws/microvm-agent/agent.mjs": ["unresolved"],
+    "cli/src/util.ts": ["unresolved"],
+    "cli/templates/aws/microvm-agent/agent.mjs": ["unresolved"],
+    "test/aws-deploy-provider.test.ts": ["unresolved"],
+    "test/git-cli-smoke.test.ts": ["unresolved"],
+    "test/google-workspace-read-smoke-command.test.ts": ["unresolved"],
     "plugins/chassis/src/source-auth-sign.ts": ["exports"],
     "src/slack/lib.ts": ["exports", "types"]
   },
@@ -27,8 +38,25 @@
       ]
     },
     "cli": { "entry": ["bin/qm.ts"] },
+    "apps/frontend": { "entry": ["index.html"] },
     "plugins/*": {},
-    "plugins/H5": { "ignore": ["bootstrap/xhs/**"] },
+    "plugins/partner-ui": {
+      "entry": ["src/lazy-katex.ts", "src/lazy-hljs.ts", "src/hljs-lang-stub.ts"],
+      "ignoreDependencies": [
+        "katex",
+        "katex-real",
+        "hljs-real",
+        "hljs-real-javascript",
+        "hljs-real-typescript",
+        "hljs-real-python",
+        "hljs-real-xml",
+        "hljs-real-css",
+        "hljs-real-json",
+        "hljs-real-bash",
+        "hljs-real-sql",
+        "hljs-real-markdown"
+      ]
+    },
     "plugins/partner-protocol": { "entry": ["spec/partner-client.mjs"] },
     "plugins/web-ui": {
       "entry": ["src/lazy-katex.ts", "src/lazy-hljs.ts", "src/hljs-lang-stub.ts", "test/**/*.test.ts"],

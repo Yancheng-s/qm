@@ -95,7 +95,10 @@ test("chat-sessions mints a short-lived assertion and lands on the partner ui", 
     const { chatUrl } = (await response.json()) as { chatUrl: string };
     const url = new URL(chatUrl, "http://gateway.local");
     assert.equal(url.pathname, "/auth/login");
-    assert.equal(url.searchParams.get("returnTo"), `/chat/?scopeId=${encodeURIComponent(SCOPE)}&conversationId=c1&session=s1`);
+    assert.equal(
+      url.searchParams.get("returnTo"),
+      `/chat/?scopeId=${encodeURIComponent(SCOPE)}&conversationId=c1&session=s1`,
+    );
     const claims = verifyPortalIdentity(url.searchParams.get("assertion") ?? "", IDENTITY_SECRET, Date.now());
     assert.equal(claims?.p, PRINCIPAL_ID);
 

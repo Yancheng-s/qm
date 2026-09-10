@@ -63,21 +63,14 @@ test("a valid assertion is refreshed and attached to the authorize redirect", as
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
     const base = listen(server);
     try {
-      const presented = mintPortalIdentity(
-        { p: "acme_u1", exp: Date.now() + 60_000 },
-        IDENTITY_SECRET,
-      );
+      const presented = mintPortalIdentity({ p: "acme_u1", exp: Date.now() + 60_000 }, IDENTITY_SECRET);
       const response = await proxyFetch(base, `/auth/login?returnTo=%2Fchat%2F&assertion=${presented}`);
       assert.equal(response.status, 302);
       const location = new URL(response.headers.get("location") ?? "");
       assert.equal(location.origin, "http://idlogin.local");
       assert.equal(location.pathname, "/authorize");
       assert.equal(location.searchParams.get("id"), "acme_u1");
-      const refreshed = verifyPortalIdentity(
-        location.searchParams.get("assertion") ?? "",
-        IDENTITY_SECRET,
-        Date.now(),
-      );
+      const refreshed = verifyPortalIdentity(location.searchParams.get("assertion") ?? "", IDENTITY_SECRET, Date.now());
       assert.equal(refreshed?.p, "acme_u1");
 
       const body = await proxyFetch(base, "/healthz");
@@ -104,7 +97,10 @@ test("a missing or bogus assertion leaves the authorize redirect untouched", asy
     const base = listen(server);
     try {
       const bare = await proxyFetch(base, "/auth/login?returnTo=%2Fchat%2F");
-      assert.equal(bare.headers.get("location"), "http://idlogin.local/authorize?response_type=code&client_id=qm-portal");
+      assert.equal(
+        bare.headers.get("location"),
+        "http://idlogin.local/authorize?response_type=code&client_id=qm-portal",
+      );
 
       const bogus = await proxyFetch(base, "/auth/login?returnTo=%2Fchat%2F&assertion=not.a.token");
       assert.equal(

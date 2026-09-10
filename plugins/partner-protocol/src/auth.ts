@@ -68,7 +68,7 @@ export function threadRefFor(principalId: string, conversationId: string): strin
   return `web:${principalId}:${conversationId}`;
 }
 
-export const ASSERTION_TTL_MS = 120_000;
+const ASSERTION_TTL_MS = 120_000;
 
 export function mintPartnerAssertion(principalId: string, secret: string): string {
   return mintPortalIdentity({ p: principalId, exp: Date.now() + ASSERTION_TTL_MS }, secret);

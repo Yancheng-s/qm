@@ -109,11 +109,6 @@ export function numberField(source: unknown, key: string): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-export function booleanField(source: unknown, key: string): boolean | undefined {
-  const value = asObject(source)?.[key];
-  return typeof value === "boolean" ? value : undefined;
-}
-
 export function upstreamProblem(status: number, json: unknown, message: string): Problem {
   const upstream: Record<string, unknown> = { status };
   const error = stringField(json, "error");
@@ -121,17 +116,4 @@ export function upstreamProblem(status: number, json: unknown, message: string):
   if (error) upstream.error = error;
   if (detail) upstream.message = detail;
   return problem(502, "upstream_error", message, { upstream });
-}
-
-const RELAY_ERROR_CODES: ReadonlyMap<number, string> = new Map([
-  [400, "bad_request"],
-  [403, "forbidden"],
-  [404, "not_found"],
-  [409, "exists"],
-]);
-
-export function relayProblem(status: number, json: unknown, override?: string): Problem {
-  const error = stringField(json, "error") || override || RELAY_ERROR_CODES.get(status) || "upstream_error";
-  const message = stringField(json, "message") || stringField(json, "reason") || `core replied ${status}`;
-  return { status, body: { error, message } };
 }

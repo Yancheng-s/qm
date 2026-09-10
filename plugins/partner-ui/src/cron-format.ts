@@ -70,7 +70,7 @@ export function cronRunSummaryTitle(c: CronTimingView): string {
   return "Never fired";
 }
 
-export function formatCronDateTime(ms: number, now = Date.now(), timeZone?: string): string {
+function formatCronDateTime(ms: number, now = Date.now(), timeZone?: string): string {
   const date = new Date(ms);
   const today = new Date(now);
   if (timeZone) {

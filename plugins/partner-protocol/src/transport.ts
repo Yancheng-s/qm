@@ -29,24 +29,6 @@ export function sendProblem(res: ServerResponse, found: Problem): void {
   sendJson(res, found.status, found.body);
 }
 
-export function sendHtml(res: ServerResponse, status: number, html: string): void {
-  res.writeHead(status, {
-    "content-type": "text/html; charset=utf-8",
-    "cache-control": "no-store",
-    "x-content-type-options": "nosniff",
-  });
-  res.end(html);
-}
-
-export function sendText(res: ServerResponse, status: number, contentType: string, body: string): void {
-  res.writeHead(status, {
-    "content-type": contentType,
-    "cache-control": "no-store",
-    "x-content-type-options": "nosniff",
-  });
-  res.end(body);
-}
-
 export type BodyRead = { ok: true; raw: string; body: Record<string, unknown> } | { ok: false; problem: Problem };
 
 export async function readJsonBody(req: IncomingMessage, maxBytes: number): Promise<BodyRead> {
@@ -116,26 +98,4 @@ export function readConversationId(candidate: unknown): ConversationIdRead {
       problem: problem(400, "bad_request", `conversationId must match ${CONVERSATION_ID.source}`),
     };
   return { ok: true, conversationId: candidate };
-}
-
-export function openSse(res: ServerResponse): void {
-  res.writeHead(200, {
-    "content-type": "text/event-stream; charset=utf-8",
-    "cache-control": "no-cache, no-transform",
-    connection: "keep-alive",
-    "x-accel-buffering": "no",
-    [PROTOCOL_VERSION_HEADER]: PROTOCOL_VERSION,
-  });
-  res.write(": open\n\n");
-}
-
-export function sseEvent(res: ServerResponse, event: string, data: unknown): void {
-  res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-}
-
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    timer.unref?.();
-  });
 }

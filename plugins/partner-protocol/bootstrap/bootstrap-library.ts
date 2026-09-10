@@ -239,7 +239,9 @@ export function parseBootstrapArgs(
   if (adminPrincipalId.length > MAX_ID_CHARS) return { problem: "--admin is too long (max 200 chars)" };
   const packRef = single.get("--ref")?.trim() ?? "";
   const envSkills = env.LIBRARY_SKILLS?.trim()
-    ? env.LIBRARY_SKILLS.split(",").map((s) => s.trim()).filter(Boolean)
+    ? env.LIBRARY_SKILLS.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
     : [];
   const mergedSelected = selected.length ? selected : envSkills;
   return {

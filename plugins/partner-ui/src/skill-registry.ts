@@ -28,7 +28,7 @@ export function isArchivedSkill(skill: SkillItem): boolean {
   return skill.status === "archived";
 }
 
-export function filterSkills(skills: readonly SkillItem[], filters: SkillRegistryFilters): SkillItem[] {
+function filterSkills(skills: readonly SkillItem[], filters: SkillRegistryFilters): SkillItem[] {
   const query = filters.query.trim().toLowerCase();
   return skills.filter((skill) => {
     if (filters.status !== "all" && (isArchivedSkill(skill) ? "archived" : "active") !== filters.status) return false;

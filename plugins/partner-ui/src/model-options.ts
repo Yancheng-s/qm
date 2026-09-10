@@ -144,13 +144,6 @@ export function getModelOptionsForHarness(harnessId: string, scopeKey?: string |
   return runtimeFor(scopeKey).options.filter((option) => option.harnessId === harnessId);
 }
 
-export function applyPickerModelIds(ids: readonly string[] | null | undefined, baseModelId?: string | null): void {
-  lastApplied = {
-    options: buildOptions(ids && ids.length ? ids : DEFAULT_PICKER_MODEL_IDS),
-    defaultValue: baseModelId ?? null,
-  };
-}
-
 export function runtimeModelOptions(
   approvedHarnesses: readonly string[],
   modelsByHarness: Readonly<Record<string, readonly string[]>>,

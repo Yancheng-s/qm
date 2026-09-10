@@ -15,7 +15,7 @@ async function resolveSessionId(c: Ctx, threadRef: string): Promise<string> {
   return "";
 }
 
-export function chatSessionUrl(c: Ctx, sessionId: string, scopeId: string, conversationId: string): string {
+function chatSessionUrl(c: Ctx, sessionId: string, scopeId: string, conversationId: string): string {
   const landing = new URL("/chat/", c.partnerWebRedirectUrl);
   landing.searchParams.set("scopeId", scopeId);
   landing.searchParams.set("conversationId", conversationId);

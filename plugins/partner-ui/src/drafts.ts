@@ -73,7 +73,7 @@ function dropPendingPersist(): void {
   persistTimer = null;
 }
 
-export function flushDrafts(): void {
+function flushDrafts(): void {
   if (persistTimer !== null) persistNow();
 }
 

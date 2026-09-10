@@ -15,14 +15,11 @@ export function withBase(path: string): string {
 
 const POLL_MS = 500;
 const POLL_RETRY_MAX_MS = 5_000;
-export const RUN_IDLE_MS = 6 * 60_000;
+const RUN_IDLE_MS = 6 * 60_000;
 const STALE_GRACE_MS = 10 * 60_000;
 const SSE_OPEN_TIMEOUT_MS = 4_000;
 
-let now: () => number = () => Date.now();
-export function setClock(fn: () => number): void {
-  now = fn;
-}
+const now: () => number = () => Date.now();
 
 interface PiAttachment {
   type: "image" | "document";
@@ -818,7 +815,7 @@ function runPath(runId: string, suffix: string): string {
   return `/api/runs/${encodeURIComponent(runId)}${suffix}`;
 }
 
-export interface Acc {
+interface Acc {
   acc: string;
   lastProgressAt: number;
   staleSince?: number;
@@ -935,7 +932,7 @@ function applyRun(
   return "terminal";
 }
 
-export async function pollRun(
+async function pollRun(
   stream: AssistantMessageEventStream,
   partial: AssistantMessage,
   runId: string,

@@ -4,7 +4,6 @@ import { createHash, randomBytes } from "node:crypto";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateJwkThumbprint, createLocalJWKSet, exportJWK, generateKeyPair, jwtVerify, type JWK } from "jose";
-import { signedRequestHeaders } from "../../chassis/src/core-client.ts";
 import {
   createIdLoginHandler,
   readConfig,
@@ -15,7 +14,6 @@ import { createMemoryUserRegistry, type UserRegistry } from "../src/idlogin/user
 
 const CLIENT_ID = "qm-portal";
 const CLIENT_SECRET = "test-client-secret-0123456789abcdef0123456789";
-const SIGNING_SECRET = "test-signing-secret-0123456789abcdef0123";
 const REDIRECT_URI = "http://localhost:18130/auth/callback";
 
 function pkcePair(): { verifier: string; challenge: string } {
@@ -74,7 +72,6 @@ async function startHandler(
     cfg,
     signingKey: { privateKey, publicJwk: { ...publicJwk, kid, use: "sig", alg: "ES256" }, kid },
     sealSecret: randomBytes(32),
-    signingSecret: SIGNING_SECRET,
     users: opts.users ?? createMemoryUserRegistry(),
     ...(pushDirectory ? { pushDirectory } : {}),
   });
@@ -268,158 +265,6 @@ test("each successful login pushes the full roster to the directory", async () =
         { principalId: "app_u50002", displayName: "乙", type: "internal" },
       ],
     );
-  } finally {
-    await started.close();
-  }
-});
-
-async function loginCall(
-  baseUrl: string,
-  body: unknown,
-  opts: { secret?: string; raw?: string; nowSec?: number } = {},
-): Promise<Response> {
-  const raw = opts.raw ?? JSON.stringify(body);
-  const headers = signedRequestHeaders(
-    opts.secret ?? SIGNING_SECRET,
-    "POST",
-    "/login",
-    raw,
-    { "content-type": "application/json" },
-    opts.nowSec,
-  );
-  return fetch(`${baseUrl}/login`, { method: "POST", body: raw, headers });
-}
-
-test("POST /login upserts the account and pushes the roster before replying", async () => {
-  const pushes: DirectoryMemberPush[][] = [];
-  const started = await startHandler(cfgFor(), { pushes });
-  try {
-    const first = await loginCall(started.base, { id: "app_u60001", name: "王五" });
-    assert.equal(first.status, 200);
-    assert.deepEqual(await first.json(), {
-      ok: true,
-      principalId: "app_u60001",
-      displayName: "王五",
-      created: true,
-    });
-    assert.deepEqual(pushes, [[{ principalId: "app_u60001", displayName: "王五", type: "internal" }]]);
-
-    const again = await loginCall(started.base, { id: "app_u60001" });
-    assert.deepEqual(await again.json(), {
-      ok: true,
-      principalId: "app_u60001",
-      displayName: "王五",
-      created: false,
-    });
-
-    const renamed = await loginCall(started.base, { id: "app_u60001", name: "赵六" });
-    assert.deepEqual(await renamed.json(), {
-      ok: true,
-      principalId: "app_u60001",
-      displayName: "赵六",
-      created: false,
-    });
-    assert.deepEqual(pushes[2], [{ principalId: "app_u60001", displayName: "赵六", type: "internal" }]);
-  } finally {
-    await started.close();
-  }
-});
-
-test("POST /login refuses a request the signing secret does not cover", async () => {
-  const started = await startHandler(cfgFor());
-  try {
-    const wrong = await loginCall(started.base, { id: "app_u60002" }, { secret: "wrong-signing-secret" });
-    assert.equal(wrong.status, 401);
-    assert.deepEqual(await wrong.json(), { error: "unauthorized", message: "signature mismatch" });
-
-    const missing = await fetch(`${started.base}/login`, { method: "POST", body: JSON.stringify({ id: "a" }) });
-    assert.equal(missing.status, 401);
-    assert.deepEqual(await missing.json(), {
-      error: "unauthorized",
-      message: "missing signature (unsigned request)",
-    });
-
-    const stale = await loginCall(started.base, { id: "app_u60002" }, { nowSec: Math.floor(Date.now() / 1000) - 3600 });
-    assert.equal(stale.status, 401);
-    assert.deepEqual(await stale.json(), { error: "unauthorized", message: "stale timestamp (replay protection)" });
-
-    const clientSecret = await fetch(`${started.base}/login`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${CLIENT_SECRET}` },
-      body: JSON.stringify({ id: "app_u60002" }),
-    });
-    assert.equal(clientSecret.status, 401);
-  } finally {
-    await started.close();
-  }
-});
-
-test("POST /login rejects malformed bodies", async () => {
-  const started = await startHandler(cfgFor());
-  try {
-    const badJson = await loginCall(started.base, {}, { raw: "{" });
-    assert.equal(badJson.status, 400);
-    assert.deepEqual(await badJson.json(), { error: "bad_json" });
-
-    const noId = await loginCall(started.base, { name: "x" });
-    assert.equal(noId.status, 400);
-    assert.deepEqual(await noId.json(), { error: "bad_request", message: "id is required (max 200 chars)" });
-
-    const blankId = await loginCall(started.base, { id: "   " });
-    assert.equal(blankId.status, 400);
-
-    const longName = await loginCall(started.base, { id: "app_u60003", name: "n".repeat(201) });
-    assert.equal(longName.status, 400);
-    assert.deepEqual(await longName.json(), { error: "bad_request", message: "name too long (max 200 chars)" });
-
-    const oversize = await loginCall(started.base, { id: "app_u60004", name: "n".repeat(64 * 1024) });
-    assert.equal(oversize.status, 413);
-    assert.deepEqual(await oversize.json(), { error: "payload_too_large" });
-  } finally {
-    await started.close();
-  }
-});
-
-test("POST /login honors the allowedIds whitelist", async () => {
-  const started = await startHandler(cfgFor({ allowedIds: ["app_u60005"] }));
-  try {
-    const refused = await loginCall(started.base, { id: "intruder" });
-    assert.equal(refused.status, 403);
-    assert.deepEqual(await refused.json(), { error: "id_not_allowed" });
-
-    const allowed = await loginCall(started.base, { id: "app_u60005" });
-    assert.equal(allowed.status, 200);
-  } finally {
-    await started.close();
-  }
-});
-
-test("POST /login reports a failed directory push as 502", async () => {
-  const started = await startHandler(cfgFor(), { pushFails: true });
-  try {
-    const response = await loginCall(started.base, { id: "app_u60006", name: "孙七" });
-    assert.equal(response.status, 502);
-    const body = (await response.json()) as { error: string; message: string };
-    assert.equal(body.error, "directory_sync_failed");
-    assert.match(body.message, /core replied 500/);
-
-    const retry = await loginCall(started.base, { id: "app_u60006" });
-    assert.equal(retry.status, 502);
-  } finally {
-    await started.close();
-  }
-});
-
-test("an account created by POST /login signs in through the browser flow", async () => {
-  const started = await startHandler(cfgFor());
-  try {
-    const created = await loginCall(started.base, { id: "app_u60007", name: "周八" });
-    assert.equal(created.status, 200);
-    const { verifier, challenge } = pkcePair();
-    const { code } = await obtainCode("app_u60007", authorizeQuery({ code_challenge: challenge }), "", started.base);
-    const body = (await (await redeem(code, verifier, CLIENT_SECRET, started.base)).json()) as { access_token: string };
-    const info = await fetch(`${started.base}/userinfo`, { headers: { authorization: `Bearer ${body.access_token}` } });
-    assert.deepEqual(await info.json(), { sub: "app_u60007", name: "周八" });
   } finally {
     await started.close();
   }

@@ -1,51 +1,18 @@
 import { spawn } from "node:child_process";
-import { createServer, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { signedRequestHeaders } from "../../chassis/src/core-client.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 const READY_TIMEOUT_MS = 20_000;
-const SIGNING_SECRET = "gateway-test-signing-secret-0123456789";
 
 const VALID_ENV = {
   IDLOGIN_ISSUER: "http://h5.test",
   IDLOGIN_CLIENT_ID: "qm-portal",
   IDLOGIN_CLIENT_SECRET: "gateway-test-secret-0123456789abcdef",
   IDLOGIN_REDIRECT_URI: "http://h5.test/auth/callback",
-  CORE_SIGNING_SECRET: SIGNING_SECRET,
+  CORE_SIGNING_SECRET: "gateway-test-signing-secret-0123456789",
 };
-
-function signedPost(path: string, body: string): { method: string; body: string; headers: Record<string, string> } {
-  const headers = signedRequestHeaders(SIGNING_SECRET, "POST", path, body, { "content-type": "application/json" });
-  return { method: "POST", body, headers };
-}
-
-function startStubCore(): Promise<{ url: string; calls: string[]; close: () => Promise<void> }> {
-  return new Promise((resolve) => {
-    const calls: string[] = [];
-    const server: Server = createServer((req, res) => {
-      const url = req.url ?? "/";
-      req.resume();
-      req.once("end", () => {
-        calls.push(url.split("?")[0]!);
-        res.setHeader("content-type", "application/json");
-        res.writeHead(200);
-        res.end(JSON.stringify({ ok: true }));
-      });
-    });
-    server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address() as AddressInfo;
-      resolve({
-        url: `http://127.0.0.1:${port}`,
-        calls,
-        close: () => new Promise((done) => server.close(() => done())),
-      });
-    });
-  });
-}
 
 function gatewayEnv(overrides: Record<string, string>): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, PORT: "0" };
@@ -107,44 +74,27 @@ async function withGateway(
   }
 }
 
-test("one port serves health, id sign-in, and the app login api", async () => {
-  const core = await startStubCore();
-  try {
-    await withGateway({ CORE_API_URL: core.url }, async (base, banner) => {
-      assert.match(banner, /id sign-in issuer http:\/\/h5\.test/);
+test("one port serves health and id sign-in", async () => {
+  await withGateway({}, async (base, banner) => {
+    assert.match(banner, /id sign-in issuer http:\/\/h5\.test/);
 
-      const health = await fetch(`${base}/healthz`);
-      assert.equal(health.status, 200);
-      assert.deepEqual(await health.json(), { ok: true });
+    const health = await fetch(`${base}/healthz`);
+    assert.equal(health.status, 200);
+    assert.deepEqual(await health.json(), { ok: true });
 
-      const authorize = await fetch(`${base}/authorize`);
-      assert.equal(authorize.status, 400);
-      assert.match(await authorize.text(), /无法开始登录/);
+    const authorize = await fetch(`${base}/authorize`);
+    assert.equal(authorize.status, 400);
+    assert.match(await authorize.text(), /无法开始登录/);
 
-      const login = await fetch(`${base}/login`, signedPost("/login", JSON.stringify({ id: "app_u1", name: "甲" })));
-      assert.equal(login.status, 200);
-      assert.deepEqual(await login.json(), { ok: true, principalId: "app_u1", displayName: "甲", created: true });
-      assert.ok(core.calls.includes("/v1/directory"), `expected a directory push, saw ${core.calls.join(", ")}`);
+    const discovery = await fetch(`${base}/.well-known/openid-configuration`);
+    assert.equal(discovery.status, 200);
+    const metadata = (await discovery.json()) as { issuer: string };
+    assert.equal(metadata.issuer, VALID_ENV.IDLOGIN_ISSUER);
 
-      const loginUnsigned = await fetch(`${base}/login`, { method: "POST", body: JSON.stringify({ id: "app_u2" }) });
-      assert.equal(loginUnsigned.status, 401);
-      assert.deepEqual(await loginUnsigned.json(), {
-        error: "unauthorized",
-        message: "missing signature (unsigned request)",
-      });
-
-      const discovery = await fetch(`${base}/.well-known/openid-configuration`);
-      assert.equal(discovery.status, 200);
-      const metadata = (await discovery.json()) as { issuer: string };
-      assert.equal(metadata.issuer, VALID_ENV.IDLOGIN_ISSUER);
-
-      const unknown = await fetch(`${base}/nope`);
-      assert.equal(unknown.status, 404);
-      assert.deepEqual(await unknown.json(), { error: "not_found" });
-    });
-  } finally {
-    await core.close();
-  }
+    const unknown = await fetch(`${base}/nope`);
+    assert.equal(unknown.status, 404);
+    assert.deepEqual(await unknown.json(), { error: "not_found" });
+  });
 });
 
 test("gateway refuses to start when idlogin is misconfigured", async () => {

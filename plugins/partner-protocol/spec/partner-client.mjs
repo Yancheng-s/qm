@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createHmac } from "node:crypto";
 
-const BASE_URL = process.env.PARTNER_BASE_URL ?? "http://localhost:8211";
+const BASE_URL = process.env.PARTNER_BASE_URL ?? "http://localhost:8209";
 const PARTNER_ID = process.env.PARTNER_ID ?? "acme";
 const SECRET = process.env.PARTNER_SECRET ?? "";
 const USER_ID = process.env.PARTNER_USER_ID ?? "u1";

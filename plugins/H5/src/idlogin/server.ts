@@ -14,7 +14,6 @@ import { signedHeaders, withSourceAuthNonce } from "../../../chassis/src/core-cl
 import { errMessage } from "../../../chassis/src/errors.ts";
 import { CORE_API_URL, CORE_SIGNING_SECRET, PORTAL_IDENTITY_SECRET } from "../../../chassis/src/env.ts";
 import { verifyPortalIdentity } from "../../../chassis/src/portal-identity.ts";
-import { readSignedBody } from "../signed-request.ts";
 import { createMemoryUserRegistry, createPostgresUserRegistry, type UserRegistry } from "./users.ts";
 
 export interface IdLoginConfig {
@@ -118,21 +117,10 @@ function idAllowed(cfg: IdLoginConfig, id: string): boolean {
   return !cfg.allowedIds.length || cfg.allowedIds.includes(id);
 }
 
-function parseLoginInput(raw: unknown): { id: string; name: string } | { problem: string } {
-  if (typeof raw !== "object" || raw === null) return { problem: "request body must be a JSON object" };
-  const body = raw as Record<string, unknown>;
-  const id = typeof body.id === "string" ? body.id.trim() : "";
-  if (!id || id.length > MAX_ID_CHARS) return { problem: `id is required (max ${MAX_ID_CHARS} chars)` };
-  const name = typeof body.name === "string" ? body.name.trim() : "";
-  if (name.length > MAX_NAME_CHARS) return { problem: `name too long (max ${MAX_NAME_CHARS} chars)` };
-  return { id, name };
-}
-
 export interface IdLoginDeps {
   cfg: IdLoginConfig;
   signingKey: SigningKey;
   sealSecret: Uint8Array;
-  signingSecret: string | undefined;
   users: UserRegistry;
   pushDirectory?: (members: DirectoryMemberPush[]) => Promise<void>;
 }
@@ -521,34 +509,6 @@ export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, 
     res.end();
   }
 
-  async function login(req: IncomingMessage, res: ServerResponse, pathWithQuery: string): Promise<void> {
-    const signed = await readSignedBody(req, {
-      secret: deps.signingSecret,
-      method: "POST",
-      pathWithQuery,
-      maxBytes: MAX_BODY_BYTES,
-    });
-    if (!signed.ok) return sendJson(res, signed.status, signed.body);
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(signed.raw);
-    } catch {
-      return sendJson(res, 400, { error: "bad_json" });
-    }
-    const input = parseLoginInput(parsed);
-    if ("problem" in input) return sendJson(res, 400, { error: "bad_request", message: input.problem });
-    if (!idAllowed(cfg, input.id)) return sendJson(res, 403, { error: "id_not_allowed" });
-    const previous = await users.get(input.id);
-    const displayName = input.name || previous?.name || input.id;
-    await users.put({ id: input.id, name: displayName });
-    try {
-      await syncDirectory();
-    } catch (e) {
-      return sendJson(res, 502, { error: "directory_sync_failed", message: errMessage(e) });
-    }
-    return sendJson(res, 200, { ok: true, principalId: input.id, displayName, created: previous === null });
-  }
-
   function basicCredentials(header: string | undefined): { id: string; secret: string } | null {
     if (!header || !/^basic /i.test(header)) return null;
     const decoded = Buffer.from(header.slice(6).trim(), "base64").toString("utf8");
@@ -663,7 +623,6 @@ export function createIdLoginHandler(deps: IdLoginDeps): (req: IncomingMessage, 
     if (method === "GET" && path === "/.well-known/openid-configuration") return discovery(res);
     if (method === "GET" && path === "/authorize") return authorizeForm(res, url.searchParams);
     if (method === "POST" && path === "/authorize") return authorizeSubmit(req, res);
-    if (method === "POST" && path === "/login") return login(req, res, path + url.search);
     if (method === "POST" && path === "/token") return token(req, res);
     if ((method === "GET" || method === "POST") && path === "/userinfo") return userinfo(req, res);
     return sendJson(res, 404, { error: "not_found" });
@@ -698,7 +657,6 @@ export async function bootIdLogin(
     cfg,
     signingKey,
     sealSecret: randomBytes(32),
-    signingSecret: CORE_SIGNING_SECRET,
     users,
     pushDirectory: createDirectoryPusher(),
   });

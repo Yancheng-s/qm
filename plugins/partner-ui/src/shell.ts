@@ -29,7 +29,7 @@ import {
   withBase,
 } from "./core-bridge";
 import { applyRuntimeOptions } from "./model-options";
-import { errMessage, swallow } from "../../chassis/src/errors";
+import { swallow } from "../../chassis/src/errors";
 import { brandMark, brandName, icon, initials } from "./ui";
 import { markConnectorConnected } from "./chat";
 import { clearSkillsCache, resyncModelSelection, seedRuntimeConfig } from "./composer";
@@ -267,16 +267,6 @@ function gateShell(body: unknown) {
 }
 
 const PORTAL_ATTEMPT_KEY = "qm.portal.signin.attempt";
-const PORTAL_ATTEMPT_WINDOW_MS = 20_000;
-
-function portalAttemptedRecently(): boolean {
-  try {
-    const at = Number(sessionStorage.getItem(PORTAL_ATTEMPT_KEY) ?? "");
-    return Number.isFinite(at) && Date.now() - at < PORTAL_ATTEMPT_WINDOW_MS;
-  } catch {
-    return false;
-  }
-}
 
 function signInWithPortal(): void {
   try {
@@ -296,60 +286,19 @@ function clearPortalAttempt(): void {
   }
 }
 
-function portalGate() {
-  if (portalAttemptedRecently())
-    return gateShell(html`
-      <h1>Sign in through the portal</h1>
-      <p class="signin-body">
-        This surface is reached through the portal, and signing in there didn't produce a session for it. Open the
-        portal address directly rather than this one.
-      </p>
-      <div class="hint">
-        If you opened this surface's own address, that's the cause — it can't authenticate anyone on its own.
-      </div>
-    `);
-  return gateShell(html`
-    <h1>Your session ended</h1>
-    <p class="signin-body">You've been signed out. Sign in again and you'll come back to this page.</p>
-    <button class="btn primary" type="button" @click=${signInWithPortal}>Sign in</button>
-  `);
-}
-
-function deniedGate() {
-  return gateShell(html`
-    <h1>You don't have access</h1>
-    <p class="signin-body">
-      Your account is signed in and verified — it just isn't allowed on this instance. Ask an administrator to add you.
-    </p>
-    <button class="btn" type="button" @click=${signOut}>Sign out</button>
-    ${
-      authMode === "dev"
-        ? html`<div class="hint">This instance lists its principals in <b>WEB_UI_PRINCIPALS</b>.</div>`
-        : nothing
-    }
-  `);
-}
-
 function retryBoot(): void {
   void bootSafely();
 }
 
-function unreachableGate() {
-  return gateShell(html`
-    <h1>We couldn't reach the assistant</h1>
-    <p class="signin-body">The service didn't respond. This is usually temporary.</p>
-    <button class="btn primary" type="button" @click=${retryBoot}>Try again</button>
-    <div class="hint">If this keeps happening, the core service may be down.</div>
-  `);
-}
-
 function partnerGate(gate: AuthGate) {
-  const detail =
-    gate.kind === "unreachable"
-      ? "Could not reach the sign-in service. Check that the portal and gateway are running."
-      : gate.kind === "denied"
-        ? "Your account is signed in but not allowed on this instance."
-        : "Sign in to open the chat — you'll come back to this conversation afterwards.";
+  let detail: string;
+  if (gate.kind === "unreachable") {
+    detail = "Could not reach the sign-in service. Check that the portal and gateway are running.";
+  } else if (gate.kind === "denied") {
+    detail = "Your account is signed in but not allowed on this instance.";
+  } else {
+    detail = "Sign in to open the chat — you'll come back to this conversation afterwards.";
+  }
   return gateShell(html`
     <h1>Open from partner apps</h1>
     <p class="signin-body">This chat is entered from a signed partner handoff.</p>
@@ -359,55 +308,6 @@ function partnerGate(gate: AuthGate) {
         : html`<button class="btn primary" type="button" @click=${signInWithPortal}>Sign in</button>`
     }
     <div class="hint">${detail}</div>
-  `);
-}
-
-async function submitDevSignin(user: string): Promise<void> {
-  renderAuthGate({ kind: "dev", value: user, pending: true });
-  try {
-    await api("/signin", { method: "POST", body: JSON.stringify({ user }) });
-  } catch (err) {
-    renderAuthGate({ kind: "dev", value: user, error: errMessage(err, "Sign-in failed.") });
-    return;
-  }
-  await bootSafely();
-}
-
-function devGate(gate: { value?: string; error?: string; pending?: boolean }) {
-  return gateShell(html`
-    <form
-      @submit=${(e: Event) => {
-        e.preventDefault();
-        if (gate.pending) return;
-        const input = (e.target as HTMLFormElement).querySelector("input") as HTMLInputElement | null;
-        const user = input?.value.trim();
-        if (user) void submitDevSignin(user);
-      }}
-    >
-      <h1>Dev sign-in</h1>
-      <p class="signin-body">
-        No identity provider is configured, so this instance trusts a local cookie. Set
-        <b>CORE_SIGNING_SECRET</b> and run the portal to use real sign-in.
-      </p>
-      <label for="dev-principal">Principal</label>
-      <input
-        id="dev-principal"
-        name="principal"
-        type="text"
-        inputmode="email"
-        autocomplete="username"
-        spellcheck="false"
-        required
-        autofocus
-        placeholder="you@org.com"
-        .value=${gate.value ?? ""}
-        ?disabled=${gate.pending === true}
-      />
-      <button class="btn primary" type="submit" ?disabled=${gate.pending === true}>
-        ${gate.pending ? "Signing in…" : "Continue"}
-      </button>
-      ${gate.error ? html`<div class="hint error" role="alert">${gate.error}</div>` : nothing}
-    </form>
   `);
 }
 

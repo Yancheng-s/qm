@@ -13,7 +13,7 @@ import { errMessage } from "../../chassis/src/errors";
 
 const INHERIT = "";
 
-export const contextModelState = {
+const contextModelState = {
   scope: null as string | null,
   loading: false,
   saving: false,

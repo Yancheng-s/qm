@@ -6,13 +6,13 @@ export interface PartnerClientOptions {
   partnerSecret: string;
 }
 
-export type PartnerOutcome = { ok: true; status: number; json: unknown } | { ok: false; status: number; json: unknown };
+type PartnerOutcome = { ok: true; status: number; json: unknown } | { ok: false; status: number; json: unknown };
 
 export interface PartnerClient {
   call(method: string, pathWithQuery: string, body?: unknown): Promise<PartnerOutcome>;
 }
 
-export function partnerHeaders(
+function partnerHeaders(
   options: PartnerClientOptions,
   method: string,
   pathWithQuery: string,
@@ -43,7 +43,7 @@ export function createPartnerClient(options: PartnerClientOptions): PartnerClien
         ...(raw ? { body: raw } : {}),
       });
       const text = await response.text();
-      let json: unknown = null;
+      let json: unknown;
       try {
         json = JSON.parse(text);
       } catch {

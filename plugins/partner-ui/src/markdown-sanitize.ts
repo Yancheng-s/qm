@@ -1,7 +1,7 @@
 import { marked } from "marked";
 import DOMPurify, { type Config } from "dompurify";
 
-export const MARKDOWN_SANITIZE_CONFIG: Config = {
+const MARKDOWN_SANITIZE_CONFIG: Config = {
   USE_PROFILES: { html: true, mathMl: true, svg: true },
   ADD_TAGS: ["annotation", "semantics"],
   ADD_ATTR: ["target", "encoding"],

@@ -9,7 +9,9 @@ const MCP_URL = process.env.MCP_URL || "http://localhost:8300/mcp";
 const MCP_NAME = process.env.MCP_NAME || "甲方用户目录";
 
 if (!SECRET) {
-  console.error("CORE_SIGNING_SECRET missing — run with: node --env-file-if-exists=../../.env bootstrap/register-mcp.mjs");
+  console.error(
+    "CORE_SIGNING_SECRET missing — run with: node --env-file-if-exists=../../.env bootstrap/register-mcp.mjs",
+  );
   process.exit(1);
 }
 
@@ -30,14 +32,34 @@ async function show(label, p) {
 }
 
 console.log(`registering MCP "${MCP_ID}" (${MCP_URL}) into core ${CORE} as ${ACTOR}`);
-await show("preflight POST /mcp tools/list", fetch(MCP_URL, {
-  method: "POST", headers: { "content-type": "application/json" },
-  body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
-}));
-const putBody = JSON.stringify({ url: MCP_URL, name: MCP_NAME, auth: "none", readOnly: true, enabled: true, validate: true });
-await show(`PUT /v1/admin/mcp-servers/${MCP_ID}`, fetch(`${CORE}/v1/admin/mcp-servers/${MCP_ID}`, {
-  method: "PUT", headers: adminHeaders("PUT", `/v1/admin/mcp-servers/${MCP_ID}`, putBody), body: putBody,
-}));
-await show("GET /v1/admin/mcp-servers", fetch(`${CORE}/v1/admin/mcp-servers`, {
-  method: "GET", headers: adminHeaders("GET", "/v1/admin/mcp-servers", ""),
-}));
+await show(
+  "preflight POST /mcp tools/list",
+  fetch(MCP_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+  }),
+);
+const putBody = JSON.stringify({
+  url: MCP_URL,
+  name: MCP_NAME,
+  auth: "none",
+  readOnly: true,
+  enabled: true,
+  validate: true,
+});
+await show(
+  `PUT /v1/admin/mcp-servers/${MCP_ID}`,
+  fetch(`${CORE}/v1/admin/mcp-servers/${MCP_ID}`, {
+    method: "PUT",
+    headers: adminHeaders("PUT", `/v1/admin/mcp-servers/${MCP_ID}`, putBody),
+    body: putBody,
+  }),
+);
+await show(
+  "GET /v1/admin/mcp-servers",
+  fetch(`${CORE}/v1/admin/mcp-servers`, {
+    method: "GET",
+    headers: adminHeaders("GET", "/v1/admin/mcp-servers", ""),
+  }),
+);

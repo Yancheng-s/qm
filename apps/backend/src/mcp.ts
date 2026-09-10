@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 
-export interface SystemUser {
+interface SystemUser {
   id: string;
   name: string;
   role: string;
@@ -9,7 +9,7 @@ export interface SystemUser {
   status: "active" | "inactive";
 }
 
-export const SYSTEM_USERS: readonly SystemUser[] = [
+const SYSTEM_USERS: readonly SystemUser[] = [
   { id: "u1001", name: "张三", role: "运营", department: "内容部", email: "zhangsan@acme.test", status: "active" },
   { id: "u1002", name: "李四", role: "客服", department: "支持部", email: "lisi@acme.test", status: "active" },
   { id: "u1003", name: "王五", role: "数据分析", department: "增长部", email: "wangwu@acme.test", status: "active" },
@@ -41,7 +41,7 @@ interface CallArgs {
   limit?: unknown;
 }
 
-export function listSystemUsers(args: CallArgs): { count: number; users: readonly SystemUser[] } {
+function listSystemUsers(args: CallArgs): { count: number; users: readonly SystemUser[] } {
   let users = [...SYSTEM_USERS];
   if (typeof args.role === "string") users = users.filter((u) => u.role === args.role);
   if (typeof args.department === "string") users = users.filter((u) => u.department === args.department);

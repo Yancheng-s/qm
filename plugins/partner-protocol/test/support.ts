@@ -194,7 +194,8 @@ export async function startStubCore(): Promise<StubCore> {
       }
       if (pathname === "/v1/grants") return reply(200, { ok: true });
       if (pathname === "/v1/soul") return reply(200, { ok: true, version: 1 });
-      if (pathname === "/v1/blobs" && req.method === "POST") return reply(200, { blobId: "blob-1", sizeBytes: body.length });
+      if (pathname === "/v1/blobs" && req.method === "POST")
+        return reply(200, { blobId: "blob-1", sizeBytes: body.length });
       if (pathname === "/v1/files/upload" && req.method === "POST") {
         const parsed = JSON.parse(body.toString("utf8")) as { name?: string; mimetype?: string };
         return reply(200, {

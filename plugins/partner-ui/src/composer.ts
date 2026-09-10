@@ -107,7 +107,7 @@ function rememberThreadPick(threadRef: string, value: ModelOptionValue): void {
   persistPreference(THREAD_PICKS_STORAGE_KEY, JSON.stringify([...merged]));
 }
 
-export function carryModelPick(fromThreadRef: string | null, toThreadRef: string): void {
+function carryModelPick(fromThreadRef: string | null, toThreadRef: string): void {
   const pick = fromThreadRef ? threadModelPicks.get(fromThreadRef) : undefined;
   if (pick) rememberThreadPick(toThreadRef, pick);
 }
@@ -182,7 +182,7 @@ export function clearSkillsCache(): void {
 
 const SLASH_TOKEN = /(^|\s)\/([a-zA-Z0-9_-]*)$/;
 
-export function slashQuery(draft: string): string | null {
+function slashQuery(draft: string): string | null {
   const m = SLASH_TOKEN.exec(draft);
   return m ? (m[2] ?? "") : null;
 }

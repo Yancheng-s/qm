@@ -4,9 +4,9 @@ import { isIP } from "node:net";
 import { asObject, numberField, stringField, upstreamProblem, type CoreCall } from "./core-client.ts";
 import { problem, type Problem } from "./transport.ts";
 
-export const MAX_ASSEMBLE_FILES = 20;
-export const MAX_ASSEMBLE_FILE_BYTES = 100 * 1024 * 1024;
-export const FILE_DOWNLOAD_TIMEOUT_MS = 30_000;
+const MAX_ASSEMBLE_FILES = 20;
+const MAX_ASSEMBLE_FILE_BYTES = 100 * 1024 * 1024;
+const FILE_DOWNLOAD_TIMEOUT_MS = 30_000;
 const MAX_REDIRECTS = 5;
 const SHA256 = /^[0-9a-f]{64}$/;
 
