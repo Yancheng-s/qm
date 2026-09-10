@@ -23,7 +23,11 @@ import type { App, AppDeps } from "./app-types.ts";
 export function createAmbientHelpers(deps: AppDeps, app: App) {
   function shouldRouteToSpine(input: OrchestratorInput): boolean {
     const { conversation } = input;
-    return conversation.kind !== "dm" && (input.origin.kind === "human" || input.origin.kind === "ambient");
+    return (
+      input.surface === "slack" &&
+      conversation.kind !== "dm" &&
+      (input.origin.kind === "human" || input.origin.kind === "ambient")
+    );
   }
 
   function markTriggerHandled(input: OrchestratorInput): void {
@@ -298,8 +302,6 @@ export function createAmbientHelpers(deps: AppDeps, app: App) {
 
   async function addressedWakeText(input: OrchestratorInput): Promise<string> {
     const container = input.conversation.channelRef ?? input.conversation.threadRef;
-    const policy = deps.channelPolicy ? await deps.channelPolicy.get(container).catch(() => undefined) : undefined;
-    const orders = policy?.orders;
     const sender = input.actor.displayName?.trim() || input.actor.id;
     const surface = input.surface ?? "slack";
     return buildWakeEnvelope({
@@ -308,7 +310,6 @@ export function createAmbientHelpers(deps: AppDeps, app: App) {
       channel: container,
       at: new Date(),
       why: `${sender} addressed you directly; they expect a response.`,
-      ...(orders ? { orders } : {}),
       recentMessages: [],
       addressedMessages: [
         {

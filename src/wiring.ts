@@ -554,7 +554,10 @@ export function buildApp(
     config.databaseUrl && (config.budgetUsdPerWindow !== undefined || config.orgBudgetUsdPerWindow !== undefined)
       ? createPostgresBudgetTracker(config.databaseUrl, budgetOpts)
       : createBudgetTracker(budgetOpts);
-  const resolution = createResolutionService(config.orgId, configStore, acl);
+  const channelPolicy: ChannelPolicyStore = config.databaseUrl
+    ? createPostgresChannelPolicyStore(config.databaseUrl)
+    : createMemoryChannelPolicyStore();
+  const resolution = createResolutionService(config.orgId, configStore, acl, channelPolicy);
 
   const workspace = createLocalWorkspaceStore(config.dataDir);
   const blobTransfer: BlobTransferStore =
@@ -1129,9 +1132,6 @@ export function buildApp(
   const surfaceCache: SurfaceCache = config.databaseUrl
     ? createPostgresSurfaceCache(config.databaseUrl, { liveFallback })
     : createMemorySurfaceCache({ liveFallback });
-  const channelPolicy: ChannelPolicyStore = config.databaseUrl
-    ? createPostgresChannelPolicyStore(config.databaseUrl)
-    : createMemoryChannelPolicyStore();
   const ambientJudgments: AmbientJudgmentStore = config.databaseUrl
     ? createPostgresAmbientJudgmentStore(config.databaseUrl)
     : createMemoryAmbientJudgmentStore();
