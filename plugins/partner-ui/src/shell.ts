@@ -778,6 +778,8 @@ export async function boot(): Promise<void> {
   const {
     view: wanted,
     session: wantedSession,
+    scopeId: wantedScope,
+    conversationId: wantedConversation,
     item: wantedItem,
   } = parseDeepLink(UI_BASE, location.pathname, location.search);
   const connectedProvider = params.get("status") === "connected" ? params.get("connector") : null;
@@ -786,7 +788,7 @@ export async function boot(): Promise<void> {
   const entriesPrefetch =
     wantedSession && !viewIntent ? fetchTranscript(wantedSession, { tailTurns: TAIL_TURNS }).catch(() => null) : null;
 
-  const bareEntry = !viewIntent && !wantedSession && wanted !== "app-edit" && !connectedProvider;
+  const bareEntry = !viewIntent && !wantedSession && !wantedConversation && wanted !== "app-edit" && !connectedProvider;
   if (bareEntry && !restoredCanvasNeedsSessionList()) mountRestoredCanvas();
 
   await refreshSessions({ showLoading: true });
@@ -825,6 +827,17 @@ export async function boot(): Promise<void> {
       syncUrlFromState();
     } else {
       showMainEmpty("That conversation wasn't found, or you don't have access to it.");
+      renderList();
+    }
+  } else if (wantedConversation) {
+    const threadRef = `web:${appState.me.user}:${wantedConversation}`;
+    const match = sessionsState.list.find((s) => s.threadRef === threadRef);
+    if (match) {
+      exitSplitIfActive();
+      await openSession(match);
+    } else {
+      const context = (await ensureContexts()).find((c) => c.scopeId === wantedScope);
+      mainConversation().mountContinuable(threadRef, null, wantedScope, [], context?.project?.name ?? null);
       renderList();
     }
   } else if (connectedProvider && sessionsState.list.length) {

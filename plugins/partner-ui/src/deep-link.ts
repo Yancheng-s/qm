@@ -33,7 +33,13 @@ export function parseDeepLink(
   base: string,
   pathname: string,
   search: string,
-): { view: string | null; session: string | null; item: string | null } {
+): {
+  view: string | null;
+  session: string | null;
+  scopeId: string | null;
+  conversationId: string | null;
+  item: string | null;
+} {
   const params = new URLSearchParams(search);
   const b = base.replace(/\/$/, "");
   const rel = pathname.startsWith(b) ? pathname.slice(b.length) : pathname;
@@ -49,6 +55,8 @@ export function parseDeepLink(
   return {
     view,
     session: params.get("session") ?? params.get("sessionId"),
+    scopeId: params.get("scopeId"),
+    conversationId: params.get("conversationId"),
     item:
       pathView === "projects" && projectKind && projectItem
         ? `${projectKind}:${projectItem}`
