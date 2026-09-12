@@ -1,6 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
-import { Box, Brain, Clock3, Files, GitFork, KeyRound, Rocket } from "lucide";
+import { ChevronLeft, GitFork, PanelRight, X } from "lucide";
 import { api } from "./core-bridge";
+import { appState } from "./shell-state";
 import { icon } from "./ui";
 
 /** A session's context carried into the crons/files/memory views so the whole
@@ -133,22 +134,9 @@ export function sessionTopbarTpl(o: SessionTopbarOpts): TemplateResult {
   const headingTitle = o.crumb
     ? `This chat runs in the ${o.crumb} context — the agent works with that context's files and memory, separate from your personal context.`
     : o.title;
-  const tool = (t: SessionTool, glyph: Parameters<typeof icon>[0], hint: string) => {
-    const count = o.toolCount?.(t) ?? null;
-    return html`
-      <button
-        class="session-tool ${o.activeTool === t ? "active" : ""}"
-        type="button"
-        aria-label=${hint}
-        @click=${() => o.onTool(t)}
-      >
-        ${icon(glyph, 15)}${count ? html`<span class="session-tool-count">${count}</span>` : nothing}
-        <span class="session-tool-hint" role="tooltip">${hint}</span>
-      </button>
-    `;
-  };
   return html`
     <header class="chat-topbar session-topbar">
+      <button class="session-back" type="button" aria-label="Back">${icon(ChevronLeft, 18)}</button>
       ${
         o.onTitle
           ? html`<button class="session-heading as-link" type="button" title="Back to this chat" @click=${o.onTitle}>
@@ -157,9 +145,10 @@ export function sessionTopbarTpl(o: SessionTopbarOpts): TemplateResult {
           : html`<div class="session-heading" title=${headingTitle}>${heading}</div>`
       }
       <div class="topbar-actions session-tools">
-        ${tool("crons", Clock3, "Crons")} ${tool("files", Files, "Files")} ${tool("apps", Rocket, "Apps")}
-        ${tool("skills", Box, "Skills")} ${tool("memory", Brain, "Memory")}
-        ${tool("keychain", KeyRound, "Your keychain")}
+        <button class="tools-entry" type="button" aria-label="Toggle tools" @click=${toggleToolsDrawer}>
+          <span class="tools-entry-icon tools-entry-open">${icon(PanelRight, 18)}</span>
+          <span class="tools-entry-icon tools-entry-close">${icon(X, 18)}</span>
+        </button>
       </div>
     </header>
   `;
@@ -200,4 +189,112 @@ export function scopedViewTopbar(current: SessionTool, redraw: () => void): Temp
       void import("./shell").then(({ switchView }) => switchView(t === "apps" ? "deploys" : t));
     },
   });
+}
+
+const DRAWER_TABS: Array<{ tool: SessionTool; label: string }> = [
+  { tool: "files", label: "Files" },
+  { tool: "skills", label: "Skills" },
+  { tool: "memory", label: "Memory" },
+];
+let drawerOpen = false;
+let drawerTab: SessionTool = "files";
+let drawerEls: { root: HTMLElement; tabs: HTMLElement; content: HTMLElement } | null = null;
+let savedMainEl: HTMLElement | null = null;
+
+function toggleToolsDrawer(): void {
+  if (drawerOpen) closeToolsDrawer();
+  else openToolsDrawer();
+}
+
+function openToolsDrawer(): void {
+  drawerOpen = true;
+  const els = ensureDrawer();
+  els.root.classList.add("open");
+  document.body.classList.add("tools-drawer-open");
+  void setToolsTab(drawerTab);
+}
+
+function closeToolsDrawer(): void {
+  drawerOpen = false;
+  drawerEls?.root.classList.remove("open");
+  document.body.classList.remove("tools-drawer-open");
+  if (savedMainEl) {
+    appState.mainEl = savedMainEl;
+    savedMainEl = null;
+  }
+  appState.currentView = "chats";
+}
+
+function ensureDrawer() {
+  if (drawerEls) return drawerEls;
+  const root = document.createElement("div");
+  root.className = "tools-drawer-root";
+  const mask = document.createElement("div");
+  mask.className = "tools-drawer-mask";
+  mask.addEventListener("click", () => closeToolsDrawer());
+  const panel = document.createElement("aside");
+  panel.className = "tools-drawer-panel";
+  const tabs = document.createElement("div");
+  tabs.className = "tools-drawer-tabs";
+  for (const t of DRAWER_TABS) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "tools-drawer-tab";
+    b.dataset.tool = t.tool;
+    b.textContent = t.label;
+    b.addEventListener("click", () => void setToolsTab(t.tool));
+    tabs.appendChild(b);
+  }
+  const content = document.createElement("div");
+  content.className = "tools-drawer-content";
+  let touch: { x: number; y: number } | null = null;
+  content.addEventListener(
+    "touchstart",
+    (e) => {
+      const t0 = e.touches[0];
+      touch = t0 ? { x: t0.clientX, y: t0.clientY } : null;
+    },
+    { passive: true },
+  );
+  content.addEventListener(
+    "touchend",
+    (e) => {
+      if (!touch) return;
+      const t0 = e.changedTouches[0];
+      const dx = t0.clientX - touch.x;
+      const dy = t0.clientY - touch.y;
+      touch = null;
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
+      const idx = DRAWER_TABS.findIndex((t) => t.tool === drawerTab);
+      const next = DRAWER_TABS[idx + (dx < 0 ? 1 : -1)];
+      if (next) void setToolsTab(next.tool);
+    },
+    { passive: true },
+  );
+  panel.append(tabs, content);
+  root.append(mask, panel);
+  document.body.appendChild(root);
+  drawerEls = { root, tabs, content };
+  return drawerEls;
+}
+
+async function setToolsTab(tab: SessionTool): Promise<void> {
+  drawerTab = tab;
+  if (!drawerEls) return;
+  for (const b of drawerEls.tabs.children) {
+    b.classList.toggle("active", (b as HTMLElement).dataset.tool === tab);
+  }
+  if (!savedMainEl) savedMainEl = appState.mainEl;
+  appState.currentView = tab === "apps" ? "deploys" : tab;
+  appState.mainEl = drawerEls.content;
+  if (tab === "files") {
+    const m = await import("./files");
+    m.renderFiles();
+  } else if (tab === "skills") {
+    const m = await import("./skills");
+    m.renderSkills();
+  } else {
+    const m = await import("./memory");
+    await m.renderMemory();
+  }
 }

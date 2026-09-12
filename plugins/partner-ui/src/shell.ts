@@ -7,9 +7,7 @@ import {
   Files,
   Folder,
   KeyRound,
-  LogOut,
   MessageSquare,
-  PanelLeft,
   Plus,
   RefreshCw,
   Rocket,
@@ -30,7 +28,7 @@ import {
 } from "./core-bridge";
 import { applyRuntimeOptions } from "./model-options";
 import { swallow } from "../../chassis/src/errors";
-import { brandMark, brandName, icon, initials } from "./ui";
+import { brandMark, brandName, icon } from "./ui";
 import { markConnectorConnected } from "./chat";
 import { clearSkillsCache, resyncModelSelection, seedRuntimeConfig } from "./composer";
 import { ensureDeliveryStream, mainConversation, onExitCanvas } from "./conversations";
@@ -51,7 +49,6 @@ import { activityOf } from "./session-list";
 import { replaceChildrenPreservingFocus } from "./pane-focus";
 import {
   openSession,
-  closeOpenSessionMenu,
   refreshSessions,
   renderChatsPage,
   renderList,
@@ -71,7 +68,6 @@ import { renderMemory, resetMemoryState } from "./memory";
 import { renderSkills } from "./skills";
 import { contextsState, ensureContexts, renderContexts, resetContextsState, resolveProjectScope } from "./contexts";
 import { appState, can, isView, type AuthMode, type Me, type View } from "./shell-state";
-import { trapDialogFocus } from "./dialog-focus";
 export { appState, can, type Me, type View } from "./shell-state";
 
 let authMode: AuthMode = "portal";
@@ -101,51 +97,6 @@ export function syncUrlFromState(sessionOverride?: string | null): void {
 
 const appEl = document.getElementById("app");
 if (!appEl) throw new Error("missing #app");
-
-const narrowViewport = window.matchMedia("(max-width: 860px)");
-let sidebarOpen = !narrowViewport.matches;
-
-const SIDEBAR_MIN_W = 200;
-const SIDEBAR_MAX_W = 520;
-const SIDEBAR_W_KEY = "webui:sidebar-w";
-
-function applySavedSidebarWidth(): void {
-  const saved = Number(localStorage.getItem(SIDEBAR_W_KEY));
-  if (Number.isFinite(saved) && saved >= SIDEBAR_MIN_W && saved <= SIDEBAR_MAX_W) {
-    document.documentElement.style.setProperty("--sidebar-w", `${saved}px`);
-  }
-}
-
-function startSidebarResize(e: PointerEvent): void {
-  e.preventDefault();
-  const handle = e.currentTarget as HTMLElement;
-  const startX = e.clientX;
-  const sidebar = (appEl as HTMLElement).querySelector<HTMLElement>(".sidebar");
-  if (!sidebar) return;
-  const startW = sidebar.getBoundingClientRect().width;
-  handle.setPointerCapture(e.pointerId);
-  document.body.classList.add("resizing-sidebar");
-  let w = startW;
-  const onMove = (ev: PointerEvent) => {
-    w = Math.min(SIDEBAR_MAX_W, Math.max(SIDEBAR_MIN_W, startW + (ev.clientX - startX)));
-    document.documentElement.style.setProperty("--sidebar-w", `${w}px`);
-  };
-  const onUp = () => {
-    handle.removeEventListener("pointermove", onMove);
-    handle.removeEventListener("pointerup", onUp);
-    handle.removeEventListener("lostpointercapture", onUp);
-    document.body.classList.remove("resizing-sidebar");
-    localStorage.setItem(SIDEBAR_W_KEY, String(Math.round(w)));
-  };
-  handle.addEventListener("pointermove", onMove);
-  handle.addEventListener("pointerup", onUp);
-  handle.addEventListener("lostpointercapture", onUp);
-}
-
-function resetSidebarWidth(): void {
-  document.documentElement.style.removeProperty("--sidebar-w");
-  localStorage.removeItem(SIDEBAR_W_KEY);
-}
 
 const NAV_WORKSPACE_KEY = "web-ui:nav-workspace";
 
@@ -328,7 +279,6 @@ function gateFor(mode: AuthMode, reason: "unauthenticated" | "not_allowed" | und
 }
 
 export function mountShell(): void {
-  applySavedSidebarWidth();
   const impersonatedBy = appState.me?.impersonatedBy ?? null;
   let banner: TemplateResult | null = null;
   if (impersonatedBy) banner = impersonationBanner(impersonatedBy);
@@ -336,43 +286,7 @@ export function mountShell(): void {
   render(
     html`
       ${banner ?? nothing}
-      <div class="layout ${sidebarOpen ? "" : "sidebar-closed"} ${banner ? "bannered" : ""}">
-        <aside class="sidebar" aria-label="Navigation" @keydown=${onSidebarKeydown}>
-          <div class="brand">
-            <div class="brand-lockup">${brandMark()}<span class="brand-name">${brandName()}</span></div>
-            <button
-              class="icon-btn subtle sidebar-toggle sidebar-collapse-toggle"
-              type="button"
-              title="Hide sidebar"
-              aria-label="Hide sidebar"
-              @click=${toggleSidebar}
-            >
-              ${icon(PanelLeft, 17)}
-            </button>
-          </div>
-          <div id="sidebar-top"></div>
-          <div class="list" id="sidebar-body"></div>
-          <div class="sidebar-footer">
-            <div class="user-pill" title=${appState.me?.user ?? ""}>
-              <span class="avatar">${initials(appState.me?.user ?? "?")}</span>
-              <span class="user-name">${appState.me?.user ?? ""}</span>
-            </div>
-            <theme-toggle .includeSystem=${true} title="Color scheme: light / dark / system"></theme-toggle>
-            <button class="icon-btn subtle" title="Sign out" aria-label="Sign out" @click=${signOut}>
-              ${icon(LogOut, 17)}
-            </button>
-          </div>
-        </aside>
-        <button class="sidebar-scrim" type="button" aria-label="Close sidebar" @click=${toggleSidebar}></button>
-        <div
-          class="sidebar-resize-handle"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize sidebar"
-          title="Drag to resize · double-click to reset"
-          @pointerdown=${startSidebarResize}
-          @dblclick=${resetSidebarWidth}
-        ></div>
+      <div class="layout ${banner ? "bannered" : ""}">
         <section class="main" id="main" tabindex="-1">
           <div class="empty">Pick a conversation, or start a new chat.</div>
         </section>
@@ -380,12 +294,7 @@ export function mountShell(): void {
     `,
     appEl as HTMLElement,
   );
-  appState.topEl = (appEl as HTMLElement).querySelector("#sidebar-top");
-  appState.listEl = (appEl as HTMLElement).querySelector("#sidebar-body");
   appState.mainEl = (appEl as HTMLElement).querySelector("#main");
-  renderSidebarTop();
-  updateSidebarToggleLabels();
-  syncSidebarAccessibility(false);
   shellMounted = true;
 }
 
@@ -591,63 +500,7 @@ export function showMainEmpty(text: string): void {
     );
 }
 
-function toggleSidebar(): void {
-  setSidebarOpen(!sidebarOpen);
-}
-
-export function closeSidebarOnNarrowView(): void {
-  if (!narrowViewport.matches || !sidebarOpen) return;
-  setSidebarOpen(false, false);
-  requestAnimationFrame(() => appState.mainEl?.focus({ preventScroll: true }));
-}
-
-narrowViewport.addEventListener("change", (event) => {
-  if (event.matches && sidebarOpen) setSidebarOpen(false, false);
-  else syncSidebarAccessibility(false);
-});
-
-function setSidebarOpen(open: boolean, moveFocus = true): void {
-  sidebarOpen = open;
-  (appEl as HTMLElement).querySelector(".layout")?.classList.toggle("sidebar-closed", !sidebarOpen);
-  updateSidebarToggleLabels();
-  syncSidebarAccessibility(moveFocus);
-}
-
-function syncSidebarAccessibility(moveFocus: boolean): void {
-  const root = appEl as HTMLElement;
-  const sidebar = root.querySelector<HTMLElement>(".sidebar");
-  const main = root.querySelector<HTMLElement>(".main");
-  const scrim = root.querySelector<HTMLButtonElement>(".sidebar-scrim");
-  const modal = narrowViewport.matches && sidebarOpen;
-  if (!sidebar || !main || !scrim) return;
-  main.inert = modal;
-  sidebar.setAttribute("role", modal ? "dialog" : "navigation");
-  if (modal) sidebar.setAttribute("aria-modal", "true");
-  else sidebar.removeAttribute("aria-modal");
-  scrim.hidden = !modal;
-  if (!moveFocus || !narrowViewport.matches) return;
-  requestAnimationFrame(() => sidebar.querySelector<HTMLElement>(".sidebar-collapse-toggle")?.focus());
-}
-
-function onSidebarKeydown(event: KeyboardEvent): void {
-  if (!narrowViewport.matches || !sidebarOpen) return;
-  if (event.key === "Escape" && event.defaultPrevented) return;
-  if (event.key === "Escape" && closeOpenSessionMenu()) {
-    event.preventDefault();
-    event.stopPropagation();
-    return;
-  }
-  trapDialogFocus(event, () => setSidebarOpen(false));
-}
-
-function updateSidebarToggleLabels(): void {
-  const collapseLabel = sidebarOpen ? "Hide sidebar" : "Show sidebar";
-  (appEl as HTMLElement).querySelectorAll<HTMLButtonElement>(".sidebar-toggle").forEach((btn) => {
-    btn.setAttribute("aria-expanded", sidebarOpen ? "true" : "false");
-    btn.setAttribute("title", collapseLabel);
-    btn.setAttribute("aria-label", collapseLabel);
-  });
-}
+export function closeSidebarOnNarrowView(): void {}
 
 export function renderPane(
   title: string,

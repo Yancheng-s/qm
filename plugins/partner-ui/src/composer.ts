@@ -353,23 +353,8 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
   function composerForm(agent: Agent): TemplateResult {
     const selectedModel = currentModelOption();
     const effortAvailable = harnessSupportsEffort(selectedModel.harnessId);
-    const fastSupported = harnessSupportsFastMode(selectedModel.harnessId);
-    const fastAvailable = fastSupported && modelSupportsFastMode(scopeKey(), selectedModel.model.id);
-    const fastOn = fastAvailable && effectiveFastMode();
-    const fastCharging = fastModeCharging && fastOn;
-    let fastTitle = "Fast mode is only available on Opus models";
-    if (fastAvailable) fastTitle = fastOn ? "Fast mode active" : "Fast mode";
     const approvalPauses = ctx.chat.activePendingApprovals();
     const runtimePending = activeRuntimeConfig === null;
-    const effectiveEffort =
-      (activeRuntimeConfig?.effective.effortLevel as EffortLevel | undefined) ??
-      defaultEffortForModel(selectedModel.model);
-    const effectiveFast = activeRuntimeConfig?.effective.fastMode === true && fastAvailable;
-    const runtimeToggled =
-      !runtimePending &&
-      (selectedModel.value !== defaultModelValue(scopeKey()) ||
-        composerState.effortLevel !== effectiveEffort ||
-        fastOn !== effectiveFast);
     const inputBlocked = runtimePending || ctx.chat.state.resolvingApprovals.size > 0 || approvalPauses.length > 0;
     const attachingDisabled = inputBlocked;
     let placeholder = "Ask anything";
@@ -506,86 +491,11 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
                           })
                         : nothing
                     }
-                    ${
-                      fastSupported
-                        ? html`<button
-                            class="fast-toggle ${fastOn ? "active" : ""} ${fastCharging ? "charging" : ""} ${fastAvailable ? "" : "unavailable"}"
-                            type="button"
-                            title=${fastTitle}
-                            aria-label=${fastTitle}
-                            aria-pressed=${fastOn ? "true" : "false"}
-                            aria-disabled=${fastAvailable ? "false" : "true"}
-                            ?disabled=${inputBlocked}
-                            @click=${() => toggleFastMode(agent)}
-                          >
-                            ${icon(Zap, 15)}
-                            <span class="fast-label">Fast</span>
-                          </button>`
-                        : nothing
-                    }
                   `
             }
           </div>
           <div class="composer-right">
-            ${
-              ctx.pane
-                ? settingsControl(agent, selectedModel, inputBlocked)
-                : html`
-                    ${
-                      runtimeToggled
-                        ? html`<button
-                            class="runtime-default-btn"
-                            type="button"
-                            aria-label="Make default"
-                            data-mobile-label="Default"
-                            title="Use this harness, model, effort, and fast setting as the default for this scope"
-                            ?disabled=${inputBlocked}
-                            @click=${() => changeScopeRuntime({ harnessId: selectedModel.harnessId, modelId: selectedModel.model.id, effortLevel: composerState.effortLevel, fastMode: fastOn }, agent)}
-                          >
-                            Make default
-                          </button>`
-                        : nothing
-                    }
-                    ${
-                      runtimeToggled && activeRuntimeConfig?.scopeOverride
-                        ? html`<button
-                            class="runtime-default-btn"
-                            type="button"
-                            aria-label="Use org default"
-                            data-mobile-label="Org default"
-                            ?disabled=${inputBlocked}
-                            @click=${() => changeScopeRuntime({ inherit: true }, agent)}
-                          >
-                            Use org default
-                          </button>`
-                        : nothing
-                    }
-                    ${menuControl({
-                      kind: "model",
-                      label: selectedModel.buttonLabel,
-                      title: "Model",
-                      selected: selectedModel.value,
-                      align: "right",
-                      options: getModelOptionsForHarness(selectedModel.harnessId, scopeKey()).map((option) => ({
-                        value: option.value,
-                        label: option.label,
-                      })),
-                      disabled: inputBlocked,
-                      onSelect: (value: string) => selectModel(value, agent),
-                    })}
-                    ${menuControl({
-                      kind: "harness",
-                      label: selectedModel.harnessLabel,
-                      title: "Harness",
-                      selected: selectedModel.harnessId,
-                      align: "right",
-                      options: getHarnessOptions(scopeKey()),
-                      disabled: inputBlocked,
-                      onSelect: (value: string) => selectHarness(value, agent),
-                    })}
-                  `
-            }
-            ${sendControls(agent)}
+            ${ctx.pane ? settingsControl(agent, selectedModel, inputBlocked) : html` ${sendControls(agent)} `}
           </div>
         </div>
         ${composerNotice}

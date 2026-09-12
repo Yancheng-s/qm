@@ -3,7 +3,7 @@ import { File, Image, Upload } from "lucide";
 import { api, reportSigninRequired, type SigninRequired, withBase } from "./core-bridge";
 import { errMessage } from "../../chassis/src/errors";
 import { browserRenderableImage, fieldSelect, formatBytes, icon, relTime } from "./ui";
-import { contextsState, ensureContexts, personalScopeId, scopeChip, scopeFilterControl } from "./contexts";
+import { contextsState, ensureContexts, personalScopeId, scopeFilterControl } from "./contexts";
 import { appState } from "./shell";
 import { fileListNeedsAllPages } from "./file-list";
 import { scopedSession, scopedViewTopbar } from "./session-scope";
@@ -89,11 +89,10 @@ function drawFiles(loading = false): void {
   }
   const visible = visibleFiles();
   const filtered = Boolean(filesScope || filesQuery.trim() || filesType !== "all" || filesOwnership !== "all");
-  let dropLabel = "Drop files here or choose files";
-  if (filesDragActive) dropLabel = "Drop files";
-  else if (filesUploading) dropLabel = "Uploading…";
-  const status = filesNotice || (loading && !fileRows.length ? "Loading files…" : "");
-  const uploadTarget = filesScope ?? personalScopeId();
+  let dropLabel = "拖拽文件到此处，或点击选择";
+  if (filesDragActive) dropLabel = "松开以投放文件";
+  else if (filesUploading) dropLabel = "上传中…";
+  const status = filesNotice || (loading && !fileRows.length ? "正在加载文件…" : "");
   const scoped = Boolean(scopedSession.active);
   filesHost.classList.toggle("scoped-view", scoped);
   render(
@@ -101,8 +100,8 @@ function drawFiles(loading = false): void {
       ${scopedViewTopbar("files", drawFiles)}
       <div class="list-page-head">
         <div>
-          <h1 class="pane-title">Files</h1>
-          <div class="pane-subtitle">Files created, uploaded, or shared with you</div>
+          <h1 class="pane-title">文件</h1>
+          <div class="pane-subtitle">创建、上传或与你共享的文件</div>
         </div>
         <div class="list-page-actions">
           ${
@@ -115,7 +114,7 @@ function drawFiles(loading = false): void {
                   void loadFiles(appState.viewRenderSeq);
                 })
           }<button class="btn primary" type="button" ?disabled=${filesUploading} @click=${pickFiles}>
-            ${icon(Upload, 15)}<span>Upload</span>
+            ${icon(Upload, 15)}<span>上传</span>
           </button>
         </div>
       </div>
@@ -130,15 +129,15 @@ function drawFiles(loading = false): void {
         @dragleave=${onFileDragLeave}
         @drop=${onFileDrop}
       >
-        ${icon(Upload, 18)}<span>${dropLabel}</span>${uploadTarget ? scopeChip(uploadTarget) : nothing}
+        ${icon(Upload, 18)}<span>${dropLabel}</span>
       </button>
       <div class="list-toolbar">
         <label class="list-search"
-          ><span class="sr-only">Search files</span
+          ><span class="sr-only">搜索文件</span
           ><input
             type="search"
-            aria-label="Search files"
-            placeholder="Search file names and types…"
+            aria-label="搜索文件"
+            placeholder="搜索文件名和类型…"
             .value=${filesQuery}
             @input=${(e: Event) => {
               filesQuery = (e.currentTarget as HTMLInputElement).value;
@@ -147,12 +146,12 @@ function drawFiles(loading = false): void {
             }}
         /></label>
         ${selectControl(
-          "Ownership",
+          "归属",
           filesOwnership,
           [
-            ["all", "All files"],
-            ["owned", "Yours"],
-            ["shared", "Shared"],
+            ["all", "全部文件"],
+            ["owned", "我上传的"],
+            ["shared", "与我共享"],
           ],
           (v) => {
             filesOwnership = v as typeof filesOwnership;
@@ -161,13 +160,13 @@ function drawFiles(loading = false): void {
           },
         )}
         ${selectControl(
-          "Type",
+          "类型",
           filesType,
           [
-            ["all", "All types"],
-            ["image", "Images"],
-            ["document", "Documents"],
-            ["other", "Other"],
+            ["all", "全部类型"],
+            ["image", "图片"],
+            ["document", "文档"],
+            ["other", "其他"],
           ],
           (v) => {
             filesType = v as typeof filesType;
@@ -176,12 +175,12 @@ function drawFiles(loading = false): void {
           },
         )}
         ${selectControl(
-          "Sort",
+          "排序",
           filesSort,
           [
-            ["newest", "Newest"],
-            ["oldest", "Oldest"],
-            ["name", "Name"],
+            ["newest", "最新"],
+            ["oldest", "最早"],
+            ["name", "按名称"],
           ],
           (v) => {
             filesSort = v as typeof filesSort;
@@ -190,23 +189,24 @@ function drawFiles(loading = false): void {
           },
         )}
       </div>
-      ${visible.length ? html`<div class="list-rows file-list">${visible.map(fileRow)}</div>` : html`<div class="empty compact">${filtered ? "No files match these filters." : "No files yet. Upload one here or ask the agent to create one."}</div>`}
-      ${filesNextCursor ? html`<div class="list-footer"><button class="btn" type="button" ?disabled=${filesLoadingMore} @click=${() => void loadMoreFiles()}>${filesLoadingMore ? "Loading…" : "Load more"}</button></div>` : nothing}
+      ${visible.length ? html`<div class="list-rows file-list">${visible.map(fileRow)}</div>` : html`<div class="empty compact">${filtered ? "没有符合筛选条件的文件。" : "还没有文件。在此上传，或让助手帮你创建。"}</div>`}
+      ${filesNextCursor ? html`<div class="list-footer"><button class="btn" type="button" ?disabled=${filesLoadingMore} @click=${() => void loadMoreFiles()}>${filesLoadingMore ? "加载中…" : "加载更多"}</button></div>` : nothing}
     `,
     filesHost,
   );
 }
 
 function fileRow(f: FileRow) {
+  const kindLabels: Record<FileRow["kind"], string> = { Created: "创建", Uploaded: "上传", Shared: "共享" };
   const contentUrl = withBase(`/api/files/${encodeURIComponent(f.id)}/content`);
   const isImage = f.openable && browserRenderableImage(f.mimetype);
   return html`<article class="list-row file-row">
     <span class="file-row-icon">${icon(isImage ? Image : File, 17)}</span>
     <span class="list-row-title"><span>${f.name}</span><span class="file-row-type">${f.mimetype}</span></span>
     <span class="list-row-meta"
-      >${scopeChip(fileScope(f))}<span class="badge">${f.kind}</span><span>${formatBytes(f.sizeBytes)}</span
+      ><span class="badge">${kindLabels[f.kind] ?? f.kind}</span><span>${formatBytes(f.sizeBytes)}</span
       ><span>${relTime(f.createdAt)}</span
-      >${f.openable ? html`<a class="btn compact" href=${contentUrl} target="_blank" rel="noreferrer">Open</a>` : html`<span>Unavailable</span>`}</span
+      >${f.openable ? html`<a class="btn compact" href=${contentUrl} target="_blank" rel="noreferrer">打开</a>` : html`<span>暂不可用</span>`}</span
     >
   </article>`;
 }

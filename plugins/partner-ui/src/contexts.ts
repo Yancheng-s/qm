@@ -208,7 +208,7 @@ function contextMeta(c: CoreContext): { title: string; sub: string; glyph: IconN
     };
   }
   if (c.kind === "personal") {
-    return { title: "Personal", sub: "Just you — your web chats and DMs with the agent live here.", glyph: User };
+    return { title: "个人", sub: "只有你——你的网页对话和与助手的私聊都在这里。", glyph: User };
   }
   if (c.kind === "group") {
     return {
@@ -260,7 +260,7 @@ function metaForScope(scopeId: string | null, fallbackName?: string | null): { t
   if (shared) return { title: shared, glyph: scopeId?.startsWith("group:") ? Users : Hash };
   if (scopeId?.startsWith("personal:") && scopeId !== personalScopeId())
     return { title: "Shared personal space", glyph: User };
-  return { title: fallbackName?.trim() || "Personal", glyph: User };
+  return { title: fallbackName?.trim() || "个人", glyph: User };
 }
 
 export function scopeTitle(scopeId: string | null, fallbackName?: string | null): string {
@@ -275,7 +275,7 @@ export function scopeChip(scopeId: string | null, fallbackName?: string | null):
 }
 
 export function scopeFilterControl(current: string | null, onSelect: (scopeId: string | null) => void): TemplateResult {
-  const label = current ? metaForScope(current).title : "All contexts";
+  const label = current ? metaForScope(current).title : "全部上下文";
   const option = (scopeId: string | null, text: string, glyph: IconNode) => {
     const active = (current ?? null) === scopeId;
     return html`
@@ -298,11 +298,11 @@ export function scopeFilterControl(current: string | null, onSelect: (scopeId: s
   return html`
     <div class="menu-control form-menu-control scope-filter">
       <button class="menu-button" type="button" aria-haspopup="menu" aria-expanded="false" @click=${toggleFormMenu}>
-        ${icon(ListFilter, 14)}<span class="menu-label">Filter by: ${label}</span>${icon(ChevronDown, 14)}
+        ${icon(ListFilter, 14)}<span class="menu-label">筛选：${label}</span>${icon(ChevronDown, 14)}
       </button>
       <div class="menu-popover" role="menu" hidden>
-        <div class="menu-title">Filter by context</div>
-        ${option(null, "All contexts", Boxes)}
+        <div class="menu-title">按上下文筛选</div>
+        ${option(null, "全部上下文", Boxes)}
         ${contextsState.list.map((c) => option(c.scopeId, contextMeta(c).title, contextMeta(c).glyph))}
       </div>
     </div>
@@ -347,7 +347,7 @@ function gridTpl(): TemplateResult {
     return context.project ? "web" : "slack";
   };
   const groups = [
-    { key: "personal", label: "Personal" },
+    { key: "personal", label: "个人" },
     { key: "web", label: "Web" },
     { key: "slack", label: "Slack" },
   ]
