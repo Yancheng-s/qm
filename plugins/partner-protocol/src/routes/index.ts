@@ -5,7 +5,7 @@ import { createCoreCall, type CoreCall } from "../core-client.ts";
 import { createRateLimiter, problem, readJsonBody, sendProblem, type RateLimiter } from "../transport.ts";
 import { createAuthProxy, type AuthProxy } from "./auth/auth-proxy.ts";
 import { handleAssemble } from "./partner/assemble.ts";
-import { handleChatSessions } from "./partner/chat-sessions.ts";
+import { handleChatSessions, handleListChatSessions } from "./partner/chat-sessions.ts";
 
 export interface Ctx {
   req: IncomingMessage;
@@ -34,6 +34,7 @@ export interface Route {
 export const routes: readonly Route[] = [
   { method: "POST", path: "/v1/assemble", limit: 128_000, handle: handleAssemble },
   { method: "POST", path: "/v1/chat-sessions", limit: 4_000, handle: handleChatSessions },
+  { method: "GET", path: "/v1/chat-sessions", limit: 4_000, handle: handleListChatSessions },
 ];
 
 const UNKNOWN_PATH_BODY_LIMIT = 512_000;

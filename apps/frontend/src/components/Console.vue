@@ -8,6 +8,7 @@ import {
   rememberEmployee,
   listConversations,
   rememberConversation,
+  saveConversations,
   type Conversation,
   type Employee,
 } from "../api.ts";
@@ -20,9 +21,26 @@ const busy = ref(false);
 const error = ref("");
 const notice = ref("");
 
-function reload(): void {
+async function reload(): Promise<void> {
   employees.value = listEmployees();
   conversations.value = listConversations();
+  if (!userId.value.trim() || !employees.value.length) return;
+  try {
+    const result = await api.listChatSessions();
+    const titles = new Map<string, string>();
+    for (const row of result.conversations) {
+      if (row.title) titles.set(row.conversationId, row.title);
+    }
+    if (!titles.size) return;
+    const merged = conversations.value.map((conv) => {
+      const title = titles.get(conv.conversationId);
+      return title && title !== conv.title ? { ...conv, title } : conv;
+    });
+    conversations.value = merged;
+    saveConversations(merged);
+  } catch {
+    void 0;
+  }
 }
 
 function conversationsFor(scopeId: string): Conversation[] {
@@ -71,6 +89,8 @@ async function openChat(employee: Employee, conversationId?: string): Promise<vo
     window.location.href = result.chatUrl;
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    void reload();
   }
 }
 
@@ -115,7 +135,7 @@ onMounted(reload);
               class="conv"
               @click="openChat(employee, conv.conversationId)"
             >
-              {{ conv.conversationId }}
+              {{ conv.title || conv.conversationId }}
             </button>
           </div>
         </div>

@@ -77,6 +77,15 @@ app.post<{ Body: { scopeId?: unknown; conversationId?: unknown } }>("/api/chat-s
   return reply.status(200).send({ chatUrl: `${config.gatewayPublicUrl}${chatUrl}`, conversationId });
 });
 
+app.get<{ Querystring: { scopeId?: string } }>("/api/chat-sessions", async (req, reply) => {
+  const auth = authenticate(req);
+  if (!auth.ok) return reply.status(auth.status).send({ error: auth.error, message: auth.message });
+  const scopeId = (req.query.scopeId ?? "").trim();
+  const query = scopeId ? `&scopeId=${encodeURIComponent(scopeId)}` : "";
+  const outcome = await partner.call("GET", `/v1/chat-sessions?userId=${encodeURIComponent(auth.userId)}${query}`);
+  return reply.status(outcome.status).send(outcome.json);
+});
+
 await app.listen({ port: config.port, host: "0.0.0.0" });
 console.log(
   `[app-backend] http://localhost:${config.port} -> gateway ${config.gatewayUrl} (partner ${config.partnerId})`,

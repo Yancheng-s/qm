@@ -22,6 +22,7 @@ export interface Conversation {
   scopeId: string;
   employeeName: string;
   updatedAt: number;
+  title?: string | null;
 }
 
 let userId = localStorage.getItem("userId") || "";
@@ -73,6 +74,10 @@ export const api = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(conversationId ? { scopeId, conversationId } : { scopeId }),
     }),
+  listChatSessions: (scopeId?: string) =>
+    request<{ conversations: Array<{ conversationId: string; scopeId: string; title: string | null }> }>(
+      scopeId ? `/api/chat-sessions?scopeId=${encodeURIComponent(scopeId)}` : "/api/chat-sessions",
+    ),
 };
 
 const EMPLOYEES_KEY = "employees";
@@ -109,4 +114,8 @@ export function rememberConversation(conversation: Conversation): void {
     (item) => !(item.scopeId === conversation.scopeId && item.conversationId === conversation.conversationId),
   );
   writeList(CONVERSATIONS_KEY, [conversation, ...rest]);
+}
+
+export function saveConversations(list: Conversation[]): void {
+  writeList(CONVERSATIONS_KEY, list);
 }
