@@ -276,7 +276,9 @@ function sameOriginRequest(req: IncomingMessage): boolean {
     typeof origin === "string" &&
     (() => {
       try {
-        return new URL(origin).origin === ORIGIN;
+        if (new URL(origin).origin === ORIGIN) return true;
+        const host = req.headers.host;
+        return typeof host === "string" && new URL(origin).host === host.toLowerCase();
       } catch {
         return false;
       }
@@ -1157,7 +1159,10 @@ async function authCallback(req: IncomingMessage, res: ServerResponse, url: URL)
   const stateParam = url.searchParams.get("state") ?? "";
 
   const tmp = openTmp(readCookie(req.headers.cookie, "portal_oidc_tmp"), tmpKey, Date.now());
-  if (!tmp) return fail("login session expired — please try again");
+  if (!tmp) {
+    console.error("[portal] callback tmp miss, raw cookie header:", JSON.stringify(req.headers.cookie ?? null));
+    return fail("login session expired — please try again");
+  }
   if (!code || !stateParam || !safeEqual(stateParam, tmp.state)) return fail("invalid login state");
   if (!consumeState(tmp.state)) return fail("login already used — please try again");
 
