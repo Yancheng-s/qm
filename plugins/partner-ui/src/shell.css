@@ -7597,3 +7597,90 @@ body.tools-drawer-open .session-tools {
   left: 10px;
   right: auto;
 }
+
+.file-preview-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 260;
+  display: flex;
+  flex-direction: column;
+  background: var(--background);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+.file-preview-layer.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.file-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.file-preview-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+}
+.file-preview-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--background);
+  color: var(--foreground);
+  cursor: pointer;
+}
+.file-preview-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.file-preview-note {
+  padding: 28px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.file-preview-content .ofv-code-header,
+.file-preview-content .ofv-pdf-summary,
+.file-preview-content .ofv-sheet-summary,
+.file-preview-content .ofv-presentation-summary,
+.file-preview-content .ofv-xmind-summary,
+.file-preview-content .ofv-drawing-summary,
+.file-preview-content .ofv-cad-summary,
+.file-preview-content .ofv-asset-summary,
+.file-preview-content .ofv-gis-summary,
+.file-preview-content .ofv-archive-summary,
+.file-preview-content .ofv-archive-info,
+.file-preview-content .ofv-epub-meta,
+.file-preview-content .ofv-xps-summary,
+.file-preview-content .ofv-xps-meta,
+.file-preview-content .ofv-sqlite-summary,
+.file-preview-content .ofv-wasm-summary,
+.file-preview-content .ofv-data-summary,
+.file-preview-content .ofv-font-info,
+.file-preview-content .ofv-image-info,
+.file-preview-content .ofv-media-info,
+.file-preview-content .ofv-fallback-meta,
+.file-preview-content .ofv-office-binary-meta,
+.file-preview-content .ofv-msdoc-meta,
+.file-preview-content .ofv-iwork-meta,
+.file-preview-content .ofv-email-mbox-meta,
+.file-preview-content .ofv-pdf-page-navigator {
+  display: none;
+}
+body.file-preview-open {
+  overflow: hidden;
+}

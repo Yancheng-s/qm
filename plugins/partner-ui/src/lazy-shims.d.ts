@@ -1,3 +1,8 @@
+declare module "pdfjs-dist/build/pdf.worker.mjs?url" {
+  const workerSrc: string;
+  export default workerSrc;
+}
+declare module "@open-file-viewer/core/style.css";
 declare module "katex-real" {
   const katex: { renderToString: (text: string, opts?: object) => string };
   export default katex;

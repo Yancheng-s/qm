@@ -1,11 +1,12 @@
 import { html, nothing, render } from "lit";
 import { File, Image } from "lucide";
-import { api, withBase } from "./core-bridge";
+import { api } from "./core-bridge";
 import { errMessage } from "../../chassis/src/errors";
 import { browserRenderableImage, formatBytes, icon, relTime } from "./ui";
 import { contextsState, ensureContexts, personalScopeId } from "./contexts";
 import { appState } from "./shell";
 import { fileListNeedsAllPages } from "./file-list";
+import { openFilePreview } from "./file-preview";
 import { scopedSession, scopedViewTopbar } from "./session-scope";
 
 interface FileItem {
@@ -95,7 +96,6 @@ function filtered(): boolean {
 }
 
 function fileRow(f: FileRow) {
-  const contentUrl = withBase(`/api/files/${encodeURIComponent(f.id)}/content`);
   const isImage = f.openable && browserRenderableImage(f.mimetype);
   return html`<article class="list-row file-row">
     <span class="file-row-icon">${icon(isImage ? Image : File, 17)}</span>
@@ -104,7 +104,7 @@ function fileRow(f: FileRow) {
       ><span class="file-row-type">${formatBytes(f.sizeBytes)} · ${relTime(f.createdAt)}</span></span
     >
     <span class="list-row-meta"
-      >${f.openable ? html`<a class="btn compact" href=${contentUrl} target="_blank" rel="noreferrer">打开</a>` : html`<span>暂不可用</span>`}</span
+      >${f.openable ? html`<button class="btn compact" type="button" @click=${() => openFilePreview(f)}>预览</button>` : html`<span>暂不可用</span>`}</span
     >
   </article>`;
 }
