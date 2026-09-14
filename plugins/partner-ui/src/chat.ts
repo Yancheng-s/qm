@@ -42,8 +42,6 @@ import {
   fetchTranscript,
   currentEarlierCount,
   forkOriginDetails,
-  forkCutSeq,
-  forkSession,
   inheritedRefreshEntries,
   inheritedTranscript,
   loadInheritedTranscript,
@@ -59,10 +57,8 @@ import {
   type PendingApproval,
   type SessionBackgroundOutput,
   type SessionBackgroundView,
-  type SessionEntry,
   type ToolActivity,
   type TurnOptions,
-  userMessagesBefore,
   type WorkBlock,
   withBase,
 } from "./core-bridge";
@@ -1283,6 +1279,8 @@ export function createChatSurface(
     const ts = (message as { timestamp?: number }).timestamp;
     if (!text && ts === undefined) return nothing;
     const forkable = Boolean(index >= 0 && chatState.threadRef && chatState.sessionId && chatState.agent);
+    const role = (message as { role?: string }).role;
+    const isUser = role === "user" || role === "user-with-attachments";
     return html`
       <div class="message-meta">
         ${ts !== undefined ? html`<span class="message-time">${formatClock(ts)}</span>` : nothing}
@@ -1300,15 +1298,15 @@ export function createChatSurface(
             : nothing
         }
         ${
-          forkable
+          forkable && isUser
             ? html`<button
-                class="msg-copy msg-fork"
+                class="msg-copy msg-edit"
                 type="button"
-                title="Fork conversation from here"
-                aria-label="Fork conversation from here"
-                @click=${() => void forkFromMessage(index)}
+                title="重新编辑提问"
+                aria-label="重新编辑提问"
+                @click=${() => editMessagePrompt(index)}
               >
-                ${icon(GitFork, 13)}
+                ${icon(Pencil, 13)}
               </button>`
             : nothing
         }
@@ -1316,43 +1314,17 @@ export function createChatSurface(
     `;
   }
 
-  async function forkFromMessage(index: number): Promise<void> {
+  function editMessagePrompt(index: number): void {
     const agent = chatState.agent;
-    const sessionId = chatState.sessionId;
-    const sourceThreadRef = chatState.threadRef;
-    if (!agent || !sessionId) return;
-    const messages = agent.state.messages as Array<{ role?: string }>;
-    const target = messages[index];
+    if (!agent) return;
+    const target = agent.state.messages[index] as AgentMessage | undefined;
     if (!target) return;
-    const isUser = target.role === "user" || target.role === "user-with-attachments";
-    let userOrdinal = 0;
-    for (let i = 0; i <= index; i++) {
-      const role = messages[i]?.role;
-      if (role === "user" || role === "user-with-attachments") userOrdinal++;
-    }
-    try {
-      const { entries } = await api<{ entries: SessionEntry[] }>(`/api/sessions/${encodeURIComponent(sessionId)}`);
-      const anchor = chatState.transcriptAnchorSeq;
-      if (anchor !== null) userOrdinal += userMessagesBefore(entries ?? [], anchor);
-      const upToSeq = forkCutSeq(entries ?? [], userOrdinal, isUser);
-      const forked = await forkSession(sessionId, upToSeq);
-      const split = inheritedTranscript(forked.session, forked.entries ?? []);
-      ctx.composer.carryModelPick(sourceThreadRef, forked.session.threadRef);
-      mountContinuable(
-        forked.session.threadRef,
-        forked.session.id,
-        forked.session.scopeId,
-        entriesToMessages(split.current, transcriptModel()),
-        forked.session.channelName ?? null,
-        forked.session,
-        entriesToMessages(split.inherited, transcriptModel()),
-      );
-      await refreshSessions({ silent: true });
-      renderList();
-    } catch (err) {
-      ctx.composer.state.error = errMessage(err, "Could not fork the conversation.");
-      drawActiveChat();
-    }
+    const text = messageText(target).trim();
+    if (!text) return;
+    ctx.composer.state.draft = text;
+    drawActiveChat(agent);
+    ctx.composer.resizeComposer();
+    ctx.composer.focusComposerEnd();
   }
 
   function formatClock(ms: number): string {
