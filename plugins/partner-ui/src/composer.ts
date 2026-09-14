@@ -357,21 +357,21 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
     const runtimePending = activeRuntimeConfig === null;
     const inputBlocked = runtimePending || ctx.chat.state.resolvingApprovals.size > 0 || approvalPauses.length > 0;
     const attachingDisabled = inputBlocked;
-    let placeholder = "Ask anything";
-    if (inputBlocked) placeholder = runtimePending ? "Loading runtime…" : "Approve or deny to continue";
-    else if (agent.state.isStreaming) placeholder = "Queue a message for after this turn…";
+    let placeholder = "说说你的需求…";
+    if (inputBlocked) placeholder = runtimePending ? "正在加载运行时…" : "请先处理上方的审批";
+    else if (agent.state.isStreaming) placeholder = "当前任务结束后将自动发送…";
     let composerNotice: TemplateResult | typeof nothing = nothing;
     if (composerState.processingFiles) {
-      composerNotice = html`<div class="composer-note">Preparing files...</div>`;
+      composerNotice = html`<div class="composer-note">正在处理文件...</div>`;
     } else if (!approvalPauses.length && runtimePending) {
       composerNotice = composerState.error
         ? html`<div class="composer-error">
             ${composerState.error}
             <button type="button" @click=${() => void refreshRuntimeSelection(ctx.chat.state.scopeId, agent)}>
-              Retry
+              重试
             </button>
           </div>`
-        : html`<div class="composer-note">Loading runtime settings…</div>`;
+        : html`<div class="composer-note">正在加载运行时设置…</div>`;
     } else if (composerState.error) {
       composerNotice = html`<div class="composer-error">${composerState.error}</div>`;
     }
@@ -483,7 +483,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
                             kind: "effort",
                             glyph: Brain,
                             label: effortLabel(composerState.effortLevel),
-                            title: "Effort",
+                            title: "思考强度",
                             selected: composerState.effortLevel,
                             options: EFFORT_LEVELS,
                             disabled: inputBlocked,
@@ -765,8 +765,8 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
                   ${
                     harnessSupportsEffort(selected.harnessId)
                       ? html`
-                          <div class="menu-title">Effort</div>
-                          <div class="settings-seg" role="group" aria-label="Effort">
+                          <div class="menu-title">思考强度</div>
+                          <div class="settings-seg" role="group" aria-label="思考强度">
                             ${EFFORT_LEVELS.map(
                               (option) => html`
                                 <button

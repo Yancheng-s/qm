@@ -184,13 +184,13 @@ export function transcriptModel(scopeKey?: string | null): Model<Api> {
 export type EffortLevel = "low" | "medium" | "high" | "xhigh" | "max" | "ultracode" | "auto";
 
 export const EFFORT_LEVELS: Array<{ value: EffortLevel; label: string }> = [
-  { value: "auto", label: "Auto" },
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "xhigh", label: "XHigh" },
-  { value: "max", label: "Max" },
-  { value: "ultracode", label: "Ultracode" },
+  { value: "auto", label: "自动" },
+  { value: "low", label: "低" },
+  { value: "medium", label: "中" },
+  { value: "high", label: "高" },
+  { value: "xhigh", label: "极高" },
+  { value: "max", label: "最大" },
+  { value: "ultracode", label: "超级编码" },
 ];
 
 export function effortLabel(level: EffortLevel): string {
