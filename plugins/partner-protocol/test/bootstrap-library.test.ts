@@ -249,6 +249,35 @@ test("parseLibraryManifest accepts a single mcp object or an array", () => {
         "p",
       ),
   );
+  assert.deepEqual(
+    parseLibraryManifest(
+      {
+        library: "pmos",
+        mcp: {
+          id: "pmos",
+          url: "http://127.0.0.1:3000/mcp",
+          auth: "bearer",
+          bearerEnv: "PMOS_API_KEY",
+        },
+      },
+      "p",
+    ),
+    {
+      library: "pmos",
+      projectName: "pmos",
+      mcp: [
+        {
+          id: "pmos",
+          url: "http://127.0.0.1:3000/mcp",
+          name: "pmos",
+          readOnly: false,
+          auth: "bearer",
+          bearerEnv: "PMOS_API_KEY",
+        },
+      ],
+    },
+  );
+  assert.ok("problem" in parseLibraryManifest({ library: "pmos", mcp: { id: "pmos", url: "http://127.0.0.1:3000/mcp", auth: "bearer" } }, "p"));
 });
 
 test("library scope maps merge updates without dropping other keys", () => {
@@ -287,7 +316,7 @@ test("scanBootstrapPacks finds library.json git packs and skips the rest", () =>
   }
 });
 
-test("scanBootstrapPacks finds the bundled card pack", () => {
+test("scanBootstrapPacks finds the bundled card and pmos packs", () => {
   const root = join(dirname(fileURLToPath(import.meta.url)), "../bootstrap");
   const scanned = scanBootstrapPacks(root);
   assert.deepEqual(scanned.problems, []);
@@ -302,6 +331,18 @@ test("scanBootstrapPacks finds the bundled card pack", () => {
       name: "智渠名片创建",
       readOnly: false,
       auth: "none",
+    },
+  ]);
+  const pmos = scanned.packs.find((pack) => pack.library === "pmos");
+  assert.ok(pmos);
+  assert.deepEqual(pmos?.mcp, [
+    {
+      id: "pmos",
+      url: "http://127.0.0.1:3000/mcp",
+      name: "PMOS 营销素材",
+      readOnly: false,
+      auth: "bearer",
+      bearerEnv: "PMOS_API_KEY",
     },
   ]);
 });

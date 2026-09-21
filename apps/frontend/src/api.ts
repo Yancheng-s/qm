@@ -1,7 +1,16 @@
+export interface LibraryInfo {
+  key: string;
+  label: string;
+  description: string;
+  defaultEmployeeName: string;
+  skills: string[];
+}
+
 export interface Employee {
   id: string;
   name: string;
   scopeId: string;
+  library: string;
 }
 
 export interface EmployeeFile {
@@ -21,6 +30,7 @@ export interface Conversation {
   conversationId: string;
   scopeId: string;
   employeeName: string;
+  library: string;
   updatedAt: number;
   title?: string | null;
 }
@@ -56,7 +66,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  createEmployee: (name?: string) =>
+  listLibraries: () =>
+    request<{ defaultLibrary: string; libraries: LibraryInfo[] }>("/api/libraries"),
+  createEmployee: (input: { library: string; name?: string }) =>
     request<{
       employee: Employee;
       granted?: string[];
@@ -66,7 +78,7 @@ export const api = {
     }>("/api/employees", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(name ? { name } : {}),
+      body: JSON.stringify(input),
     }),
   openChatSession: (scopeId: string, conversationId?: string) =>
     request<{ chatUrl: string; conversationId: string }>("/api/chat-sessions", {
@@ -82,6 +94,7 @@ export const api = {
 
 const EMPLOYEES_KEY = "employees";
 const CONVERSATIONS_KEY = "conversations";
+const LIBRARY_KEY = "activeLibrary";
 
 function readList<T>(key: string): T[] {
   try {
@@ -96,8 +109,20 @@ function writeList<T>(key: string, list: T[]): void {
   localStorage.setItem(key, JSON.stringify(list));
 }
 
-export function listEmployees(): Employee[] {
-  return readList<Employee>(EMPLOYEES_KEY);
+export function getActiveLibrary(): string {
+  return localStorage.getItem(LIBRARY_KEY) || "card";
+}
+
+export function setActiveLibrary(key: string): void {
+  localStorage.setItem(LIBRARY_KEY, key.trim());
+}
+
+export function listEmployees(library?: string): Employee[] {
+  const all = readList<Employee>(EMPLOYEES_KEY).map((item) => ({
+    ...item,
+    library: item.library || "card",
+  }));
+  return library ? all.filter((item) => item.library === library) : all;
 }
 
 export function rememberEmployee(employee: Employee): void {
@@ -106,7 +131,10 @@ export function rememberEmployee(employee: Employee): void {
 }
 
 export function listConversations(): Conversation[] {
-  return readList<Conversation>(CONVERSATIONS_KEY);
+  return readList<Conversation>(CONVERSATIONS_KEY).map((item) => ({
+    ...item,
+    library: item.library || "card",
+  }));
 }
 
 export function rememberConversation(conversation: Conversation): void {

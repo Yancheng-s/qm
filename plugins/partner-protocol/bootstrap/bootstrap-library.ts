@@ -9,6 +9,7 @@ const MAX_NAME_CHARS = 200;
 const MAX_ID_CHARS = 200;
 const LIBRARY_KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const MCP_ID = /^[a-z][a-z0-9-]{1,39}$/;
+const MCP_BEARER_ENV = /^[A-Z][A-Z0-9_]{0,127}$/;
 const SCOPE_ID = /^[a-z]+:.+$/;
 const MAX_MCP_NAME = 80;
 const BOOTSTRAP_DIR = dirname(fileURLToPath(import.meta.url));
@@ -60,13 +61,23 @@ export function createCoreClient(
   };
 }
 
-export interface McpManifest {
+export interface McpManifestBase {
   id: string;
   url: string;
   name: string;
   readOnly: boolean;
+}
+
+export interface McpNoneManifest extends McpManifestBase {
   auth: "none";
 }
+
+export interface McpBearerManifest extends McpManifestBase {
+  auth: "bearer";
+  bearerEnv: string;
+}
+
+export type McpManifest = McpNoneManifest | McpBearerManifest;
 
 export interface LibraryManifest {
   library: string;
@@ -145,8 +156,19 @@ function parseMcpEntry(raw: unknown, label: string): McpManifest | { problem: st
     typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, MAX_MCP_NAME) : id;
   if (body.readOnly !== undefined && typeof body.readOnly !== "boolean")
     return { problem: `${label}: mcp.readOnly must be a boolean` };
-  if (body.auth !== undefined && body.auth !== "none") return { problem: `${label}: mcp.auth must be "none"` };
-  return { id, url, name, readOnly: body.readOnly === true, auth: "none" };
+  const auth = body.auth === undefined || body.auth === null || body.auth === "" ? "none" : body.auth;
+  if (auth !== "none" && auth !== "bearer")
+    return { problem: `${label}: mcp.auth must be "none" or "bearer"` };
+  const readOnly = body.readOnly === true;
+  if (auth === "none") {
+    if (body.bearerEnv !== undefined)
+      return { problem: `${label}: mcp.bearerEnv is only valid when mcp.auth is "bearer"` };
+    return { id, url, name, readOnly, auth: "none" };
+  }
+  const bearerEnv = typeof body.bearerEnv === "string" ? body.bearerEnv.trim() : "";
+  if (!MCP_BEARER_ENV.test(bearerEnv))
+    return { problem: `${label}: mcp.bearerEnv must name an env var like PMOS_API_KEY` };
+  return { id, url, name, readOnly, auth: "bearer", bearerEnv };
 }
 
 function parseMcpField(raw: unknown, label: string): McpManifest[] | undefined | { problem: string } {

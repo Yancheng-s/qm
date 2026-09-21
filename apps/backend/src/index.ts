@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import { configProblems, readConfig } from "./config.ts";
+import { LIBRARY_PRESETS, resolveLibraryPreset } from "./libraries.ts";
 import { createPartnerClient } from "./partner-client.ts";
 import { authenticate } from "./auth.ts";
 
@@ -29,7 +30,23 @@ app.get("/healthz", async () => ({
   ok: true,
   gateway: config.gatewayUrl,
   partnerId: config.partnerId,
-  library: config.library,
+  defaultLibrary: config.defaultLibrary,
+  libraries: Object.values(LIBRARY_PRESETS).map((preset) => ({
+    key: preset.key,
+    label: preset.label,
+    description: preset.description,
+  })),
+}));
+
+app.get("/api/libraries", async () => ({
+  defaultLibrary: config.defaultLibrary,
+  libraries: Object.values(LIBRARY_PRESETS).map((preset) => ({
+    key: preset.key,
+    label: preset.label,
+    description: preset.description,
+    defaultEmployeeName: preset.defaultEmployeeName,
+    skills: preset.skills,
+  })),
 }));
 
 app.post<{ Body: { name?: unknown; library?: unknown; files?: unknown; skills?: unknown } }>(
@@ -37,19 +54,28 @@ app.post<{ Body: { name?: unknown; library?: unknown; files?: unknown; skills?: 
   async (req, reply) => {
     const auth = authenticate(req);
     if (!auth.ok) return reply.status(auth.status).send({ error: auth.error, message: auth.message });
+    const libraryKey =
+      typeof req.body?.library === "string" && req.body.library.trim()
+        ? req.body.library.trim()
+        : config.defaultLibrary;
+    const preset = resolveLibraryPreset(libraryKey);
+    if (!preset) {
+      return reply.status(400).send({
+        error: "bad_request",
+        message: `unknown library "${libraryKey}" (supported: ${Object.keys(LIBRARY_PRESETS).join(", ")})`,
+      });
+    }
     const name =
-      typeof req.body?.name === "string" && req.body.name.trim() ? req.body.name.trim() : config.defaultEmployeeName;
-    const library =
-      typeof req.body?.library === "string" && req.body.library.trim() ? req.body.library.trim() : config.library;
-    const skills = Array.isArray(req.body?.skills) ? req.body.skills : ["zhiqu-card-create"];
+      typeof req.body?.name === "string" && req.body.name.trim() ? req.body.name.trim() : preset.defaultEmployeeName;
+    const skills = Array.isArray(req.body?.skills) ? req.body.skills : [...preset.skills];
     const outcome = await partner.call("POST", "/v1/assemble", {
       userId: auth.userId,
       name,
-      library,
+      library: preset.key,
       skills,
       ...(Array.isArray(req.body?.files) ? { files: req.body.files } : {}),
-      soul: config.defaultSoul,
-      standingOrders: config.defaultStandingOrders,
+      soul: preset.soul,
+      standingOrders: preset.standingOrders,
     });
     return reply.status(outcome.status).send(outcome.json);
   },
@@ -81,5 +107,5 @@ app.get<{ Querystring: { scopeId?: string } }>("/api/chat-sessions", async (req,
 
 await app.listen({ port: config.port, host: "0.0.0.0" });
 console.log(
-  `[app-backend] http://localhost:${config.port} -> gateway ${config.gatewayUrl} (partner ${config.partnerId})`,
+  `[app-backend] http://localhost:${config.port} -> gateway ${config.gatewayUrl} (partner ${config.partnerId}, libraries ${Object.keys(LIBRARY_PRESETS).join(",")})`,
 );

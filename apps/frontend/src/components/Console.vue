@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import {
   api,
+  getActiveLibrary,
   getUserId,
+  setActiveLibrary,
   setUserId,
   listEmployees,
   rememberEmployee,
@@ -11,9 +13,12 @@ import {
   saveConversations,
   type Conversation,
   type Employee,
+  type LibraryInfo,
 } from "../api.ts";
 
 const userId = ref(getUserId());
+const libraries = ref<LibraryInfo[]>([]);
+const activeLibrary = ref(getActiveLibrary());
 const employees = ref<Employee[]>([]);
 const conversations = ref<Conversation[]>([]);
 const newName = ref("");
@@ -21,9 +26,18 @@ const busy = ref(false);
 const error = ref("");
 const notice = ref("");
 
+const currentLibrary = computed(() => libraries.value.find((item) => item.key === activeLibrary.value));
+
+function selectLibrary(key: string): void {
+  activeLibrary.value = key;
+  setActiveLibrary(key);
+  newName.value = "";
+  reload();
+}
+
 async function reload(): Promise<void> {
-  employees.value = listEmployees();
-  conversations.value = listConversations();
+  employees.value = listEmployees(activeLibrary.value);
+  conversations.value = listConversations().filter((item) => item.library === activeLibrary.value);
   if (!userId.value.trim() || !employees.value.length) return;
   try {
     const result = await api.listChatSessions();
@@ -37,7 +51,10 @@ async function reload(): Promise<void> {
       return title && title !== conv.title ? { ...conv, title } : conv;
     });
     conversations.value = merged;
-    saveConversations(merged);
+    saveConversations([
+      ...merged,
+      ...listConversations().filter((item) => item.library !== activeLibrary.value),
+    ]);
   } catch {
     void 0;
   }
@@ -48,14 +65,17 @@ function conversationsFor(scopeId: string): Conversation[] {
 }
 
 async function create(): Promise<void> {
-  if (busy.value || !userId.value.trim()) return;
+  if (busy.value || !userId.value.trim() || !activeLibrary.value) return;
   busy.value = true;
   error.value = "";
   notice.value = "";
   try {
     setUserId(userId.value);
-    const result = await api.createEmployee(newName.value.trim() || undefined);
-    rememberEmployee(result.employee);
+    const result = await api.createEmployee({
+      library: activeLibrary.value,
+      ...(newName.value.trim() ? { name: newName.value.trim() } : {}),
+    });
+    rememberEmployee({ ...result.employee, library: activeLibrary.value });
     if (result.fileFailures?.length) {
       notice.value = `默认文件导入失败：${result.fileFailures.map((item) => item.name || item.url).join("、")}`;
     } else if (result.files?.length) {
@@ -83,6 +103,7 @@ async function openChat(employee: Employee, conversationId?: string): Promise<vo
       conversationId: result.conversationId,
       scopeId: employee.scopeId,
       employeeName: employee.name,
+      library: employee.library,
       updatedAt: Date.now(),
     });
     reload();
@@ -94,25 +115,53 @@ async function openChat(employee: Employee, conversationId?: string): Promise<vo
   }
 }
 
-onMounted(reload);
+onMounted(async () => {
+  try {
+    const result = await api.listLibraries();
+    libraries.value = result.libraries;
+    if (!libraries.value.some((item) => item.key === activeLibrary.value)) {
+      activeLibrary.value = result.defaultLibrary;
+      setActiveLibrary(activeLibrary.value);
+    }
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
+  }
+  reload();
+});
 </script>
 
 <template>
   <div class="wrap">
     <div class="card">
-      <h1>名片助手控制台</h1>
-      <p class="hint">
-        创建智渠名片数字员工，经桥梁装配技能与 MCP；点击会话跳转到对话页面。
-      </p>
+      <h1>数字员工工作台</h1>
+      <p class="hint">选择产品库，创建数字员工并进入对话。技能与 MCP 由 Partner 桥梁装配。</p>
+
+      <div v-if="libraries.length" class="tabs">
+        <button
+          v-for="library in libraries"
+          :key="library.key"
+          class="tab"
+          :class="{ active: library.key === activeLibrary }"
+          @click="selectLibrary(library.key)"
+        >
+          {{ library.label }}
+        </button>
+      </div>
+
+      <p v-if="currentLibrary" class="product-hint">{{ currentLibrary.description }}</p>
 
       <div class="row">
         <input v-model="userId" class="field" placeholder="用户 id（userId）" @change="reload" />
       </div>
 
       <div class="row">
-        <input v-model="newName" class="field" placeholder="助手名（可选）" />
+        <input
+          v-model="newName"
+          class="field"
+          :placeholder="currentLibrary ? `助手名（默认：${currentLibrary.defaultEmployeeName}）` : '助手名（可选）'"
+        />
         <button class="btn" :disabled="busy || !userId.trim()" @click="create">
-          {{ busy ? "装配中…" : "创建名片助手" }}
+          {{ busy ? "装配中…" : `创建${currentLibrary?.label ?? ""}助手` }}
         </button>
       </div>
 
@@ -140,7 +189,9 @@ onMounted(reload);
           </div>
         </div>
       </div>
-      <p v-else class="empty">还没有名片助手，先创建一个。</p>
+      <p v-else class="empty">
+        还没有{{ currentLibrary?.label ?? "该" }}助手，先创建一个。
+      </p>
     </div>
   </div>
 </template>
@@ -155,7 +206,7 @@ onMounted(reload);
 }
 .card {
   width: 100%;
-  max-width: 520px;
+  max-width: 560px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -167,7 +218,29 @@ h1 {
 }
 .hint {
   color: var(--muted);
-  margin: 0 0 18px;
+  margin: 0 0 14px;
+}
+.product-hint {
+  color: var(--muted);
+  margin: 0 0 16px;
+  font-size: 13px;
+}
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.tab {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  padding: 6px 14px;
+}
+.tab.active {
+  color: var(--text);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel2));
 }
 .row {
   display: flex;
