@@ -149,7 +149,7 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         PORT: String(i.ports.partner),
         CORE_API_URL: `http://localhost:${i.ports.core}`,
         PARTNER_CREDENTIALS: i.baseEnv.PARTNER_CREDENTIALS || PARTNER_DEV_CREDENTIALS,
-        LIBRARY_SCOPES: i.baseEnv.LIBRARY_SCOPES || `xhs=org:${orgId}`,
+        LIBRARY_SCOPES: i.baseEnv.LIBRARY_SCOPES || `card=org:${orgId}`,
         LIBRARY_PRINCIPAL: i.baseEnv.LIBRARY_PRINCIPAL || PARTNER_DEV_LIBRARY_PRINCIPAL,
         PORTAL_URL: `http://localhost:${i.ports.portal}`,
         PARTNER_WEB_REDIRECT_URL: i.baseEnv.PARTNER_WEB_REDIRECT_URL || `http://localhost:5175/chat/`,

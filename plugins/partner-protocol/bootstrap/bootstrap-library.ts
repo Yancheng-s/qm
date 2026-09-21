@@ -1,10 +1,23 @@
-import { pathToFileURL } from "node:url";
+import { existsSync, readdirSync, readFileSync, writeFileSync, type Dirent } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { signedRequestHeaders, withSourceAuthNonce } from "../../chassis/src/core-client.ts";
 import { CORE_API_URL, CORE_ORG_ID, CORE_SIGNING_SECRET } from "../../chassis/src/env.ts";
 
 const IMPORT_TIMEOUT_MS = 120_000;
 const MAX_NAME_CHARS = 200;
 const MAX_ID_CHARS = 200;
+const LIBRARY_KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+const MCP_ID = /^[a-z][a-z0-9-]{1,39}$/;
+const SCOPE_ID = /^[a-z]+:.+$/;
+const MAX_MCP_NAME = 80;
+const BOOTSTRAP_DIR = dirname(fileURLToPath(import.meta.url));
+export const WORKTREE_ENV = resolve(BOOTSTRAP_DIR, "../../../.env");
+
+export function asLocalGitUrl(absPath: string): string {
+  const unix = absPath.replaceAll("\\", "/");
+  return unix.startsWith("/") ? unix : `/${unix}`;
+}
 
 export interface CoreResponse {
   status: number;
@@ -12,10 +25,10 @@ export interface CoreResponse {
 }
 
 export interface CoreClient {
-  call(method: "GET" | "POST", path: string, body?: unknown): Promise<CoreResponse>;
+  call(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<CoreResponse>;
 }
 
-function createCoreClient(
+export function createCoreClient(
   baseUrl: string,
   secret: string | undefined,
   extraHeaders: Record<string, string> = {},
@@ -47,12 +60,33 @@ function createCoreClient(
   };
 }
 
+export interface McpManifest {
+  id: string;
+  url: string;
+  name: string;
+  readOnly: boolean;
+  auth: "none";
+}
+
+export interface LibraryManifest {
+  library: string;
+  projectName: string;
+  skills?: string[];
+  mcp?: McpManifest[];
+}
+
+export interface ScannedPack extends LibraryManifest {
+  dir: string;
+  packUrl: string;
+}
+
 export interface BootstrapInput {
   adminPrincipalId: string;
   projectName: string;
   packUrl: string;
   packRef?: string;
   selected?: string[];
+  preferredScopeId?: string;
 }
 
 export interface Bootstrapped {
@@ -79,10 +113,251 @@ export interface BootstrapDeps {
   adminCore: CoreClient;
 }
 
+export interface BootstrapCli {
+  adminPrincipalId: string;
+  libraries: string[];
+}
+
+function parseMcpUrl(raw: string, label: string): string | { problem: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw.trim());
+  } catch {
+    return { problem: `${label}: mcp.url must be a valid URL` };
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:")
+    return { problem: `${label}: mcp.url must be http(s)` };
+  if (parsed.username || parsed.password || parsed.search || parsed.hash)
+    return { problem: `${label}: mcp.url must not carry credentials, query, or fragment` };
+  return raw.trim();
+}
+
+function parseMcpEntry(raw: unknown, label: string): McpManifest | { problem: string } {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+    return { problem: `${label}: mcp entry must be an object` };
+  const body = raw as Record<string, unknown>;
+  const id = typeof body.id === "string" ? body.id.trim() : "";
+  if (!MCP_ID.test(id)) return { problem: `${label}: mcp.id must match ${MCP_ID.source}` };
+  if (typeof body.url !== "string" || !body.url.trim()) return { problem: `${label}: mcp.url is required` };
+  const url = parseMcpUrl(body.url, label);
+  if (typeof url !== "string") return url;
+  const name =
+    typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, MAX_MCP_NAME) : id;
+  if (body.readOnly !== undefined && typeof body.readOnly !== "boolean")
+    return { problem: `${label}: mcp.readOnly must be a boolean` };
+  if (body.auth !== undefined && body.auth !== "none") return { problem: `${label}: mcp.auth must be "none"` };
+  return { id, url, name, readOnly: body.readOnly === true, auth: "none" };
+}
+
+function parseMcpField(raw: unknown, label: string): McpManifest[] | undefined | { problem: string } {
+  if (raw === undefined) return undefined;
+  const entries = Array.isArray(raw) ? raw : [raw];
+  if (!entries.length) return undefined;
+  const mcp: McpManifest[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < entries.length; i++) {
+    const parsed = parseMcpEntry(entries[i], entries.length === 1 ? `${label} mcp` : `${label} mcp[${i}]`);
+    if ("problem" in parsed) return parsed;
+    if (seen.has(parsed.id)) return { problem: `${label}: duplicate mcp.id "${parsed.id}"` };
+    seen.add(parsed.id);
+    mcp.push(parsed);
+  }
+  return mcp;
+}
+
+export function parseLibraryManifest(raw: unknown, label: string): LibraryManifest | { problem: string } {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+    return { problem: `${label}: library.json must be an object` };
+  const body = raw as Record<string, unknown>;
+  const library = typeof body.library === "string" ? body.library.trim() : "";
+  if (!LIBRARY_KEY.test(library))
+    return { problem: `${label}: library must match ${LIBRARY_KEY.source}` };
+  const projectName =
+    typeof body.projectName === "string" && body.projectName.trim() ? body.projectName.trim() : library;
+  if (projectName.length > MAX_NAME_CHARS) return { problem: `${label}: projectName is too long (max 200 chars)` };
+  let skills: string[] | undefined;
+  if (body.skills !== undefined) {
+    if (!Array.isArray(body.skills) || body.skills.some((item) => typeof item !== "string" || !item.trim()))
+      return { problem: `${label}: skills must be an array of names` };
+    const trimmed = body.skills.map((item) => (item as string).trim()).filter(Boolean);
+    if (trimmed.length) skills = trimmed;
+  }
+  const mcp = parseMcpField(body.mcp, label);
+  if (mcp && "problem" in mcp) return mcp;
+  return {
+    library,
+    projectName,
+    ...(skills ? { skills } : {}),
+    ...(mcp?.length ? { mcp } : {}),
+  };
+}
+
+function readDirents(dir: string): Dirent[] {
+  return readdirSync(dir, { withFileTypes: true, encoding: "utf8" });
+}
+
+function hasSkillMd(dir: string): boolean {
+  let entries: Dirent[];
+  try {
+    entries = readDirents(dir);
+  } catch {
+    return false;
+  }
+  for (const entry of entries) {
+    if (entry.name === ".git") continue;
+    const path = join(dir, entry.name);
+    if (entry.isFile() && entry.name.toLowerCase() === "skill.md") return true;
+    if (entry.isDirectory() && hasSkillMd(path)) return true;
+  }
+  return false;
+}
+
+export function scanBootstrapPacks(root: string): { packs: ScannedPack[]; problems: string[] } {
+  const packs: ScannedPack[] = [];
+  const problems: string[] = [];
+  let entries: Dirent[];
+  try {
+    entries = readDirents(root);
+  } catch (error) {
+    return { packs, problems: [`cannot read ${root}: ${error instanceof Error ? error.message : String(error)}`] };
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const dir = join(root, entry.name);
+    if (!existsSync(join(dir, ".git")) || !hasSkillMd(dir)) continue;
+    const manifestPath = join(dir, "library.json");
+    if (!existsSync(manifestPath)) {
+      problems.push(`${entry.name}: missing library.json`);
+      continue;
+    }
+    let json: unknown;
+    try {
+      json = JSON.parse(readFileSync(manifestPath, "utf8"));
+    } catch {
+      problems.push(`${entry.name}: library.json is not valid JSON`);
+      continue;
+    }
+    const parsed = parseLibraryManifest(json, entry.name);
+    if ("problem" in parsed) {
+      problems.push(parsed.problem);
+      continue;
+    }
+    packs.push({ dir, packUrl: asLocalGitUrl(resolve(dir)), ...parsed });
+  }
+  const seen = new Map<string, string>();
+  const seenMcp = new Map<string, string>();
+  for (const pack of packs) {
+    const owner = seen.get(pack.library);
+    if (owner) problems.push(`library "${pack.library}" is declared by both ${owner} and ${pack.dir}`);
+    else seen.set(pack.library, pack.dir);
+    for (const server of pack.mcp ?? []) {
+      const mcpOwner = seenMcp.get(server.id);
+      if (mcpOwner) problems.push(`mcp.id "${server.id}" is declared by both ${mcpOwner} and ${pack.dir}`);
+      else seenMcp.set(server.id, pack.dir);
+    }
+  }
+  return { packs, problems };
+}
+
+export function filterPacksByLibrary(
+  packs: readonly ScannedPack[],
+  libraries: string[],
+): { packs: ScannedPack[] } | { problem: string } {
+  const selected = libraries.length ? packs.filter((pack) => libraries.includes(pack.library)) : [...packs];
+  const missing = libraries.filter((name) => !selected.some((pack) => pack.library === name));
+  if (missing.length) {
+    return {
+      problem: `unknown library: ${missing.join(", ")} (found: ${packs.map((pack) => pack.library).join(", ") || "none"})`,
+    };
+  }
+  return { packs: selected };
+}
+
+export function loadSelectedPacks(
+  root: string,
+  libraries: string[],
+): { packs: ScannedPack[] } | { problems: string[] } {
+  const scanned = scanBootstrapPacks(root);
+  if (scanned.problems.length) return { problems: scanned.problems };
+  const filtered = filterPacksByLibrary(scanned.packs, libraries);
+  if ("problem" in filtered) return { problems: [filtered.problem] };
+  if (!filtered.packs.length) return { problems: ["no skill packs with library.json under bootstrap/"] };
+  return { packs: filtered.packs };
+}
+
+export function parseLibraryScopes(raw: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const entry of raw.split(",")) {
+    const candidate = entry.trim();
+    if (!candidate) continue;
+    const separator = candidate.indexOf("=");
+    const key = (separator < 0 ? candidate : candidate.slice(0, separator)).trim();
+    const scopeId = separator < 0 ? "" : candidate.slice(separator + 1).trim();
+    if (!LIBRARY_KEY.test(key) || !SCOPE_ID.test(scopeId)) continue;
+    out.set(key, scopeId);
+  }
+  return out;
+}
+
+export function formatLibraryScopes(scopes: ReadonlyMap<string, string>): string {
+  return [...scopes.entries()].map(([key, scopeId]) => `${key}=${scopeId}`).join(",");
+}
+
+export function mergeLibraryScopes(
+  existing: ReadonlyMap<string, string>,
+  updates: Iterable<readonly [string, string]>,
+): Map<string, string> {
+  const merged = new Map(existing);
+  for (const [key, scopeId] of updates) merged.set(key, scopeId);
+  return merged;
+}
+
+export function upsertEnvKey(contents: string, key: string, value: string): string {
+  const line = `${key}=${value}`;
+  const pattern = new RegExp(`^${key}=.*$`, "m");
+  if (pattern.test(contents)) return contents.replace(pattern, line);
+  const trimmed = contents.replace(/(?:\r?\n)+$/, "");
+  return `${trimmed}${trimmed ? "\n" : ""}${line}\n`;
+}
+
+export function parseBootstrapArgs(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv,
+): BootstrapCli | { problem: string } {
+  const libraries: string[] = [];
+  let admin = "";
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--admin") {
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith("--")) return { problem: "--admin requires a value" };
+      admin = value.trim();
+      i++;
+      continue;
+    }
+    if (arg.startsWith("-")) return { problem: `unknown flag: ${arg}` };
+    const name = arg.trim();
+    if (name) libraries.push(name);
+  }
+  const adminPrincipalId = admin || env.LIBRARY_PRINCIPAL?.trim() || "";
+  if (!adminPrincipalId) return { problem: "--admin <principalId> or LIBRARY_PRINCIPAL is required" };
+  if (adminPrincipalId.length > MAX_ID_CHARS) return { problem: "--admin is too long (max 200 chars)" };
+  const unknown = libraries.filter((name) => !LIBRARY_KEY.test(name));
+  if (unknown.length) return { problem: `invalid library key: ${unknown.join(", ")}` };
+  return { adminPrincipalId, libraries: [...new Set(libraries)] };
+}
+
 interface ProjectRef {
   id: string;
   scopeId: string;
   created: boolean;
+}
+
+function asProject(entry: unknown): { id: string; name: string; scopeId: string } | null {
+  if (typeof entry !== "object" || entry === null) return null;
+  const item = entry as { id?: unknown; name?: unknown; scopeId?: unknown };
+  if (typeof item.id !== "string" || typeof item.scopeId !== "string") return null;
+  return { id: item.id, scopeId: item.scopeId, name: typeof item.name === "string" ? item.name : "" };
 }
 
 async function ensureLibraryProject(deps: BootstrapDeps, input: BootstrapInput): Promise<ProjectRef | BootstrapError> {
@@ -95,18 +370,19 @@ async function ensureLibraryProject(deps: BootstrapDeps, input: BootstrapInput):
       upstream: { status: list.status, body: list.json },
     };
   }
-  const projects = (list.json as { projects?: unknown }).projects;
-  const existing = Array.isArray(projects)
-    ? projects.find(
-        (entry): entry is { id: string; scopeId: string } =>
-          typeof entry === "object" &&
-          entry !== null &&
-          typeof (entry as { id?: unknown }).id === "string" &&
-          typeof (entry as { scopeId?: unknown }).scopeId === "string" &&
-          (entry as { name?: unknown }).name === input.projectName,
-      )
+  const projects = Array.isArray((list.json as { projects?: unknown }).projects)
+    ? ((list.json as { projects: unknown[] }).projects.map(asProject).filter(Boolean) as Array<{
+        id: string;
+        name: string;
+        scopeId: string;
+      }>)
+    : [];
+  const byScope = input.preferredScopeId
+    ? projects.find((project) => project.scopeId === input.preferredScopeId)
     : undefined;
-  if (existing) return { id: existing.id, scopeId: existing.scopeId, created: false };
+  if (byScope) return { id: byScope.id, scopeId: byScope.scopeId, created: false };
+  const byName = projects.find((project) => project.name === input.projectName);
+  if (byName) return { id: byName.id, scopeId: byName.scopeId, created: false };
 
   const created = await deps.core.call("POST", "/v1/projects", {
     principalId: input.adminPrincipalId,
@@ -213,63 +489,57 @@ export async function bootstrapLibrary(deps: BootstrapDeps, input: BootstrapInpu
   };
 }
 
-export function parseBootstrapArgs(
-  argv: readonly string[],
-  env: NodeJS.ProcessEnv,
-): BootstrapInput | { problem: string } {
-  const single = new Map<string, string>();
-  const selected: string[] = [];
-  for (let i = 0; i < argv.length; i++) {
-    const flag = argv[i]!;
-    if (flag !== "--url" && flag !== "--name" && flag !== "--admin" && flag !== "--ref" && flag !== "--skill")
-      return { problem: `unknown flag: ${flag}` };
-    const value = argv[i + 1];
-    if (value === undefined || value.startsWith("--")) return { problem: `${flag} requires a value` };
-    if (flag === "--skill") selected.push(value);
-    else single.set(flag, value);
-    i++;
+export async function bootstrapScannedPacks(
+  deps: BootstrapDeps,
+  packs: readonly ScannedPack[],
+  adminPrincipalId: string,
+  existingScopes: ReadonlyMap<string, string>,
+): Promise<{
+  results: Array<{ library: string; outcome: BootstrapOutcome }>;
+  scopes: Map<string, string>;
+}> {
+  const scopes = new Map(existingScopes);
+  const results: Array<{ library: string; outcome: BootstrapOutcome }> = [];
+  for (const pack of packs) {
+    const outcome = await bootstrapLibrary(deps, {
+      adminPrincipalId,
+      projectName: pack.projectName,
+      packUrl: pack.packUrl,
+      ...(pack.skills?.length ? { selected: pack.skills } : {}),
+      ...(scopes.get(pack.library) ? { preferredScopeId: scopes.get(pack.library) } : {}),
+    });
+    results.push({ library: pack.library, outcome });
+    if (outcome.status === "bootstrapped") scopes.set(pack.library, outcome.projectScopeId);
   }
-  const packUrl = single.get("--url")?.trim() || env.LIBRARY_PACK_URL?.trim() || "";
-  const projectName = single.get("--name")?.trim() || env.LIBRARY_PROJECT_NAME?.trim() || "";
-  const adminPrincipalId = single.get("--admin")?.trim() || env.LIBRARY_PRINCIPAL?.trim() || "";
-  if (!packUrl) return { problem: "--url <git repository> or LIBRARY_PACK_URL is required" };
-  if (!projectName) return { problem: "--name <library project name> or LIBRARY_PROJECT_NAME is required" };
-  if (!adminPrincipalId) return { problem: "--admin <principalId> or LIBRARY_PRINCIPAL is required" };
-  if (projectName.length > MAX_NAME_CHARS) return { problem: "--name is too long (max 200 chars)" };
-  if (adminPrincipalId.length > MAX_ID_CHARS) return { problem: "--admin is too long (max 200 chars)" };
-  const packRef = single.get("--ref")?.trim() ?? "";
-  const envSkills = env.LIBRARY_SKILLS?.trim()
-    ? env.LIBRARY_SKILLS.split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : [];
-  const mergedSelected = selected.length ? selected : envSkills;
-  return {
-    adminPrincipalId,
-    projectName,
-    packUrl,
-    ...(packRef ? { packRef } : {}),
-    ...(mergedSelected.length ? { selected: mergedSelected } : {}),
-  };
+  return { results, scopes };
 }
 
 export function adminActorHeader(principalId: string, orgId: string): string {
   return principalId.endsWith(`@${orgId}`) ? principalId : `${principalId}@${orgId}`;
 }
 
+function writeLibraryScopes(envPath: string, scopes: ReadonlyMap<string, string>): void {
+  const formatted = formatLibraryScopes(scopes);
+  const current = existsSync(envPath) ? readFileSync(envPath, "utf8") : "";
+  writeFileSync(envPath, upsertEnvKey(current, "LIBRARY_SCOPES", formatted));
+}
+
 async function runCli(): Promise<void> {
   const parsed = parseBootstrapArgs(process.argv.slice(2), process.env);
   if ("problem" in parsed) {
     console.error(`[partner-bootstrap] ${parsed.problem}`);
-    console.error(
-      "usage: node bootstrap/bootstrap-library.ts [--url <git>] [--name <project>] [--admin <principal>] [--ref <git ref>] [--skill <name>]...",
-    );
-    console.error(
-      "       env fallbacks: LIBRARY_PACK_URL, LIBRARY_PROJECT_NAME, LIBRARY_PRINCIPAL (all overridable by flags)",
-    );
+    console.error("usage: node bootstrap/bootstrap-library.ts [library]... [--admin <principal>]");
+    console.error("       env: LIBRARY_PRINCIPAL");
     process.exitCode = 1;
     return;
   }
+  const loaded = loadSelectedPacks(BOOTSTRAP_DIR, parsed.libraries);
+  if ("problems" in loaded) {
+    for (const problem of loaded.problems) console.error(`[partner-bootstrap] ${problem}`);
+    process.exitCode = 1;
+    return;
+  }
+  const selected = loaded.packs;
   const core = createCoreClient(CORE_API_URL, CORE_SIGNING_SECRET);
   const adminCore = createCoreClient(
     CORE_API_URL,
@@ -277,10 +547,24 @@ async function runCli(): Promise<void> {
     { "x-admin-actor": adminActorHeader(parsed.adminPrincipalId, CORE_ORG_ID) },
     IMPORT_TIMEOUT_MS,
   );
-  const outcome = await bootstrapLibrary({ core, adminCore }, parsed);
-  console.log(JSON.stringify(outcome, null, 2));
-  if (outcome.status === "bootstrapped") console.error(`[partner-bootstrap] library scope: ${outcome.projectScopeId}`);
-  else process.exitCode = 1;
+  const existingScopes = parseLibraryScopes(process.env.LIBRARY_SCOPES ?? "");
+  const { results, scopes } = await bootstrapScannedPacks(
+    { core, adminCore },
+    selected,
+    parsed.adminPrincipalId,
+    existingScopes,
+  );
+  console.log(JSON.stringify(results, null, 2));
+  const failed = results.filter((row) => row.outcome.status !== "bootstrapped");
+  const succeeded = results.filter(
+    (row): row is { library: string; outcome: Bootstrapped } => row.outcome.status === "bootstrapped",
+  );
+  if (succeeded.length) {
+    writeLibraryScopes(WORKTREE_ENV, scopes);
+    console.error(`[partner-bootstrap] LIBRARY_SCOPES=${formatLibraryScopes(scopes)}`);
+    console.error("[partner-bootstrap] run: node scripts/dev/cli.ts up --no-slack");
+  }
+  if (failed.length) process.exitCode = 1;
 }
 
 const invoked = process.argv[1];

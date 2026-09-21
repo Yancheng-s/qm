@@ -5,7 +5,7 @@ const BASE_URL = process.env.PARTNER_BASE_URL ?? "http://localhost:8209";
 const PARTNER_ID = process.env.PARTNER_ID ?? "acme";
 const SECRET = process.env.PARTNER_SECRET ?? "";
 const USER_ID = process.env.PARTNER_USER_ID ?? "u1";
-const LIBRARY = process.env.PARTNER_LIBRARY ?? "xhs";
+const LIBRARY = process.env.PARTNER_LIBRARY ?? "card";
 
 if (!SECRET) {
   console.error("set PARTNER_SECRET (and optionally PARTNER_BASE_URL / PARTNER_ID / PARTNER_USER_ID) first");

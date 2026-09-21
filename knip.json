@@ -8,7 +8,6 @@
     "apps/backend/src/auth.ts": ["files"],
     "apps/backend/src/config.ts": ["files"],
     "apps/backend/src/index.ts": ["files"],
-    "apps/backend/src/mcp.ts": ["files"],
     "apps/backend/src/partner-client.ts": ["files"],
     "aws/microvm-agent/agent.mjs": ["unresolved"],
     "cli/src/util.ts": ["unresolved"],
@@ -57,7 +56,7 @@
         "hljs-real-markdown"
       ]
     },
-    "plugins/partner-protocol": { "entry": ["spec/partner-client.mjs"] },
+    "plugins/partner-protocol": { "entry": ["spec/partner-client.mjs", "bootstrap/bootstrap-library.ts", "bootstrap/register-mcp.ts"] },
     "plugins/web-ui": {
       "entry": ["src/lazy-katex.ts", "src/lazy-hljs.ts", "src/hljs-lang-stub.ts", "test/**/*.test.ts"],
       "ignoreDependencies": [

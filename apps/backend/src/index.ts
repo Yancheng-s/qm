@@ -2,7 +2,6 @@ import Fastify from "fastify";
 import { configProblems, readConfig } from "./config.ts";
 import { createPartnerClient } from "./partner-client.ts";
 import { authenticate } from "./auth.ts";
-import { MCP_TOOL, registerMcpRoutes } from "./mcp.ts";
 
 const config = readConfig();
 const problems = configProblems(config);
@@ -19,14 +18,6 @@ const partner = createPartnerClient({
 
 const app = Fastify({ logger: false });
 
-const defaultFiles = [
-  {
-    url: "https://xmzl-headportrait.oss-cn-beijing.aliyuncs.com/xmzl/lun_tai/1786689504191020500.txt",
-    name: "xhs-user-profile.txt",
-    mimetype: "text/plain",
-  },
-];
-
 app.addHook("onRequest", async (req, reply) => {
   reply.header("access-control-allow-origin", req.headers.origin ?? "*");
   reply.header("access-control-allow-headers", "content-type,x-user-id");
@@ -38,29 +29,31 @@ app.get("/healthz", async () => ({
   ok: true,
   gateway: config.gatewayUrl,
   partnerId: config.partnerId,
-  defaultFiles: defaultFiles.length,
-  mcp: { path: "/mcp", tools: [MCP_TOOL.name] },
+  library: config.library,
 }));
 
-registerMcpRoutes(app, { name: "partner-app-mcp", version: "1.0.0" });
-
-app.post<{ Body: { name?: unknown; library?: unknown; files?: unknown } }>("/api/employees", async (req, reply) => {
-  const auth = authenticate(req);
-  if (!auth.ok) return reply.status(auth.status).send({ error: auth.error, message: auth.message });
-  const name =
-    typeof req.body?.name === "string" && req.body.name.trim() ? req.body.name.trim() : config.defaultEmployeeName;
-  const library =
-    typeof req.body?.library === "string" && req.body.library.trim() ? req.body.library.trim() : config.library;
-  const outcome = await partner.call("POST", "/v1/assemble", {
-    userId: auth.userId,
-    name,
-    library,
-    files: req.body?.files ?? defaultFiles,
-    soul: config.defaultSoul,
-    standingOrders: config.defaultStandingOrders,
-  });
-  return reply.status(outcome.status).send(outcome.json);
-});
+app.post<{ Body: { name?: unknown; library?: unknown; files?: unknown; skills?: unknown } }>(
+  "/api/employees",
+  async (req, reply) => {
+    const auth = authenticate(req);
+    if (!auth.ok) return reply.status(auth.status).send({ error: auth.error, message: auth.message });
+    const name =
+      typeof req.body?.name === "string" && req.body.name.trim() ? req.body.name.trim() : config.defaultEmployeeName;
+    const library =
+      typeof req.body?.library === "string" && req.body.library.trim() ? req.body.library.trim() : config.library;
+    const skills = Array.isArray(req.body?.skills) ? req.body.skills : ["zhiqu-card-create"];
+    const outcome = await partner.call("POST", "/v1/assemble", {
+      userId: auth.userId,
+      name,
+      library,
+      skills,
+      ...(Array.isArray(req.body?.files) ? { files: req.body.files } : {}),
+      soul: config.defaultSoul,
+      standingOrders: config.defaultStandingOrders,
+    });
+    return reply.status(outcome.status).send(outcome.json);
+  },
+);
 
 app.post<{ Body: { scopeId?: unknown; conversationId?: unknown } }>("/api/chat-sessions", async (req, reply) => {
   const auth = authenticate(req);
@@ -90,4 +83,3 @@ await app.listen({ port: config.port, host: "0.0.0.0" });
 console.log(
   `[app-backend] http://localhost:${config.port} -> gateway ${config.gatewayUrl} (partner ${config.partnerId})`,
 );
-console.log(`[app-backend]   MCP endpoint: POST http://localhost:${config.port}/mcp (tool ${MCP_TOOL.name})`);

@@ -100,9 +100,9 @@ onMounted(reload);
 <template>
   <div class="wrap">
     <div class="card">
-      <h1>数字员工控制台</h1>
+      <h1>名片助手控制台</h1>
       <p class="hint">
-        甲方业务系统：登录、维护数字员工与会话列表。创建员工经桥梁装配，点击会话跳转到桥梁提供的对话页面。
+        创建智渠名片数字员工，经桥梁装配技能与 MCP；点击会话跳转到对话页面。
       </p>
 
       <div class="row">
@@ -110,9 +110,9 @@ onMounted(reload);
       </div>
 
       <div class="row">
-        <input v-model="newName" class="field" placeholder="员工名（可选）" />
+        <input v-model="newName" class="field" placeholder="助手名（可选）" />
         <button class="btn" :disabled="busy || !userId.trim()" @click="create">
-          {{ busy ? "装配中…" : "创建数字员工" }}
+          {{ busy ? "装配中…" : "创建名片助手" }}
         </button>
       </div>
 
@@ -140,7 +140,7 @@ onMounted(reload);
           </div>
         </div>
       </div>
-      <p v-else class="empty">还没有数字员工，先创建一个。</p>
+      <p v-else class="empty">还没有名片助手，先创建一个。</p>
     </div>
   </div>
 </template>

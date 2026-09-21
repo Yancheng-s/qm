@@ -438,7 +438,7 @@ test("partner child defaults credentials and honors overrides", () => {
   assert.equal(partner.env.CORE_API_URL, `http://localhost:${inputs.ports.core}`);
   assert.equal(partner.env.PORT, String(inputs.ports.partner));
   assert.equal(partner.env.PARTNER_CREDENTIALS, "dev-partner=dev-instance-partner-0123456789abcdef");
-  assert.equal(partner.env.LIBRARY_SCOPES, "xhs=org:acme");
+  assert.equal(partner.env.LIBRARY_SCOPES, "card=org:acme");
   assert.equal(partner.env.LIBRARY_PRINCIPAL, "dev-admin");
   inputs.baseEnv = {
     PARTNER_CREDENTIALS: "acme=0123456789012345678901234567890123",

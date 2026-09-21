@@ -16,7 +16,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const gatewayPublicUrl = (env.PARTNER_PUBLIC_URL || gatewayUrl).replace(/\/+$/, "");
   const partnerId = env.PARTNER_ID || "dev-partner";
   const partnerSecret = env.PARTNER_SECRET || "dev-instance-partner-0123456789abcdef";
-  const library = env.LIBRARY || "xhs";
+  const library = env.LIBRARY || "card";
   return {
     port,
     gatewayUrl,
@@ -24,13 +24,13 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     partnerId,
     partnerSecret,
     library,
-    defaultEmployeeName: env.DEFAULT_EMPLOYEE_NAME || "小红书运营搭子",
+    defaultEmployeeName: env.DEFAULT_EMPLOYEE_NAME || "智渠名片助手",
     defaultSoul:
       env.DEFAULT_SOUL ||
-      "语气专业克制，先给结论再给依据。当被问及系统用户、成员、花名册或“有哪些人”时，调用可用的用户目录工具查询真实数据，绝不编造。",
+      "你是智渠 AI 名片的创建向导。先了解用户要创建的名片，再按 zhiqu-card-create 技能与 zhiqu-card MCP 工具逐步完成；不编造姓名、公司、职位或文件。",
     defaultStandingOrders:
       env.DEFAULT_STANDING_ORDERS ||
-      "你的名字叫“小红”，对外身份是甲方派驻的数字员工、小红书运营搭子。任何场合被问及名字、身份或自我介绍时，一律以此为准，不得使用其他名字。形象：简洁干练的运营顾问，说话直接、不堆砌客套。",
+      "你的名字叫「小智」，身份是智渠 AI 名片创建助手。被问及名字或身份时以此为准。创建名片时严格按 MCP 的 next_action 推进；正式提交前必须经用户确认预览；不得自动清空草稿、消耗激活码或提交名片。",
   };
 }
 
