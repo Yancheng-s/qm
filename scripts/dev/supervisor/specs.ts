@@ -15,6 +15,7 @@ export interface SpecInputs {
   adminGrantsSeed: string;
   coreSigningSecret: string;
   portalSessionSecret: string;
+  portalDevPrincipal: string;
   sandboxEnv: Record<string, string>;
 }
 
@@ -114,7 +115,7 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         IDLOGIN_ISSUER: `http://localhost:${i.ports.h5}`,
         IDLOGIN_CLIENT_ID,
         IDLOGIN_CLIENT_SECRET,
-        IDLOGIN_REDIRECT_URI: `http://localhost:${i.ports.portal}/auth/callback`,
+        IDLOGIN_REDIRECT_URI: `http://localhost:${i.ports.partner}/auth/callback`,
       },
       port: i.ports.h5,
       readiness: { kind: "log", pattern: `gateway on http://localhost:${i.ports.h5}` },
@@ -129,13 +130,15 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         ...siblingBase,
         ...signing,
         PORT: String(i.ports.portal),
-        PORTAL_PUBLIC_URL: `http://localhost:${i.ports.portal}`,
+        PORTAL_PUBLIC_URL: `http://localhost:${i.ports.partner}`,
         CORE_API_URL: `http://localhost:${i.ports.core}`,
         CORE_ORG_ID: orgId,
         WEB_UI_UPSTREAM: `http://localhost:${i.ports.web}`,
         ADMIN_UPSTREAM: `http://localhost:${i.ports.admin}`,
         PORTAL_SESSION_SECRET: i.portalSessionSecret,
         NODE_ENV: "development",
+        PORTAL_LOCAL_AUTH_BYPASS: i.baseEnv.PORTAL_LOCAL_AUTH_BYPASS ?? "1",
+        PORTAL_DEV_PRINCIPAL: i.portalDevPrincipal,
         OIDC_CLIENT_ID: IDLOGIN_CLIENT_ID,
         OIDC_CLIENT_SECRET: IDLOGIN_CLIENT_SECRET,
         OIDC_AUTH_ENDPOINT: `http://localhost:${i.ports.h5}/authorize`,

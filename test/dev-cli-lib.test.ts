@@ -432,6 +432,7 @@ test("supervised children share the selected dev org", () => {
     adminGrantsSeed: "",
     coreSigningSecret: "",
     portalSessionSecret: "secret",
+    portalDevPrincipal: "U1",
     sandboxEnv: {},
   };
   const specs = buildChildSpecs(inputs);
@@ -443,6 +444,9 @@ test("supervised children share the selected dev org", () => {
     assert.equal(spec.env.CODEX_HOME, undefined);
   }
   for (const spec of specs) assert.equal(spec.env.CORE_ORG_ID, "beta");
+  assert.equal(specs.find((spec) => spec.name === "portal")!.env.PORTAL_LOCAL_AUTH_BYPASS, "1");
+  inputs.baseEnv.PORTAL_LOCAL_AUTH_BYPASS = "0";
+  assert.equal(buildChildSpecs(inputs).find((spec) => spec.name === "portal")!.env.PORTAL_LOCAL_AUTH_BYPASS, "0");
   inputs.baseEnv = {};
   assert.equal(buildChildSpecs(inputs).find((spec) => spec.name === "core")!.env.ORG_ID, "acme");
 });
@@ -460,6 +464,7 @@ test("child specs disable environment Slack tokens when no Slack tokens are supp
     adminGrantsSeed: "",
     coreSigningSecret: "",
     portalSessionSecret: "secret",
+    portalDevPrincipal: "U1",
     sandboxEnv: {},
   };
   const core = buildChildSpecs(inputs).find((spec) => spec.name === "core")!;
@@ -499,6 +504,7 @@ test("h5 child gets the signing secret and database url", () => {
     adminGrantsSeed: "",
     coreSigningSecret: "dev-core-signing-secret",
     portalSessionSecret: "secret",
+    portalDevPrincipal: "U1",
     sandboxEnv: {},
   };
   const h5 = buildChildSpecs(inputs).find((spec) => spec.name === "h5")!;
@@ -522,6 +528,7 @@ test("partner child defaults credentials and honors overrides", () => {
     adminGrantsSeed: "",
     coreSigningSecret: "dev-core-signing-secret",
     portalSessionSecret: "secret",
+    portalDevPrincipal: "U1",
     sandboxEnv: {},
   };
   const partner = buildChildSpecs(inputs).find((spec) => spec.name === "partner")!;

@@ -395,6 +395,15 @@ async function assembleAndPrepare(spec: BootSpec): Promise<SpecInputs> {
 
   completeDevSecuritySecrets(assembled.env, databaseUrl || worktree);
   const portalSessionSecret = assembled.env.PORTAL_SESSION_SECRET!;
+  let portalDevPrincipal = assembled.env.DEV_INSTANCE_ADMIN_PRINCIPAL || "";
+  if (!portalDevPrincipal && adminGrantsSeed) portalDevPrincipal = adminGrantsSeed.split(":")[0] ?? "";
+  if (!portalDevPrincipal && durableAdminPrincipal) portalDevPrincipal = durableAdminPrincipal;
+  if (!portalDevPrincipal) portalDevPrincipal = assembled.env.USER || "dev-admin";
+  log(
+    assembled.env.PORTAL_LOCAL_AUTH_BYPASS === "0"
+      ? "portal auth: localhost bypass disabled"
+      : `portal auth: localhost bypass signs in as ${portalDevPrincipal}`,
+  );
   if (spec.web !== false) {
     log(`h5 gateway: http://localhost:${ports.h5} -- portal id sign-in (enter any user id)`);
     log(
@@ -418,6 +427,7 @@ async function assembleAndPrepare(spec: BootSpec): Promise<SpecInputs> {
     adminGrantsSeed,
     coreSigningSecret: assembled.env.CORE_SIGNING_SECRET || "",
     portalSessionSecret,
+    portalDevPrincipal,
     sandboxEnv: sandbox.env,
   };
 }

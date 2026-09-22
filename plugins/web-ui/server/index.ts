@@ -1196,6 +1196,32 @@ const apiRoutes: readonly WebRoute[] = [
     },
   },
 
+  { method: "GET", path: "/api/composio/slack", handle: (c) => relayCore(c.res, "GET", "/v1/composio/slack") },
+  {
+    method: "POST",
+    path: "/api/composio/slack/authorize",
+    handle: async (c) => {
+      const body = await readJson<{ returnTo?: unknown; state?: unknown }>(c.req, c.res, false);
+      if (!body) return;
+      const callback = composioCallbackUrl(PUBLIC_URL, body.returnTo, body.state);
+      if (!callback) return json(c.res, 400, { error: "invalid_return_url" });
+      const url = new URL(callback);
+      url.searchParams.delete("composioReturn");
+      url.searchParams.set("slackReturn", String(body.state));
+      c.res.setHeader("Cache-Control", "no-store");
+      return relayCore(c.res, "POST", "/v1/composio/slack/authorize", JSON.stringify({ callbackUrl: url.href }));
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/composio/slack/complete",
+    handle: async (c) => {
+      const body = await readJson<{ ticket?: unknown }>(c.req, c.res, false);
+      if (!body) return;
+      c.res.setHeader("Cache-Control", "no-store");
+      return relayCore(c.res, "POST", "/v1/composio/slack/complete", JSON.stringify({ ticket: body.ticket }));
+    },
+  },
   {
     method: "GET",
     path: "/api/composio/toolkits",
@@ -3103,7 +3129,7 @@ const routeRequest = async (req: IncomingMessage, res: ServerResponse) => {
       "Referrer-Policy": "no-referrer",
       "X-Content-Type-Options": "nosniff",
       "X-Robots-Tag": "noindex, nofollow",
-      "Content-Security-Policy": `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self'; connect-src ${dev ? "ws: wss:" : "'none'"}; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`,
+      "Content-Security-Policy": `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src ${dev ? "ws: wss:" : "'none'"}; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`,
     });
     return res.end(
       sharedSessionHtml(await brandIndexHtml(template), result.status === 200 ? JSON.parse(result.text) : null),

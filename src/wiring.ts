@@ -1,3 +1,4 @@
+import { createKeychainApprovals } from "./credentials/keychain-approval.ts";
 import { flushErrorReporting, startTiming } from "../plugins/chassis/src/error-reporting.ts";
 import type { TimingStatus } from "../plugins/chassis/src/timing.ts";
 import { createProductAnalytics } from "./util/product-analytics.ts";
@@ -64,6 +65,13 @@ import {
   type DeactivationRecord,
   type IdentityService,
 } from "./identity/identity-service.ts";
+import {
+  createPrincipalLinkService,
+  type PrincipalLink,
+  type PrincipalLinkService,
+} from "./identity/principal-links.ts";
+import type { SlackAccountLink } from "./api/routes/composio.ts";
+import { installPrincipalLinks } from "./directory/person.ts";
 import type { ExternalMember } from "./identity/external-members.ts";
 import { createResendMailer } from "./admin/invite-email.ts";
 import {
@@ -203,7 +211,7 @@ import { createPostgresFileArtifactStore } from "./files/postgres-file-artifact-
 import { createAwsSandbox, type StoredMicrovm } from "./sandbox/aws-sandbox.ts";
 import { createLocalSandbox } from "./sandbox/local-sandbox.ts";
 import { createSpritesSandbox } from "./sandbox/sprites-sandbox.ts";
-import { createSmolmachinesSandbox } from "./sandbox/smolmachines-sandbox.ts";
+import { createSmolmachinesSandbox, type StoredSmolmachinesSandbox } from "./sandbox/smolmachines-sandbox.ts";
 import { createAgent37Sandbox } from "./sandbox/agent37-sandbox.ts";
 import {
   createConfigEpochResolver,
@@ -501,6 +509,8 @@ export interface BuiltApp {
   credentialUsage: CredentialUsageSink;
   egressAudit: EgressAuditSink;
   identity: IdentityService;
+  principalLinks: PrincipalLinkService;
+  slackAccounts: DurableMap<SlackAccountLink>;
   keychain?: Keychain;
   serviceCreds: ServiceCredentialStore;
   deliveries: DeliveryStore;
@@ -623,18 +633,21 @@ export function buildApp(
       };
     },
   };
+  const advisoryLock: AdvisoryLock = pgArtifactMap
+    ? createPostgresAdvisoryLock(pgArtifactMap.pool)
+    : createMemoryAdvisoryLock();
+  const principalLinks = createPrincipalLinkService(artifactMap<PrincipalLink>("principal_links"), advisoryLock);
+  installPrincipalLinks(principalLinks);
   const identity = createIdentityService(artifactMap<DeactivationRecord>("deactivated_principals"), {
     isOverridden: (id) => configStore.getInternalMemberOverrides().includes(id.trim().toLowerCase()),
     directorySyncProtected: config.emailAuthPrincipals,
     externalMembers: artifactMap<ExternalMember>("external_members"),
+    principalLinks,
   });
   void identity.hydrate();
   const leaderLease: LeaderLease = pgArtifactMap
     ? createPostgresLeaderLease(pgArtifactMap.pool)
     : createNoopLeaderLease();
-  const advisoryLock: AdvisoryLock = pgArtifactMap
-    ? createPostgresAdvisoryLock(pgArtifactMap.pool)
-    : createMemoryAdvisoryLock();
   const configStore = createMemoryConfigStore(config.orgId, {
     connectorClients: artifactMap<StoredConnectorClient>("connector_clients"),
     souls: artifactMap<PersistedSoul>("soul_configs"),
@@ -826,9 +839,15 @@ export function buildApp(
       ...config.localSandbox,
       onError: sandboxOnError,
     });
-  const buildSprites = (): Sandbox =>
-    createSpritesSandbox(workspace, {
-      ...config.spritesSandbox,
+  const buildSprites = (): Sandbox => {
+    const { snapshotS3Bucket, ...sprites } = config.spritesSandbox;
+    return createSpritesSandbox(workspace, {
+      ...sprites,
+      initializationStore: artifactMap<{ pending: boolean }>("sprites_initialization"),
+      advisoryLock,
+      ...(snapshotS3Bucket
+        ? { snapshots: createS3SnapshotStore({ bucket: snapshotS3Bucket, prefix: "sprites-home" }) }
+        : {}),
       blobTransfer,
       extraTools: deploymentLayer.advertisedTools,
       credentialPaths: deploymentLayer.credentialPaths,
@@ -839,9 +858,13 @@ export function buildApp(
       ...(config.apiBaseUrl ? { apiBaseUrl: config.apiBaseUrl } : {}),
       onError: sandboxOnError,
     });
-  const buildSmolmachines = (): Sandbox =>
-    createSmolmachinesSandbox(workspace, {
-      ...config.smolmachinesSandbox,
+  };
+  const smolmachinesBodies = artifactMap<StoredSmolmachinesSandbox>("smolmachines_sandbox_bodies");
+  const buildSmolmachines = (): Sandbox => {
+    const { snapshotS3Bucket, snapshotIntervalSec, ...smol } = config.smolmachinesSandbox;
+    return createSmolmachinesSandbox(workspace, {
+      ...smol,
+      ...(snapshotIntervalSec !== undefined ? { snapshotIntervalMs: snapshotIntervalSec * 1000 } : {}),
       blobTransfer,
       extraTools: deploymentLayer.advertisedTools,
       credentialPaths: deploymentLayer.credentialPaths,
@@ -849,8 +872,14 @@ export function buildApp(
       ...(config.signingSecret ? { signingSecret: config.signingSecret } : {}),
       ...(config.capabilitySecret ? { capabilitySecret: config.capabilitySecret } : {}),
       ...(config.apiBaseUrl ? { apiBaseUrl: config.apiBaseUrl } : {}),
+      store: smolmachinesBodies,
+      advisoryLock,
+      ...(snapshotS3Bucket
+        ? { snapshots: createS3SnapshotStore({ bucket: snapshotS3Bucket, prefix: "smolmachines-home" }) }
+        : {}),
       onError: sandboxOnError,
     });
+  };
   const e2bBodies = artifactMap<StoredE2bSandbox>("e2b_sandbox_bodies");
   const modalBodies = artifactMap<StoredModalSandbox>("modal_sandbox_bodies");
   const awsBodies = artifactMap<StoredMicrovm>("aws_sandbox_bodies");
@@ -862,11 +891,17 @@ export function buildApp(
         apiKey: e2b.apiKey,
         ...(e2b.templateId ? { templateId: e2b.templateId } : {}),
         ...(e2b.sandboxTtlSec ? { sandboxTtlMs: e2b.sandboxTtlSec * 1000 } : {}),
+        ...(e2b.maxLifetimeSec ? { maxLifetimeMs: e2b.maxLifetimeSec * 1000 } : {}),
         ...(e2b.proxy ? { proxy: e2b.proxy } : {}),
+        ...(e2b.egressProxyUrl ? { egressProxyUrl: e2b.egressProxyUrl } : {}),
       }),
       ...(e2b.namePrefix ? { namePrefix: e2b.namePrefix } : {}),
       ...(e2b.defaultTimeoutSec ? { defaultTimeoutSec: e2b.defaultTimeoutSec } : {}),
+      keepWarmSec: Math.ceil(config.backgroundJobTtlMaxMs / 1000),
       ...(e2b.snapshotIntervalSec !== undefined ? { snapshotIntervalMs: e2b.snapshotIntervalSec * 1000 } : {}),
+      ...(e2b.nativeSnapshotIntervalSec !== undefined
+        ? { nativeSnapshotIntervalMs: e2b.nativeSnapshotIntervalSec * 1000 }
+        : {}),
       ...(e2b.egressProxyUrl ? { egressProxyUrl: e2b.egressProxyUrl } : {}),
       extraTools: deploymentLayer.advertisedTools,
       credentialPaths: deploymentLayer.credentialPaths,
@@ -898,7 +933,9 @@ export function buildApp(
         ...(modal.memoryMb !== undefined ? { memoryMb: modal.memoryMb } : {}),
         ...(modal.regions?.length ? { regions: modal.regions } : {}),
         ...(modal.sandboxTimeoutSec ? { sandboxTimeoutMs: modal.sandboxTimeoutSec * 1000 } : {}),
+        ...(modal.reapIdleSec ? { idleTimeoutMs: 2 * modal.reapIdleSec * 1000 } : {}),
         ...(modal.snapshotRetentionSec !== undefined ? { snapshotRetentionMs: modal.snapshotRetentionSec * 1000 } : {}),
+        ...(modal.egressProxyUrl ? { egressProxyUrl: modal.egressProxyUrl } : {}),
       }),
       ...(modal.namePrefix ? { namePrefix: modal.namePrefix } : {}),
       ...(modal.defaultTimeoutSec ? { defaultTimeoutSec: modal.defaultTimeoutSec } : {}),
@@ -1160,6 +1197,7 @@ export function buildApp(
     grants: artifactMap<KeychainGrant>("keychain_grants"),
     asks: artifactMap<KeychainAsk>("keychain_asks"),
     key: credentialKey,
+    lock: advisoryLock,
     refreshConnector: (() => {
       const base = makeRefresh({ resolveClient });
       // AI subscription logins ride the same connector-refresh machinery:
@@ -2072,6 +2110,18 @@ export function buildApp(
     requestFire: (loopId) => void loopFire.fire(loopId, `loop:${loopId}:slack-event:${Date.now()}`).catch(() => {}),
   });
   const slackCore = createSlackCoreClient({
+    ...(keychain
+      ? {
+          keychainApprovals: createKeychainApprovals({
+            keychain,
+            app,
+            identity,
+            sessions,
+            audit: auditLog,
+            resume: (ask, grant) => askResolution!(ask, grant),
+          }),
+        }
+      : {}),
     surfaceCache,
     taskAcknowledgements: artifactMap<TaskAckState>("slack_task_acknowledgements"),
     inboxEvent: (event) => inboxRealtime.onConversationEvent(event),
@@ -2448,17 +2498,15 @@ export function buildApp(
   const keepWarmSweeper = createSweeper(() => app.keepAlwaysOnWarm(), KEEP_WARM_INTERVAL_MS);
   const deepIdleMachineMs = config.deepIdleMachineMs;
   const devIdleMachineMs = config.devIdleMachineMs;
-  const sweepFractions = [deepIdleMachineMs, devIdleMachineMs]
-    .filter((w): w is number => !!w && w > 0)
-    .map((w) => Math.floor(w / 24));
-  const deepIdleReapEnabled = Boolean(sandbox.reapDeepIdle && sweepFractions.length);
+  const SANDBOX_MAINTENANCE_INTERVAL_MS = 5 * 60_000;
+  const deepIdleReapEnabled = Boolean(sandbox.reapDeepIdle && (deepIdleMachineMs > 0 || devIdleMachineMs > 0));
   const deepIdleSweeper = deepIdleReapEnabled
     ? createSweeper(
         () =>
           leaderLease.hold("sandbox:deep-idle-reaper", () =>
             sandbox.reapDeepIdle!(deepIdleMachineMs, devIdleMachineMs),
           ),
-        Math.max(60_000, Math.min(...sweepFractions)),
+        SANDBOX_MAINTENANCE_INTERVAL_MS,
         { immediate: true },
       )
     : null;
@@ -2636,6 +2684,8 @@ export function buildApp(
     credentialUsage,
     egressAudit,
     identity,
+    principalLinks,
+    slackAccounts: artifactMap<SlackAccountLink>("slack_accounts"),
     workspace,
     memory,
     ...(keychain ? { keychain } : {}),
@@ -2742,6 +2792,7 @@ export function serverDeps(
     admin: built.admin,
     ...(config.emailAuthPrincipals ? { emailAuthPrincipals: config.emailAuthPrincipals } : {}),
     ...(config.emailAuthDomain ? { emailAuthDomain: config.emailAuthDomain } : {}),
+    ...(config.slack ? { slackAllowFrom: config.slack.allowFrom ?? [] } : {}),
     ...(config.resendApiKey && config.emailFrom
       ? { inviteMailer: createResendMailer(config.resendApiKey, config.emailFrom) }
       : {}),
@@ -2769,6 +2820,8 @@ export function serverDeps(
     webhookReceiver: built.webhookReceiver,
     loopIngress: built.loopIngress,
     identity: built.identity,
+    principalLinks: built.principalLinks,
+    slackAccounts: built.slackAccounts,
     ...(built.keychain ? { keychain: built.keychain } : {}),
     serviceCreds: built.serviceCreds,
     deliveries: built.deliveries,

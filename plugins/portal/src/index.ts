@@ -1,3 +1,4 @@
+import { INVITE_LOGIN_SCRIPT, INVITE_LOGIN_SCRIPT_HASH } from "./invite-login.ts";
 import { reportBackendError } from "../../chassis/src/error-reporting.ts";
 import "./instrument.ts";
 import { provisionTrustedAdmin } from "./trusted-admin.ts";
@@ -296,6 +297,43 @@ async function isAdmin(sub: string): Promise<boolean> {
   return (await adminProbe(sub)).isAdmin;
 }
 
+const CANONICAL_TTL_MS = 60_000;
+const CANONICAL_TIMEOUT_MS = 4_000;
+const canonicalCache = new LRUCache<string, string>({ max: 10_000, ttl: CANONICAL_TTL_MS });
+
+async function canonicalPrincipal(sub: string): Promise<string | null> {
+  const hit = canonicalCache.get(sub);
+  if (hit !== undefined) return hit;
+  const path = withSourceAuthNonce(`/v1/principals/${encodeURIComponent(sub)}/canonical`, CORE_SIGNING_SECRET);
+  try {
+    const r = await fetch(`${CORE}${path}`, {
+      headers: signedHeaders(CORE_SIGNING_SECRET, "GET", path),
+      signal: AbortSignal.timeout(CANONICAL_TIMEOUT_MS),
+    });
+    if (!r.ok) {
+      console.warn(`[portal] canonical principal lookup returned HTTP ${r.status}`);
+      return null;
+    }
+    const body = (await r.json()) as { canonicalId?: unknown };
+    const canonical = typeof body.canonicalId === "string" && body.canonicalId ? body.canonicalId : sub;
+    canonicalCache.set(sub, canonical);
+    return canonical;
+  } catch (error) {
+    console.warn(`[portal] canonical principal lookup failed: ${errMessage(error)}`);
+    return null;
+  }
+}
+
+function identityUnavailable(req: IncomingMessage, res: ServerResponse): void {
+  if (wantsHtml(req))
+    return sendHtml(
+      res,
+      503,
+      '<!doctype html><meta charset=utf-8><body style="font-family:system-ui;max-width:32rem;margin:4rem auto"><h2>Service unavailable</h2><p>Could not confirm your identity. Try again in a moment.</p></body>',
+    );
+  json(res, 503, { error: "identity_unavailable", message: "could not confirm your identity, try again in a moment" });
+}
+
 const PAGE_CSP =
   "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
 
@@ -461,6 +499,7 @@ const CARD_STYLE = `<style>
   .note .who b{ color:var(--text); }
   .note p{ margin:8px 0 0; color:var(--muted); }
   .actions{ display:grid; gap:10px; }
+  .actions form{ display:grid; margin:0; }
   .btn{ display:flex; align-items:center; justify-content:center; min-height:44px; padding:0 18px;
     text-decoration:none; font-weight:600; font-size:14px; border-radius:var(--radius-md); cursor:pointer;
     transition:opacity .12s ease, background .12s ease, color .12s ease; }
@@ -502,12 +541,12 @@ ${CARD_STYLE}
         ${o.icon}
       </div>
       <h1 id="t">${escapeHtml(o.heading)}</h1>
-      <p class="msg">${escapeHtml(o.msg)}</p>
+      ${o.msg ? `<p class="msg">${escapeHtml(o.msg)}</p>` : ""}
       ${o.extra ?? ""}
       <div class="actions">
         ${o.actions}
       </div>
-      <p class="help">${escapeHtml(o.help)}</p>
+      ${o.help ? `<p class="help">${escapeHtml(o.help)}</p>` : ""}
     </section>
   </main>
 </body>
@@ -525,8 +564,7 @@ export function signInErrorHtml(
     icon: ALERT_ICON,
     warn: true,
     extra: `<p class="reason"><strong>Details</strong>${escapeHtml(detail)}</p>`,
-    actions: `<a class="btn primary" href="${retryPath}">Try signing in again</a>
-        ${retryPath === "/auth/trusted/login" && trustedSignInLabel ? '<a class="btn ghost" href="/auth/login?provider=primary">Use another sign-in method</a>' : '<a class="btn ghost" href="/">Back to start</a>'}`,
+    actions: `<a class="btn primary" href="${retryPath}">Try signing in again</a>`,
     help: "Still stuck? Check that your account has access, then contact your admin.",
   });
 }
@@ -950,6 +988,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   if (pathname === "/auth/login" && method === "GET") return authLogin(req, res, url);
   if (pathname === "/auth/callback" && method === "GET") return authCallback(req, res, url);
   if (pathname.startsWith("/auth/trusted/") && method === "GET") return trustedAuth(req, res, url);
+  if (pathname === "/auth/invite") return inviteLogin(req, res);
   if (pathname === "/auth/admin-login") return adminLogin(req, res);
   if (pathname === "/auth/logout" && method === "POST") {
     if (!sameOriginRequest(req)) return json(res, 403, { error: "forbidden" });
@@ -1017,6 +1056,12 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 
   let session = currentSession(req);
   if (session) renewSessionCookie(req, res);
+  const authenticatedPrincipal = session?.sub;
+  if (session && !session.anon && (!pathname.startsWith("/auth/") || pathname.startsWith("/auth/impersonate"))) {
+    const canonical = await canonicalPrincipal(session.sub);
+    if (canonical === null) return identityUnavailable(req, res);
+    session = { ...session, sub: canonical };
+  }
 
   if (pathname === "/auth/impersonate" && method === "POST") {
     if (!session) return json(res, 401, { error: "sign in" });
@@ -1024,7 +1069,8 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     if (!(await isAdmin(session.sub))) return json(res, 403, { error: "forbidden", message: "admin access required" });
     const target = (url.searchParams.get("target") ?? "").trim();
     if (!target) return json(res, 400, { error: "bad_request", message: "target required" });
-    if (target === session.sub) return json(res, 400, { error: "bad_request", message: "cannot impersonate yourself" });
+    if (target === session.sub || (await canonicalPrincipal(target)) === session.sub)
+      return json(res, 400, { error: "bad_request", message: "cannot impersonate yourself" });
     const result = await coreImpersonate("start", session.sub, target);
     if (!result.ok) {
       const status = result.status === 403 || result.status === 400 ? result.status : 502;
@@ -1272,7 +1318,63 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     ...(!impersonator && session.name ? { displayName: session.name } : {}),
     ...(impersonator ? { impersonator } : {}),
     ...(PORTAL_IDENTITY_SECRET ? { identitySecret: PORTAL_IDENTITY_SECRET } : {}),
+    authenticatedPrincipal,
   });
+}
+
+async function inviteLogin(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (!SESSION_SECRET || !CORE_SIGNING_SECRET) return json(res, 503, { error: "not_configured" });
+  if (req.method === "GET")
+    return sendHtml(
+      res,
+      200,
+      cardPage({
+        title: "Accept invitation",
+        heading: "You're invited",
+        icon: LOCK_ICON,
+        msg: "",
+        extra: '<p id="invite-status"></p><noscript>JavaScript is required to open this invitation.</noscript>',
+        actions: `<form method="post" action="/auth/invite"><input id="invite-token" name="token" type="hidden"><button id="invite-confirm" class="btn primary" type="submit" disabled>Accept invitation</button></form><script>${INVITE_LOGIN_SCRIPT}</script>`,
+        help: "",
+      }),
+      `${PAGE_CSP}; script-src '${INVITE_LOGIN_SCRIPT_HASH}'`,
+    );
+  if (req.method !== "POST") return json(res, 405, { error: "method_not_allowed" });
+  if (!sameOriginRequest(req)) return json(res, 403, { error: "forbidden" });
+  let token: string;
+  try {
+    token = new URLSearchParams(await readBody(req, 8192)).get("token") ?? "";
+  } catch (error) {
+    if (error instanceof PayloadTooLargeError) return json(res, 413, { error: "payload_too_large" });
+    throw error;
+  }
+  if (!token || token.length > 4096) return sendHtml(res, 400, signInErrorHtml("This invitation is invalid."));
+  const path = withSourceAuthNonce("/v1/auth/invitations/redeem", CORE_SIGNING_SECRET);
+  const body = JSON.stringify({ token });
+  try {
+    const r = await fetch(`${CORE}${path}`, {
+      method: "POST",
+      headers: signedHeaders(CORE_SIGNING_SECRET, "POST", path, body),
+      body,
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!r.ok)
+      return sendHtml(
+        res,
+        r.status >= 500 ? 503 : 400,
+        signInErrorHtml(
+          r.status >= 500
+            ? "Sign-in is temporarily unavailable. Please try again."
+            : "This invitation is expired, revoked, or already used. Ask your administrator for a new one.",
+        ),
+      );
+    const data = (await r.json()) as { email: string };
+    setAuthenticatedSession(res, data.email);
+    res.writeHead(303, { location: "/", "cache-control": "no-store" });
+    res.end();
+  } catch {
+    return sendHtml(res, 503, signInErrorHtml("Sign-in is temporarily unavailable. Please try again."));
+  }
 }
 
 async function adminLogin(req: IncomingMessage, res: ServerResponse): Promise<void> {

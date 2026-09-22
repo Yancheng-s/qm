@@ -192,6 +192,19 @@ test("production names a mock harness rather than letting it pass as a real depl
   assert.match(mock[1]!, /HARNESS is "mock"/);
 });
 
+test("Modal without an egress proxy warns that sandboxes run fail-open", () => {
+  const warnings: string[] = [];
+  const original = console.warn;
+  console.warn = (msg: unknown) => void warnings.push(String(msg));
+  try {
+    loadConfig({ MODAL_TOKEN_ID: "id", MODAL_TOKEN_SECRET: "secret" });
+    loadConfig({ MODAL_TOKEN_ID: "id", MODAL_TOKEN_SECRET: "secret", MODAL_EGRESS_PROXY_URL: "https://egress.test" });
+  } finally {
+    console.warn = original;
+  }
+  assert.equal(warnings.filter((w) => w.includes("MODAL_EGRESS_PROXY_URL")).length, 1);
+});
+
 test("a leftover *=sqlite env throws (no silent downgrade to ephemeral memory)", () => {
   assert.throws(() => loadConfig({ SESSION_STORE: "sqlite" }), /SESSION_STORE=sqlite is no longer supported/);
   assert.throws(() => loadConfig({ RUN_STORE: "sqlite" }), /RUN_STORE=sqlite is no longer supported/);
@@ -822,6 +835,24 @@ test("Modal native retention and interval configuration are independent of legac
   assert.equal(config.modalSandbox.nativeSnapshotIntervalSec, 60);
   assert.equal(config.modalSandbox.snapshotRetentionSec, 86400);
   assert.equal(config.modalSandbox.snapshotIntervalSec, 315360000);
+});
+
+test("Smolmachines lifecycle, egress, and snapshot knobs are parsed into Config", () => {
+  const config = loadConfig({
+    SMOLMACHINES_TOKEN: "smk_test",
+    SMOLMACHINES_AUTOSTOP_SEC: "900",
+    SMOLMACHINES_EGRESS_PROXY_URL: "https://proxy.example.com",
+    SMOLMACHINES_SNAPSHOT_S3_BUCKET: "qm-home-snapshots",
+    SMOLMACHINES_SNAPSHOT_INTERVAL_SEC: "300",
+  });
+  assert.equal(config.smolmachinesSandbox.autoStopSec, 900);
+  assert.equal(config.smolmachinesSandbox.egressProxyUrl, "https://proxy.example.com");
+  assert.equal(config.smolmachinesSandbox.snapshotS3Bucket, "qm-home-snapshots");
+  assert.equal(config.smolmachinesSandbox.snapshotIntervalSec, 300);
+  const bare = loadConfig({ SMOLMACHINES_TOKEN: "smk_test" });
+  assert.equal(bare.smolmachinesSandbox.autoStopSec, undefined);
+  assert.equal(bare.smolmachinesSandbox.snapshotS3Bucket, undefined);
+  assert.throws(() => loadConfig({ SMOLMACHINES_AUTOSTOP_SEC: "soon" }), /SMOLMACHINES_AUTOSTOP_SEC/);
 });
 
 test("Modal native activation is default-off and uses strict boolean configuration", () => {

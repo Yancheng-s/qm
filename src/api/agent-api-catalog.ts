@@ -246,7 +246,7 @@ const FAMILIES: AgentApiFamily[] = [
         method: "POST",
         path: "/v1/loops",
         summary:
-          'create a loop — body {name, playbook, successCondition, shipActions: [{action, gate: "hold"|"auto"}], schedule?, destinationKey?, caps?, governor?: {maxConsecutiveFailedFires?, maxReturnRate?, returnRateMinDecisions?, maxQueueAgeMs?, maxQueueDepth?, staleFireMs?}, successChecks?, purpose?}; a schedule creates a bound child cron that fires the loop; setting an escalation destination requires a live human',
+          'create a loop — body {name, icon?, playbook, successCondition, shipActions: [{action, gate: "hold"|"auto"}], schedule?, destinationKey?, caps?, governor?: {maxConsecutiveFailedFires?, maxReturnRate?, returnRateMinDecisions?, maxQueueAgeMs?, maxQueueDepth?, staleFireMs?}, successChecks?, purpose?}; a schedule creates a bound child cron that fires the loop; setting an escalation destination requires a live human',
       },
       {
         method: "DELETE",
@@ -258,7 +258,7 @@ const FAMILIES: AgentApiFamily[] = [
         method: "GET|PATCH|DELETE",
         path: "/v1/loops/:id",
         summary:
-          "inspect a loop (items, held outputs, vitals), edit it (playbook edits are versioned; destinationKey sets escalation delivery and null clears it; state: enabled|paused clears or sets the pause; clearing quarantine or changing destination requires a live human), or delete it and its child cron",
+          "inspect a loop (items, held outputs, vitals), edit it (icon sets a named icon such as bug or slack, or an uploaded PNG data URL up to 64 KiB and 128×128 pixels; null restores the default; playbook edits are versioned; destinationKey sets escalation delivery and null clears it; state: enabled|paused clears or sets the pause; clearing quarantine or changing destination requires a live human), or delete it and its child cron",
       },
       { method: "POST", path: "/v1/loops/:id/fire", summary: "fire a loop now (intake → work → judge → hold/ship)" },
       {
@@ -439,7 +439,7 @@ const FAMILIES: AgentApiFamily[] = [
       (m === "GET" && /^\/v1\/deployments\/[^/]+\/(git-url|share)$/.test(p)) ||
       (m === "POST" && /^\/v1\/deployments\/[^/]+\/(share|archive|restore|name|display-name|always-on)$/.test(p)),
     guidance:
-      'To see the published apps you can reach across scopes, GET /v1/deployments (each row carries your permission and a clone/push gitUrl). Read what an app renders as the asking person with GET /v1/deployments/:id/fetch. A published app (`publish`) is reachable only by its owner plus whoever the owner shares it with. To widen or narrow that — "share it with everyone" or "share it with <teammate>" — POST /v1/deployments/:id/share with `scope:"org"` or `recipient:"<name>"`; no redeploy. To rename or take down an app, use name / display-name / archive. POST /v1/deployments/:id/always-on with `{alwaysOn:true|false}` keeps an app permanently warm (no idle cold starts) or returns it to sleep-when-idle. Anyone who manages the app can change these: its owner from any conversation, a current member of the channel/team it was published from, or someone granted "manage" access.',
+      'To see the published apps you can reach across scopes, GET /v1/deployments (each row carries your permission and a clone/push gitUrl). Read what an app renders as the asking person with GET /v1/deployments/:id/fetch. A published app (`apps` action `publish`) is reachable only by its owner plus whoever the owner shares it with. To widen or narrow that — "share it with everyone" or "share it with <teammate>" — POST /v1/deployments/:id/share with `scope:"org"` or `recipient:"<name>"`; no redeploy. To rename or take down an app, use name / display-name / archive. POST /v1/deployments/:id/always-on with `{alwaysOn:true|false}` keeps an app permanently warm (no idle cold starts) or returns it to sleep-when-idle. Anyone who manages the app can change these: its owner from any conversation, a current member of the channel/team it was published from, or someone granted "manage" access.',
     routes: [
       {
         method: "GET",
@@ -682,7 +682,7 @@ const FAMILIES: AgentApiFamily[] = [
       ((m === "PUT" || m === "DELETE") && p.startsWith("/v1/skills/")) ||
       (m === "POST" && /^\/v1\/skills\/[^/]+\/restore$/.test(p)),
     guidance:
-      "Save a skill when you've worked out a repeatable procedure worth keeping (a checklist, a multi-step flow, a house style) — it is advertised in the skill index and loaded with the skill tool on future turns. The skill homes in THIS conversation's scope: in a 1:1 DM it's yours alone; in a private channel or group DM it's owned by that room and every member can edit or delete it (the audit trail records who changed what); a public channel stays owner-only. Write the `body` as a plain-step recipe addressed to your future self; edit or delete it as it goes stale.",
+      "Save a skill when you've worked out a repeatable procedure worth keeping (a checklist, a multi-step flow, a house style) — it is advertised in the skill index and loaded with the skills tool on future turns. The skill homes in THIS conversation's scope: in a 1:1 DM it's yours alone; in a private channel or group DM it's owned by that room and every member can edit or delete it (the audit trail records who changed what); a public channel stays owner-only. Write the `body` as a plain-step recipe addressed to your future self; edit or delete it as it goes stale.",
     routes: [
       {
         method: "POST",
@@ -760,7 +760,7 @@ const FAMILIES: AgentApiFamily[] = [
     match: (_m, p) => p.startsWith("/v1/admin/"),
     when: (v) => v.isAdmin && livePersonCapability(v.claims),
     guidance:
-      "Admin plane: you act AS this org admin — live-authorized per call, audited under their name; confirm before any mutation (bodies/params in the admin skill). Enforced limits: content reads require a DM or effective Open sharing for the live admin (organization, personal, and conversation restrictions all apply); configuration mutations work anywhere; admin grant changes and impersonation are portal-only. Open admin reads can expose private data to the conversation; retrieve and report only what the request needs.",
+      "Admin plane: you act AS this org admin — live-authorized per call, audited under their name; confirm before any mutation (bodies/params in the admin skill). Enforced limits: content reads require a DM or effective Open sharing for the live admin (organization, personal, and conversation restrictions all apply); configuration mutations work anywhere; admin grant changes, impersonation, and identity links are portal-only. Open admin reads can expose private data to the conversation; retrieve and report only what the request needs.",
     routes: [
       { method: "GET", path: "/v1/admin/whoami", summary: "this user's admin status" },
       {
