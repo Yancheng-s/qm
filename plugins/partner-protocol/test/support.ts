@@ -90,7 +90,7 @@ export async function startGateway(factory: (principalId: string) => CoreCall, r
     libraryPrincipalId: LIBRARY_PRINCIPAL,
     ratePerMin,
     portalUrl: "http://portal.invalid",
-    partnerWebRedirectUrl: "http://localhost:5175/chat/",
+    partnerWebRedirectUrl: "http://localhost:8129/",
     core: factory,
   });
   const server: Server = createServer((req, res) => {

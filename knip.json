@@ -54,23 +54,6 @@
       "entry": ["index.html"]
     },
     "plugins/*": {},
-    "plugins/partner-ui": {
-      "entry": ["src/lazy-katex.ts", "src/lazy-hljs.ts", "src/hljs-lang-stub.ts"],
-      "ignoreDependencies": [
-        "katex",
-        "katex-real",
-        "hljs-real",
-        "hljs-real-javascript",
-        "hljs-real-typescript",
-        "hljs-real-python",
-        "hljs-real-xml",
-        "hljs-real-css",
-        "hljs-real-json",
-        "hljs-real-bash",
-        "hljs-real-sql",
-        "hljs-real-markdown"
-      ]
-    },
     "plugins/partner-protocol": {
       "entry": ["spec/partner-client.mjs", "bootstrap/bootstrap-library.ts", "bootstrap/register-mcp.ts"]
     },

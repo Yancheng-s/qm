@@ -78,7 +78,7 @@ test("every response carries the protocol version header", async () => {
   );
 });
 
-test("chat-sessions mints a short-lived assertion and lands on the partner ui", async () => {
+test("chat-sessions mints a short-lived assertion and lands on the chat path", async () => {
   const core = recordingCore((call) =>
     call.path.startsWith("/v1/sessions?")
       ? ok(200, { sessions: [{ id: "s1", threadRef: `web:${PRINCIPAL_ID}:c1`, scopeId: SCOPE }] })
@@ -125,7 +125,7 @@ test("the auth path is dispatched to the proxy without partner verification", as
     libraryPrincipalId: LIBRARY_PRINCIPAL,
     ratePerMin: 0,
     portalUrl: "http://portal.invalid",
-    partnerWebRedirectUrl: "http://localhost:5175/chat/",
+    partnerWebRedirectUrl: "http://localhost:8129/",
     core: recordingCore(() => ok(200, {})).factory,
     authProxy: (req, res, url) => {
       seen.push(`${req.method} ${url.pathname}`);

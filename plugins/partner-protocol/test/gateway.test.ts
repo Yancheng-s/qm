@@ -52,7 +52,7 @@ test("config parsing keeps secrets out of the partner table and reports every pr
   });
   assert.equal(defaults.port, 8211);
   assert.equal(defaults.ratePerMin, 120);
-  assert.equal(defaults.partnerWebRedirectUrl, "http://localhost:5175/chat/");
+  assert.equal(defaults.partnerWebRedirectUrl, "http://localhost:8129/");
   assert.equal(defaults.portalUrl, "http://localhost:8129");
   assert.deepEqual(bootProblems(defaults), []);
 

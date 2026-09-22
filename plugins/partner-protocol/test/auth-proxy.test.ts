@@ -6,7 +6,7 @@ import { mintPortalIdentity, verifyPortalIdentity } from "../../chassis/src/port
 import { createAuthProxy } from "../src/routes/auth/auth-proxy.ts";
 
 const IDENTITY_SECRET = "auth-proxy-test-identity-secret-012345";
-const PARTNER_UI = "http://localhost:5175";
+const CHAT_LANDING = "http://localhost:8129";
 
 function listen(server: Server): string {
   const { port } = server.address() as AddressInfo;
@@ -57,7 +57,7 @@ test("a valid assertion is refreshed and attached to the authorize redirect", as
     const proxy = createAuthProxy({
       portalUrl: portal.base,
       identitySecret: IDENTITY_SECRET,
-      partnerUiOrigin: PARTNER_UI,
+      partnerUiOrigin: CHAT_LANDING,
     });
     const server = createServer((req, res) => proxy(req, res, new URL(req.url ?? "/", "http://proxy.local")));
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
@@ -90,7 +90,7 @@ test("a missing or bogus assertion leaves the authorize redirect untouched", asy
     const proxy = createAuthProxy({
       portalUrl: portal.base,
       identitySecret: IDENTITY_SECRET,
-      partnerUiOrigin: PARTNER_UI,
+      partnerUiOrigin: CHAT_LANDING,
     });
     const server = createServer((req, res) => proxy(req, res, new URL(req.url ?? "/", "http://proxy.local")));
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
@@ -115,20 +115,20 @@ test("a missing or bogus assertion leaves the authorize redirect untouched", asy
   }
 });
 
-test("the callback landing is rewritten to the partner ui for chat paths", async () => {
+test("the callback landing is rewritten to the chat origin for chat paths", async () => {
   const portal = await startPortal();
   try {
     const proxy = createAuthProxy({
       portalUrl: portal.base,
       identitySecret: IDENTITY_SECRET,
-      partnerUiOrigin: PARTNER_UI,
+      partnerUiOrigin: CHAT_LANDING,
     });
     const server = createServer((req, res) => proxy(req, res, new URL(req.url ?? "/", "http://proxy.local")));
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
     const base = listen(server);
     try {
       const chat = await proxyFetch(base, "/auth/callback?code=abc&state=xyz");
-      assert.equal(chat.headers.get("location"), `${PARTNER_UI}/chat/?session=s1`);
+      assert.equal(chat.headers.get("location"), `${CHAT_LANDING}/chat/?session=s1`);
 
       const elsewhere = await proxyFetch(base, "/auth/elsewhere");
       assert.equal(elsewhere.headers.get("location"), `${portal.base}/dashboard`);

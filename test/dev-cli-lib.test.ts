@@ -190,7 +190,7 @@ test("env assembly precedence: caller > login shell > dev.env > worktree .env; h
   mkdirSync(join(worktree, ".git"));
   writeFileSync(
     join(worktree, ".env"),
-    "ANTHROPIC_API_KEY=from-dotenv\nCORE_SIGNING_SECRET=sekrit\nCAPABILITY_SECRET=cap\nPORTAL_IDENTITY_SECRET=identity\nCONNECTOR_SECRET_KEY=connector\nPORTAL_SESSION_SECRET=session\nBOTH=dotenv\nLIBRARY_SCOPES=dotenv-lib\nLIBRARY_PRINCIPAL=dotenv-admin\n",
+    "ANTHROPIC_API_KEY=from-dotenv\nCORE_SIGNING_SECRET=sekrit\nCAPABILITY_SECRET=cap\nPORTAL_IDENTITY_SECRET=identity\nCONNECTOR_SECRET_KEY=connector\nPORTAL_SESSION_SECRET=session\nBOTH=dotenv\nLIBRARY_SCOPES=dotenv-lib\nLIBRARY_PRINCIPAL=dotenv-admin\nPORTAL_LOCAL_AUTH_BYPASS=0\n",
   );
   const liveEnv = join(worktree, "dev.env");
   writeFileSync(liveEnv, "ANTHROPIC_API_KEY=from-liveenv\nLIVE_ONLY=live\n");
@@ -317,6 +317,7 @@ test("env assembly precedence: caller > login shell > dev.env > worktree .env; h
   assert.equal(fromDotenv.anthropicKeySource, "the worktree .env");
   assert.equal(fromDotenv.env.LIBRARY_SCOPES, "dotenv-lib");
   assert.equal(fromDotenv.env.LIBRARY_PRINCIPAL, "dotenv-admin");
+  assert.equal(fromDotenv.env.PORTAL_LOCAL_AUTH_BYPASS, "0");
 
   writeFileSync(join(worktree, ".env"), "");
   await assert.rejects(
@@ -444,9 +445,9 @@ test("supervised children share the selected dev org", () => {
     assert.equal(spec.env.CODEX_HOME, undefined);
   }
   for (const spec of specs) assert.equal(spec.env.CORE_ORG_ID, "beta");
-  assert.equal(specs.find((spec) => spec.name === "portal")!.env.PORTAL_LOCAL_AUTH_BYPASS, "1");
-  inputs.baseEnv.PORTAL_LOCAL_AUTH_BYPASS = "0";
-  assert.equal(buildChildSpecs(inputs).find((spec) => spec.name === "portal")!.env.PORTAL_LOCAL_AUTH_BYPASS, "0");
+  assert.equal(specs.find((spec) => spec.name === "portal")!.env.PORTAL_LOCAL_AUTH_BYPASS, "0");
+  inputs.baseEnv.PORTAL_LOCAL_AUTH_BYPASS = "1";
+  assert.equal(buildChildSpecs(inputs).find((spec) => spec.name === "portal")!.env.PORTAL_LOCAL_AUTH_BYPASS, "1");
   inputs.baseEnv = {};
   assert.equal(buildChildSpecs(inputs).find((spec) => spec.name === "core")!.env.ORG_ID, "acme");
 });
@@ -510,6 +511,7 @@ test("h5 child gets the signing secret and database url", () => {
   const h5 = buildChildSpecs(inputs).find((spec) => spec.name === "h5")!;
   assert.equal(h5.env.CORE_SIGNING_SECRET, "dev-core-signing-secret");
   assert.equal(h5.env.DATABASE_URL, "postgres://dev");
+  assert.equal(h5.env.IDLOGIN_REDIRECT_URI, `http://localhost:${inputs.ports.portal}/auth/callback`);
   inputs.baseEnv = { DEV_INSTANCE_ORG_ID: "beta" };
   const overridden = buildChildSpecs(inputs).find((spec) => spec.name === "h5")!;
   assert.equal(overridden.env.CORE_ORG_ID, "beta");
@@ -538,8 +540,9 @@ test("partner child defaults credentials and honors overrides", () => {
   assert.equal(partner.env.PARTNER_CREDENTIALS, "dev-partner=dev-instance-partner-0123456789abcdef");
   assert.equal(partner.env.LIBRARY_SCOPES, "card=org:acme");
   assert.equal(partner.env.LIBRARY_PRINCIPAL, "dev-admin");
+  assert.equal(partner.env.PARTNER_WEB_REDIRECT_URL, `http://localhost:${inputs.ports.portal}/`);
   const portal = buildChildSpecs(inputs).find((spec) => spec.name === "portal")!;
-  assert.equal(portal.env.PORTAL_PUBLIC_URL, `http://localhost:${inputs.ports.partner}`);
+  assert.equal(portal.env.PORTAL_PUBLIC_URL, `http://localhost:${inputs.ports.portal}`);
   assert.equal(portal.env.ADMIN_UPSTREAM, `http://localhost:${inputs.ports.admin}`);
   inputs.baseEnv = {
     PARTNER_CREDENTIALS: "acme=0123456789012345678901234567890123",

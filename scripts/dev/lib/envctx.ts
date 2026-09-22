@@ -168,9 +168,11 @@ export async function assembleEnv(opts: {
     "LIBRARY_PRINCIPAL",
     "PARTNER_CREDENTIALS",
     "PARTNER_WEB_REDIRECT_URL",
+    "PORTAL_LOCAL_AUTH_BYPASS",
   ]) {
     if (!env[k] && wtEnv[k]) env[k] = wtEnv[k];
   }
+  if (wtEnv.PORTAL_LOCAL_AUTH_BYPASS) env.PORTAL_LOCAL_AUTH_BYPASS = wtEnv.PORTAL_LOCAL_AUTH_BYPASS;
 
   return { env, anthropicKeySource, openaiKeySource, codexAuthSource, harness, liveEnvFile, warnings };
 }

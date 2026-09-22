@@ -5,7 +5,7 @@ const MIN_SECRET_CHARS = 32;
 const DEFAULT_RATE_PER_MIN = 120;
 const DEFAULT_PORT = 8211;
 const DEFAULT_PORTAL_URL = "http://localhost:8129";
-const DEFAULT_PARTNER_WEB_REDIRECT_URL = "http://localhost:5175/chat/";
+const DEFAULT_PARTNER_WEB_REDIRECT_URL = "http://localhost:8129/";
 const LIBRARY_KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const SCOPE_ID = /^[a-z]+:.+$/;
 
