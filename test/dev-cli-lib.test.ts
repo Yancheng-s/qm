@@ -65,6 +65,8 @@ test("slotPorts derive the full port block from the slot number", () => {
     prodProxy: 8147,
     slackHealth: 8163,
     supervisor: 8179,
+    h5: 8195,
+    partner: 8211,
   });
 });
 
@@ -188,7 +190,7 @@ test("env assembly precedence: caller > login shell > dev.env > worktree .env; h
   mkdirSync(join(worktree, ".git"));
   writeFileSync(
     join(worktree, ".env"),
-    "ANTHROPIC_API_KEY=from-dotenv\nCORE_SIGNING_SECRET=sekrit\nCAPABILITY_SECRET=cap\nPORTAL_IDENTITY_SECRET=identity\nCONNECTOR_SECRET_KEY=connector\nPORTAL_SESSION_SECRET=session\nBOTH=dotenv\n",
+    "ANTHROPIC_API_KEY=from-dotenv\nCORE_SIGNING_SECRET=sekrit\nCAPABILITY_SECRET=cap\nPORTAL_IDENTITY_SECRET=identity\nCONNECTOR_SECRET_KEY=connector\nPORTAL_SESSION_SECRET=session\nBOTH=dotenv\nLIBRARY_SCOPES=dotenv-lib\nLIBRARY_PRINCIPAL=dotenv-admin\n",
   );
   const liveEnv = join(worktree, "dev.env");
   writeFileSync(liveEnv, "ANTHROPIC_API_KEY=from-liveenv\nLIVE_ONLY=live\n");
@@ -313,6 +315,8 @@ test("env assembly precedence: caller > login shell > dev.env > worktree .env; h
   });
   assert.equal(fromDotenv.env.ANTHROPIC_API_KEY, "from-dotenv");
   assert.equal(fromDotenv.anthropicKeySource, "the worktree .env");
+  assert.equal(fromDotenv.env.LIBRARY_SCOPES, "dotenv-lib");
+  assert.equal(fromDotenv.env.LIBRARY_PRINCIPAL, "dotenv-admin");
 
   writeFileSync(join(worktree, ".env"), "");
   await assert.rejects(
@@ -428,7 +432,6 @@ test("supervised children share the selected dev org", () => {
     adminGrantsSeed: "",
     coreSigningSecret: "",
     portalSessionSecret: "secret",
-    portalDevPrincipal: "U1",
     sandboxEnv: {},
   };
   const specs = buildChildSpecs(inputs);
@@ -457,7 +460,6 @@ test("child specs disable environment Slack tokens when no Slack tokens are supp
     adminGrantsSeed: "",
     coreSigningSecret: "",
     portalSessionSecret: "secret",
-    portalDevPrincipal: "U1",
     sandboxEnv: {},
   };
   const core = buildChildSpecs(inputs).find((spec) => spec.name === "core")!;
@@ -480,8 +482,67 @@ test("child specs disable environment Slack tokens when no Slack tokens are supp
   inputs.web = true;
   assert.deepEqual(
     buildChildSpecs(inputs).map((spec) => spec.name),
-    ["core", "web", "portal"],
+    ["core", "web", "admin", "h5", "portal", "partner"],
   );
+});
+
+test("h5 child gets the signing secret and database url", () => {
+  const inputs: SpecInputs = {
+    worktree: "/tmp/worktree",
+    ports: slotPorts("pool1"),
+    baseEnv: {},
+    watch: false,
+    webUiBasePath: "/",
+    sessionStore: "memory",
+    runStore: "memory",
+    databaseUrl: "postgres://dev",
+    adminGrantsSeed: "",
+    coreSigningSecret: "dev-core-signing-secret",
+    portalSessionSecret: "secret",
+    sandboxEnv: {},
+  };
+  const h5 = buildChildSpecs(inputs).find((spec) => spec.name === "h5")!;
+  assert.equal(h5.env.CORE_SIGNING_SECRET, "dev-core-signing-secret");
+  assert.equal(h5.env.DATABASE_URL, "postgres://dev");
+  inputs.baseEnv = { DEV_INSTANCE_ORG_ID: "beta" };
+  const overridden = buildChildSpecs(inputs).find((spec) => spec.name === "h5")!;
+  assert.equal(overridden.env.CORE_ORG_ID, "beta");
+});
+
+test("partner child defaults credentials and honors overrides", () => {
+  const inputs: SpecInputs = {
+    worktree: "/tmp/worktree",
+    ports: slotPorts("pool1"),
+    baseEnv: {},
+    watch: false,
+    webUiBasePath: "/",
+    sessionStore: "memory",
+    runStore: "memory",
+    databaseUrl: "",
+    adminGrantsSeed: "",
+    coreSigningSecret: "dev-core-signing-secret",
+    portalSessionSecret: "secret",
+    sandboxEnv: {},
+  };
+  const partner = buildChildSpecs(inputs).find((spec) => spec.name === "partner")!;
+  assert.equal(partner.env.CORE_SIGNING_SECRET, "dev-core-signing-secret");
+  assert.equal(partner.env.CORE_API_URL, `http://localhost:${inputs.ports.core}`);
+  assert.equal(partner.env.PORT, String(inputs.ports.partner));
+  assert.equal(partner.env.PARTNER_CREDENTIALS, "dev-partner=dev-instance-partner-0123456789abcdef");
+  assert.equal(partner.env.LIBRARY_SCOPES, "card=org:acme");
+  assert.equal(partner.env.LIBRARY_PRINCIPAL, "dev-admin");
+  const portal = buildChildSpecs(inputs).find((spec) => spec.name === "portal")!;
+  assert.equal(portal.env.PORTAL_PUBLIC_URL, `http://localhost:${inputs.ports.partner}`);
+  assert.equal(portal.env.ADMIN_UPSTREAM, `http://localhost:${inputs.ports.admin}`);
+  inputs.baseEnv = {
+    PARTNER_CREDENTIALS: "acme=0123456789012345678901234567890123",
+    LIBRARY_SCOPES: "xhs=group:web-project-lib",
+    LIBRARY_PRINCIPAL: "lib_admin",
+  };
+  const overridden = buildChildSpecs(inputs).find((spec) => spec.name === "partner")!;
+  assert.equal(overridden.env.PARTNER_CREDENTIALS, "acme=0123456789012345678901234567890123");
+  assert.equal(overridden.env.LIBRARY_SCOPES, "xhs=group:web-project-lib");
+  assert.equal(overridden.env.LIBRARY_PRINCIPAL, "lib_admin");
 });
 
 test("formatAge renders the bash-compatible shapes", () => {

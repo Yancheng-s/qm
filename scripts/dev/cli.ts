@@ -132,7 +132,18 @@ let withWeb = requestedSurface !== "slack";
 const devCallerEnv = (): Record<string, string> => ({ ...callerEnvSnapshot(), DEV_INSTANCE_ORG_ID: orgId });
 
 async function legacyTeardown(lease: LeaseInfo): Promise<void> {
-  for (const name of ["portal", "admin", "web", "web-build", "slack", "core", "tunnel", "supervisor"]) {
+  for (const name of [
+    "portal",
+    "partner",
+    "h5",
+    "admin",
+    "web",
+    "web-build",
+    "slack",
+    "core",
+    "tunnel",
+    "supervisor",
+  ]) {
     const pid = readPidFile(lease.lockDir, `${name}.pid`);
     if (pid) await killTree(pid, 5000);
   }
@@ -328,7 +339,10 @@ function printSuccess(result: BootResult, branch: string): void {
   if (result.webEnabled !== false)
     out(`   web    : http://localhost:${ports.portal}/  (direct: http://localhost:${ports.web})`);
   if (result.webEnabled !== false)
-    out(`   admin  : http://localhost:${ports.portal}/admin/   (direct: http://localhost:${ports.web}/admin/)`);
+    out(`   admin  : http://localhost:${ports.portal}/admin/   (direct: http://localhost:${ports.admin})`);
+  if (result.webEnabled !== false) out(`   h5     : http://localhost:${ports.h5}  -> portal id sign-in`);
+  if (result.webEnabled !== false)
+    out(`   partner: http://localhost:${ports.partner}  -> signed /v1 assemble + chat-sessions`);
   out(`   logs   : ${lock}`);
   out(`   status : dev status   |   diagnose: dev doctor   |   apply env/code changes: dev up (reloads in place)`);
   out(`   down   : dev down   (auto-reaped if this worktree is removed)`);

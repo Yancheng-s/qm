@@ -1,6 +1,6 @@
 import { request } from "node:http";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { readState } from "./lease.ts";
 import { bestEffort, sleep } from "./util.ts";
 import type { BootPhaseEvent } from "./types.ts";
@@ -8,6 +8,7 @@ import type { BootPhaseEvent } from "./types.ts";
 export function resolveSocketPath(lock: string): string {
   const state = readState(lock);
   if (state && typeof state.socketPath === "string") return state.socketPath;
+  if (process.platform === "win32") return `\\\\.\\pipe\\qm-dev-${basename(lock).replace(/\.lock$/, "")}`;
   return join(lock, "supervisor.sock");
 }
 
@@ -43,7 +44,7 @@ export function supervisorRequest(
 }
 
 export async function supervisorReachable(socketPath: string): Promise<boolean> {
-  if (!existsSync(socketPath)) return false;
+  if (process.platform !== "win32" && !existsSync(socketPath)) return false;
   try {
     const res = await supervisorRequest(socketPath, "GET", "/status", undefined, 3000);
     return res.status === 200;

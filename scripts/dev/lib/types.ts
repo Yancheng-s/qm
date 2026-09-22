@@ -12,8 +12,8 @@ export const EXIT = {
   doctorCritical: 10,
 } as const;
 
-export type ChildName = "core" | "web" | "admin" | "portal";
-export const CHILD_ORDER: ChildName[] = ["core", "web", "portal"];
+export type ChildName = "core" | "web" | "admin" | "h5" | "portal" | "partner";
+export const CHILD_ORDER: ChildName[] = ["core", "web", "admin", "h5", "portal", "partner"];
 
 export interface SlotPorts {
   core: number;
@@ -23,6 +23,8 @@ export interface SlotPorts {
   prodProxy: number;
   slackHealth: number;
   supervisor: number;
+  h5: number;
+  partner: number;
 }
 
 export interface ChildSpec {

@@ -15,9 +15,13 @@ export interface SpecInputs {
   adminGrantsSeed: string;
   coreSigningSecret: string;
   portalSessionSecret: string;
-  portalDevPrincipal: string;
   sandboxEnv: Record<string, string>;
 }
+
+const IDLOGIN_CLIENT_ID = "qm-portal";
+const IDLOGIN_CLIENT_SECRET = "dev-instance-idlogin-0123456789abcdef";
+const PARTNER_DEV_CREDENTIALS = "dev-partner=dev-instance-partner-0123456789abcdef";
+const PARTNER_DEV_LIBRARY_PRINCIPAL = "dev-admin";
 
 export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
   const watchArgs = i.watch ? ["--watch"] : [];
@@ -80,6 +84,44 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
       stopGraceMs: 5_000,
     },
     {
+      name: "admin",
+      cwd: join(i.worktree, "plugins/admin"),
+      argv: ["node", `--env-file-if-exists=${join(i.worktree, ".env")}`, ...watchArgs, "src/index.ts"],
+      env: {
+        ...siblingBase,
+        ...signing,
+        PORT: String(i.ports.admin),
+        CORE_API_URL: `http://localhost:${i.ports.core}`,
+        CORE_ORG_ID: orgId,
+        ADMIN_BASE_PATH: "/admin",
+      },
+      port: i.ports.admin,
+      readiness: { kind: "log", pattern: `http://localhost:${i.ports.admin}` },
+      health: { kind: "tcp", port: i.ports.admin },
+      stopGraceMs: 5_000,
+    },
+    {
+      name: "h5",
+      cwd: join(i.worktree, "plugins/H5"),
+      argv: ["node", ...watchArgs, "src/index.ts"],
+      env: {
+        ...siblingBase,
+        ...signing,
+        PORT: String(i.ports.h5),
+        CORE_API_URL: `http://localhost:${i.ports.core}`,
+        CORE_ORG_ID: orgId,
+        ...(i.databaseUrl ? { DATABASE_URL: i.databaseUrl } : {}),
+        IDLOGIN_ISSUER: `http://localhost:${i.ports.h5}`,
+        IDLOGIN_CLIENT_ID,
+        IDLOGIN_CLIENT_SECRET,
+        IDLOGIN_REDIRECT_URI: `http://localhost:${i.ports.portal}/auth/callback`,
+      },
+      port: i.ports.h5,
+      readiness: { kind: "log", pattern: `gateway on http://localhost:${i.ports.h5}` },
+      health: { kind: "tcp", port: i.ports.h5 },
+      stopGraceMs: 5_000,
+    },
+    {
       name: "portal",
       cwd: join(i.worktree, "plugins/portal"),
       argv: ["node", ...watchArgs, "src/index.ts"],
@@ -91,15 +133,42 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         CORE_API_URL: `http://localhost:${i.ports.core}`,
         CORE_ORG_ID: orgId,
         WEB_UI_UPSTREAM: `http://localhost:${i.ports.web}`,
-        ADMIN_UPSTREAM: `http://localhost:${i.ports.web}/admin`,
+        ADMIN_UPSTREAM: `http://localhost:${i.ports.admin}`,
         PORTAL_SESSION_SECRET: i.portalSessionSecret,
         NODE_ENV: "development",
-        PORTAL_LOCAL_AUTH_BYPASS: "1",
-        PORTAL_DEV_PRINCIPAL: i.portalDevPrincipal,
+        OIDC_CLIENT_ID: IDLOGIN_CLIENT_ID,
+        OIDC_CLIENT_SECRET: IDLOGIN_CLIENT_SECRET,
+        OIDC_AUTH_ENDPOINT: `http://localhost:${i.ports.h5}/authorize`,
+        OIDC_TOKEN_ENDPOINT: `http://localhost:${i.ports.h5}/token`,
+        OIDC_USERINFO_ENDPOINT: `http://localhost:${i.ports.h5}/userinfo`,
+        OIDC_ISSUER: `http://localhost:${i.ports.h5}`,
+        OIDC_JWKS_URI: `http://localhost:${i.ports.h5}/.well-known/jwks.json`,
+        OIDC_PRINCIPAL_CLAIM: "sub",
       },
       port: i.ports.portal,
       readiness: { kind: "log", pattern: `public front door on http://localhost:${i.ports.portal}` },
       health: { kind: "tcp", port: i.ports.portal },
+      stopGraceMs: 5_000,
+    },
+    {
+      name: "partner",
+      cwd: join(i.worktree, "plugins/partner-protocol"),
+      argv: ["node", "--env-file-if-exists=.env", ...watchArgs, "src/index.ts"],
+      env: {
+        ...siblingBase,
+        ...signing,
+        PORT: String(i.ports.partner),
+        CORE_API_URL: `http://localhost:${i.ports.core}`,
+        CORE_ORG_ID: orgId,
+        PARTNER_CREDENTIALS: i.baseEnv.PARTNER_CREDENTIALS || PARTNER_DEV_CREDENTIALS,
+        LIBRARY_SCOPES: i.baseEnv.LIBRARY_SCOPES || `card=org:${orgId}`,
+        LIBRARY_PRINCIPAL: i.baseEnv.LIBRARY_PRINCIPAL || PARTNER_DEV_LIBRARY_PRINCIPAL,
+        PORTAL_URL: `http://localhost:${i.ports.portal}`,
+        PARTNER_WEB_REDIRECT_URL: i.baseEnv.PARTNER_WEB_REDIRECT_URL || `http://localhost:5175/chat/`,
+      },
+      port: i.ports.partner,
+      readiness: { kind: "log", pattern: `gateway on http://localhost:${i.ports.partner}` },
+      health: { kind: "tcp", port: i.ports.partner },
       stopGraceMs: 5_000,
     },
   ];

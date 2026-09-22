@@ -6,12 +6,13 @@ import { bestEffort, sleep } from "./util.ts";
 export function run(
   cmd: string,
   args: string[],
-  opts: { cwd?: string; env?: NodeJS.ProcessEnv; input?: string; timeoutMs?: number } = {},
+  opts: { cwd?: string; env?: NodeJS.ProcessEnv; input?: string; timeoutMs?: number; shell?: boolean } = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       env: opts.env,
+      shell: opts.shell,
       timeout: opts.timeoutMs ?? 120_000,
       killSignal: "SIGKILL",
       stdio: [opts.input !== undefined ? "pipe" : "ignore", "pipe", "pipe"],

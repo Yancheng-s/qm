@@ -2,9 +2,11 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { run } from "./proc.ts";
 
+const npmShell = process.platform === "win32";
+
 async function npmInstall(dir: string, logLabel: string, log: (msg: string) => void): Promise<void> {
   log(`installing ${logLabel} deps (first run in this worktree, may take a minute)...`);
-  const res = await run("npm", ["install"], { cwd: dir, timeoutMs: 600_000 });
+  const res = await run("npm", ["install"], { cwd: dir, timeoutMs: 600_000, shell: npmShell });
   if (res.code !== 0) {
     throw new Error(
       `npm install failed in ${dir}: ${(res.stderr || res.stdout || "").split("\n").slice(-8).join("\n")}`,
@@ -32,6 +34,7 @@ export async function ensureDeps(
       cwd: join(worktree, "plugins/web-ui"),
       env: { ...process.env, WEB_UI_BASE: opts.webUiBasePath },
       timeoutMs: 600_000,
+      shell: npmShell,
     });
     if (res.code !== 0) {
       throw new Error(`web-ui build failed: ${(res.stderr || res.stdout || "").split("\n").slice(-8).join("\n")}`);
