@@ -39,7 +39,7 @@ const server = createServer((req, res) => {
   });
 });
 
-server.listen(cfg.port, () => {
+server.listen(cfg.port, "0.0.0.0", () => {
   const port = (server.address() as AddressInfo).port;
   console.log(
     `[partner-protocol] gateway on http://localhost:${port} (core ${cfg.coreApiUrl}, partners ${[...cfg.partners.keys()].join(", ")}, rate ${cfg.ratePerMin}/min)`,

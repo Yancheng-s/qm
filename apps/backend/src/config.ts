@@ -9,12 +9,24 @@ export interface AppConfig {
   defaultLibrary: string;
 }
 
+function resolveGatewayPublicUrl(env: NodeJS.ProcessEnv, gatewayUrl: string): string {
+  const explicit = env.PARTNER_PUBLIC_URL?.trim();
+  if (explicit) return explicit.replace(/\/+$/, "");
+  const host = env.PARTNER_PUBLIC_HOST?.trim();
+  if (host) {
+    const parsed = new URL(gatewayUrl);
+    const port = parsed.port || (parsed.protocol === "https:" ? "443" : "80");
+    return `${parsed.protocol}//${host}:${port}`;
+  }
+  return gatewayUrl;
+}
+
 export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const port = Number(env.PORT || 8300);
+  const port = Number(env.APP_BACKEND_PORT ?? 8300);
   const gatewayUrl = (env.PARTNER_GATEWAY_URL || "http://localhost:8209").replace(/\/+$/, "");
-  const gatewayPublicUrl = (env.PARTNER_PUBLIC_URL || gatewayUrl).replace(/\/+$/, "");
-  const partnerId = env.PARTNER_ID || "dev-partner";
-  const partnerSecret = env.PARTNER_SECRET || "dev-instance-partner-0123456789abcdef";
+  const gatewayPublicUrl = resolveGatewayPublicUrl(env, gatewayUrl);
+  const partnerId = env.PARTNER_ID || "zhiqu-card";
+  const partnerSecret = env.PARTNER_SECRET || "zqcard_8f3a9c2e1b7d4f6a0e5c8b2d9a1f4e7c";
   const defaultLibrary = env.LIBRARY || "card";
   return {
     port,

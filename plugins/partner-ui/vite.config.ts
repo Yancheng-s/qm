@@ -4,17 +4,31 @@ import { rename } from "node:fs/promises";
 import { join } from "node:path";
 
 const PORTAL = process.env.PORTAL_URL ?? "http://localhost:8129";
-const GATEWAY = process.env.PARTNER_GATEWAY_URL ?? "http://localhost:8209";
+const GATEWAY = (process.env.PARTNER_GATEWAY_URL ?? "http://localhost:8209").replace(/\/+$/, "");
 const PORT = Number(process.env.CHAT_WEB_PORT ?? process.env.VITE_PORT ?? 5175);
 
 const here = (rel: string): string => fileURLToPath(new URL(rel, import.meta.url));
+
+function gatewayPublicOrigin(gatewayUrl: string): string {
+  const explicit = process.env.PARTNER_PUBLIC_URL?.trim();
+  if (explicit) return new URL(explicit.replace(/\/+$/, "")).origin;
+  const host = process.env.PARTNER_PUBLIC_HOST?.trim();
+  if (host) {
+    const parsed = new URL(gatewayUrl);
+    const port = parsed.port || (parsed.protocol === "https:" ? "443" : "80");
+    return `${parsed.protocol}//${host}:${port}`;
+  }
+  return new URL(gatewayUrl).origin;
+}
+
+const GATEWAY_ORIGIN = gatewayPublicOrigin(GATEWAY);
 
 const proxyTo = (target: string): ProxyOptions => ({
   target,
   changeOrigin: true,
   configure(proxy) {
     proxy.on("proxyReq", (proxyReq) => {
-      proxyReq.setHeader("origin", new URL(GATEWAY).origin);
+      proxyReq.setHeader("origin", GATEWAY_ORIGIN);
     });
   },
 });
@@ -59,7 +73,8 @@ export default defineConfig({
     },
   ],
   server: {
-    host: "127.0.0.1",
+    host: true,
+    allowedHosts: true,
     port: PORT,
     strictPort: true,
     fs: { allow: [fileURLToPath(new URL("..", import.meta.url))] },
@@ -72,7 +87,8 @@ export default defineConfig({
     },
   },
   preview: {
-    host: "127.0.0.1",
+    host: true,
+    allowedHosts: true,
     port: PORT,
     strictPort: true,
   },

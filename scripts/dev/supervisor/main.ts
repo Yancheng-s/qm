@@ -388,9 +388,10 @@ async function assembleAndPrepare(spec: BootSpec): Promise<SpecInputs> {
 
   completeDevSecuritySecrets(assembled.env, databaseUrl || worktree);
   const portalSessionSecret = assembled.env.PORTAL_SESSION_SECRET!;
-  log(`h5 gateway: http://localhost:${ports.h5} -- portal id sign-in (enter any user id)`);
+  const partnerHost = assembled.env.PARTNER_PUBLIC_HOST?.trim() || "localhost";
+  log(`h5 gateway: http://${partnerHost}:${ports.h5} -- portal id sign-in (enter any user id)`);
   log(
-    `partner gateway: http://localhost:${ports.partner} -- signed /v1 assemble + chat-sessions and the /chat page (partnerId from PARTNER_CREDENTIALS)`,
+    `partner gateway: http://${partnerHost}:${ports.partner} -- signed /v1 assemble + chat-sessions and the /chat page (partnerId from PARTNER_CREDENTIALS)`,
   );
 
   const tokens = slackOn(spec) ? slotTokens(slot, store) : null;

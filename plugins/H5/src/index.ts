@@ -35,7 +35,7 @@ const server = createServer((req, res) => {
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   const port = (server.address() as AddressInfo).port;
   console.log(
     `[h5] gateway on http://localhost:${port} (id sign-in issuer ${idLoginConfig.issuer}, key ${idLogin.kid})`,

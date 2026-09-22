@@ -106,6 +106,8 @@ app.get<{ Querystring: { scopeId?: string } }>("/api/chat-sessions", async (req,
 });
 
 await app.listen({ port: config.port, host: "0.0.0.0" });
+const publicHost = process.env.PARTNER_PUBLIC_HOST?.trim();
+const phoneHint = publicHost ? ` phone http://${publicHost}:5173` : "";
 console.log(
-  `[app-backend] http://localhost:${config.port} -> gateway ${config.gatewayUrl} (partner ${config.partnerId}, libraries ${Object.keys(LIBRARY_PRESETS).join(",")})`,
+  `[app-backend] http://localhost:${config.port}${phoneHint} -> gateway ${config.gatewayUrl} (public ${config.gatewayPublicUrl}, partner ${config.partnerId}, libraries ${Object.keys(LIBRARY_PRESETS).join(",")})`,
 );

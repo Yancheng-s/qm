@@ -437,9 +437,18 @@ test("partner child defaults credentials and honors overrides", () => {
   assert.equal(partner.env.CORE_SIGNING_SECRET, "dev-core-signing-secret");
   assert.equal(partner.env.CORE_API_URL, `http://localhost:${inputs.ports.core}`);
   assert.equal(partner.env.PORT, String(inputs.ports.partner));
-  assert.equal(partner.env.PARTNER_CREDENTIALS, "dev-partner=dev-instance-partner-0123456789abcdef");
+  assert.equal(partner.env.PARTNER_CREDENTIALS, "zhiqu-card=zqcard_8f3a9c2e1b7d4f6a0e5c8b2d9a1f4e7c");
   assert.equal(partner.env.LIBRARY_SCOPES, "card=org:acme");
   assert.equal(partner.env.LIBRARY_PRINCIPAL, "dev-admin");
+  assert.equal(partner.env.PARTNER_WEB_REDIRECT_URL, "http://localhost:5175/chat/");
+  const h5 = buildChildSpecs(inputs).find((spec) => spec.name === "h5")!;
+  assert.equal(h5.env.IDLOGIN_ISSUER, `http://localhost:${inputs.ports.h5}`);
+  assert.equal(h5.env.IDLOGIN_REDIRECT_URI, `http://localhost:${inputs.ports.partner}/auth/callback`);
+  const portal = buildChildSpecs(inputs).find((spec) => spec.name === "portal")!;
+  assert.equal(portal.env.PORTAL_PUBLIC_URL, `http://localhost:${inputs.ports.partner}`);
+  assert.equal(portal.env.OIDC_AUTH_ENDPOINT, `http://localhost:${inputs.ports.h5}/authorize`);
+  assert.equal(portal.env.OIDC_TOKEN_ENDPOINT, `http://localhost:${inputs.ports.h5}/token`);
+  assert.equal(portal.env.OIDC_ISSUER, `http://localhost:${inputs.ports.h5}`);
   inputs.baseEnv = {
     PARTNER_CREDENTIALS: "acme=0123456789012345678901234567890123",
     LIBRARY_SCOPES: "xhs=group:web-project-lib",
@@ -449,6 +458,42 @@ test("partner child defaults credentials and honors overrides", () => {
   assert.equal(overridden.env.PARTNER_CREDENTIALS, "acme=0123456789012345678901234567890123");
   assert.equal(overridden.env.LIBRARY_SCOPES, "xhs=group:web-project-lib");
   assert.equal(overridden.env.LIBRARY_PRINCIPAL, "lib_admin");
+});
+
+test("PARTNER_PUBLIC_HOST rewrites browser-facing partner urls and leaves loopback core calls", () => {
+  const inputs: SpecInputs = {
+    worktree: "/tmp/worktree",
+    ports: slotPorts("pool1"),
+    baseEnv: { PARTNER_PUBLIC_HOST: "192.168.2.12" },
+    watch: false,
+    webUiBasePath: "/",
+    sessionStore: "memory",
+    runStore: "memory",
+    databaseUrl: "",
+    adminGrantsSeed: "",
+    coreSigningSecret: "dev-core-signing-secret",
+    portalSessionSecret: "secret",
+    sandboxEnv: {},
+  };
+  const host = "192.168.2.12";
+  const h5 = buildChildSpecs(inputs).find((spec) => spec.name === "h5")!;
+  const portal = buildChildSpecs(inputs).find((spec) => spec.name === "portal")!;
+  const partner = buildChildSpecs(inputs).find((spec) => spec.name === "partner")!;
+  assert.equal(h5.env.IDLOGIN_ISSUER, `http://${host}:${inputs.ports.h5}`);
+  assert.equal(h5.env.IDLOGIN_REDIRECT_URI, `http://${host}:${inputs.ports.partner}/auth/callback`);
+  assert.equal(h5.env.CORE_API_URL, `http://localhost:${inputs.ports.core}`);
+  assert.equal(portal.env.PORTAL_PUBLIC_URL, `http://${host}:${inputs.ports.partner}`);
+  assert.equal(portal.env.OIDC_AUTH_ENDPOINT, `http://${host}:${inputs.ports.h5}/authorize`);
+  assert.equal(portal.env.OIDC_ISSUER, `http://${host}:${inputs.ports.h5}`);
+  assert.equal(portal.env.OIDC_TOKEN_ENDPOINT, `http://localhost:${inputs.ports.h5}/token`);
+  assert.equal(portal.env.OIDC_JWKS_URI, `http://localhost:${inputs.ports.h5}/.well-known/jwks.json`);
+  assert.equal(portal.env.CORE_API_URL, `http://localhost:${inputs.ports.core}`);
+  assert.equal(partner.env.PARTNER_WEB_REDIRECT_URL, `http://${host}:5175/chat/`);
+  assert.equal(partner.env.PORTAL_URL, `http://localhost:${inputs.ports.portal}`);
+  assert.equal(partner.env.CORE_API_URL, `http://localhost:${inputs.ports.core}`);
+  inputs.baseEnv = { PARTNER_PUBLIC_HOST: host, PARTNER_WEB_REDIRECT_URL: "http://chat.example.test/chat/" };
+  const customChat = buildChildSpecs(inputs).find((spec) => spec.name === "partner")!;
+  assert.equal(customChat.env.PARTNER_WEB_REDIRECT_URL, "http://chat.example.test/chat/");
 });
 
 test("formatAge renders the bash-compatible shapes", () => {

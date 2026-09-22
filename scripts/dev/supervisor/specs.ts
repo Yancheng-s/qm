@@ -19,12 +19,25 @@ export interface SpecInputs {
 
 const IDLOGIN_CLIENT_ID = "qm-portal";
 const IDLOGIN_CLIENT_SECRET = "dev-instance-idlogin-0123456789abcdef";
-const PARTNER_DEV_CREDENTIALS = "dev-partner=dev-instance-partner-0123456789abcdef";
+const PARTNER_DEFAULT_CREDENTIALS = "zhiqu-card=zqcard_8f3a9c2e1b7d4f6a0e5c8b2d9a1f4e7c";
 const PARTNER_DEV_LIBRARY_PRINCIPAL = "dev-admin";
+const PARTNER_CHAT_PORT = 5175;
+
+function publicHostOf(env: Record<string, string>): string {
+  return env.PARTNER_PUBLIC_HOST?.trim() || "localhost";
+}
+
+function publicOrigin(host: string, port: number): string {
+  return `http://${host}:${port}`;
+}
 
 export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
   const watchArgs = i.watch ? ["--watch"] : [];
   const orgId = i.baseEnv.DEV_INSTANCE_ORG_ID || "acme";
+  const publicHost = publicHostOf(i.baseEnv);
+  const partnerPublic = publicOrigin(publicHost, i.ports.partner);
+  const h5Public = publicOrigin(publicHost, i.ports.h5);
+  const chatPublic = i.baseEnv.PARTNER_WEB_REDIRECT_URL?.trim() || `${publicOrigin(publicHost, PARTNER_CHAT_PORT)}/chat/`;
   const base = { ...i.baseEnv, ...i.sandboxEnv, CORE_ORG_ID: orgId };
   const signing: Record<string, string> = i.coreSigningSecret ? { CORE_SIGNING_SECRET: i.coreSigningSecret } : {};
   return [
@@ -101,10 +114,10 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         PORT: String(i.ports.h5),
         CORE_API_URL: `http://localhost:${i.ports.core}`,
         ...(i.databaseUrl ? { DATABASE_URL: i.databaseUrl } : {}),
-        IDLOGIN_ISSUER: `http://localhost:${i.ports.h5}`,
+        IDLOGIN_ISSUER: h5Public,
         IDLOGIN_CLIENT_ID,
         IDLOGIN_CLIENT_SECRET,
-        IDLOGIN_REDIRECT_URI: `http://localhost:${i.ports.partner}/auth/callback`,
+        IDLOGIN_REDIRECT_URI: `${partnerPublic}/auth/callback`,
       },
       port: i.ports.h5,
       readiness: { kind: "log", pattern: `gateway on http://localhost:${i.ports.h5}` },
@@ -119,7 +132,7 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         ...base,
         ...signing,
         PORT: String(i.ports.portal),
-        PORTAL_PUBLIC_URL: `http://localhost:${i.ports.partner}`,
+        PORTAL_PUBLIC_URL: partnerPublic,
         CORE_API_URL: `http://localhost:${i.ports.core}`,
         WEB_UI_UPSTREAM: `http://localhost:${i.ports.web}`,
         ADMIN_UPSTREAM: `http://localhost:${i.ports.admin}`,
@@ -127,10 +140,10 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         NODE_ENV: "development",
         OIDC_CLIENT_ID: IDLOGIN_CLIENT_ID,
         OIDC_CLIENT_SECRET: IDLOGIN_CLIENT_SECRET,
-        OIDC_AUTH_ENDPOINT: `http://localhost:${i.ports.h5}/authorize`,
+        OIDC_AUTH_ENDPOINT: `${h5Public}/authorize`,
         OIDC_TOKEN_ENDPOINT: `http://localhost:${i.ports.h5}/token`,
         OIDC_USERINFO_ENDPOINT: `http://localhost:${i.ports.h5}/userinfo`,
-        OIDC_ISSUER: `http://localhost:${i.ports.h5}`,
+        OIDC_ISSUER: h5Public,
         OIDC_JWKS_URI: `http://localhost:${i.ports.h5}/.well-known/jwks.json`,
         OIDC_PRINCIPAL_CLAIM: "sub",
       },
@@ -148,11 +161,11 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         ...signing,
         PORT: String(i.ports.partner),
         CORE_API_URL: `http://localhost:${i.ports.core}`,
-        PARTNER_CREDENTIALS: i.baseEnv.PARTNER_CREDENTIALS || PARTNER_DEV_CREDENTIALS,
+        PARTNER_CREDENTIALS: i.baseEnv.PARTNER_CREDENTIALS || PARTNER_DEFAULT_CREDENTIALS,
         LIBRARY_SCOPES: i.baseEnv.LIBRARY_SCOPES || `card=org:${orgId}`,
         LIBRARY_PRINCIPAL: i.baseEnv.LIBRARY_PRINCIPAL || PARTNER_DEV_LIBRARY_PRINCIPAL,
         PORTAL_URL: `http://localhost:${i.ports.portal}`,
-        PARTNER_WEB_REDIRECT_URL: i.baseEnv.PARTNER_WEB_REDIRECT_URL || `http://localhost:5175/chat/`,
+        PARTNER_WEB_REDIRECT_URL: chatPublic,
       },
       port: i.ports.partner,
       readiness: { kind: "log", pattern: `gateway on http://localhost:${i.ports.partner}` },
