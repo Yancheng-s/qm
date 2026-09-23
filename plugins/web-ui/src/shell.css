@@ -1277,10 +1277,6 @@ a.chat-row-open {
   color: var(--muted-foreground);
   font-size: 12px;
 }
-.composer-toolbar .voice-stop {
-  background: var(--destructive, #dc2626);
-  color: #fff;
-}
 
 .custom-chat-shell.dragging .composer-wrap {
   outline: 2px dashed color-mix(in srgb, var(--cta) 60%, var(--border));
@@ -4465,6 +4461,9 @@ qm-markdown .tok-in {
   font-size: 13px;
 }
 .send-btn {
+  --send-background: #0060f0;
+  --send-hover: #0050e8;
+  --send-foreground: #fff;
   width: 34px;
   height: 34px;
   border: 0;
@@ -4472,13 +4471,34 @@ qm-markdown .tok-in {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--cta);
-  color: var(--cta-foreground);
+  background: var(--send-background);
+  color: var(--send-foreground);
   cursor: pointer;
   transition: background 0.12s ease;
 }
+.send-btn[type="submit"] > .icon {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.6;
+  filter: drop-shadow(0 1px 1px rgb(0 40 100 / 0.22));
+}
 .send-btn:hover:not(:disabled) {
-  background: var(--cta-hover);
+  background: var(--send-hover);
+}
+.send-btn.voice-start {
+  --send-background: rgba(0, 96, 240, 0.1);
+  --send-hover: rgba(0, 96, 240, 0.16);
+  --send-foreground: #0060f0;
+  border: 1px solid rgba(0, 96, 240, 0.35);
+}
+.send-btn.voice-stop {
+  --send-background: rgba(240, 68, 56, 0.1);
+  --send-hover: rgba(240, 68, 56, 0.16);
+  --send-foreground: #f04438;
+  border: 1px solid rgba(240, 68, 56, 0.35);
+}
+.send-btn.voice-stop svg {
+  fill: currentColor;
 }
 .send-btn:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--foreground) 35%, transparent);
@@ -10861,6 +10881,13 @@ h3.ambient-field-label {
     gap: 10px;
     margin-bottom: 20px;
   }
+  .composer-attach {
+    border-radius: 50%;
+  }
+  .composer-attach,
+  .composer-add-tile {
+    background: color-mix(in srgb, var(--foreground) 6%, var(--background));
+  }
   .composer-add-tile {
     display: flex;
     flex-direction: column;
@@ -10870,7 +10897,6 @@ h3.ambient-field-label {
     min-height: 88px;
     border: 0;
     border-radius: 18px;
-    background: color-mix(in srgb, var(--foreground) 6%, var(--background));
     color: var(--foreground);
     font: inherit;
     font-size: 15px;
