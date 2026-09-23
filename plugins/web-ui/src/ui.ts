@@ -1,6 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { Check, ChevronDown, Download, createElement, type IconNode } from "lucide";
+import { writeClipboardText } from "./clipboard.ts";
 
 export function brandName(): string {
   if (typeof document === "undefined") return "QM";
@@ -350,11 +351,32 @@ export function browserRenderableImage(mimeType?: string): boolean {
 }
 
 const copyFeedback = new WeakMap<HTMLButtonElement, ReturnType<typeof setTimeout>>();
+const copyNotices = new WeakMap<Document, { element: HTMLElement; timer: ReturnType<typeof setTimeout> }>();
+
+function copyNotice(message: string): void {
+  if (typeof document === "undefined" || !document.body) return;
+  const previous = copyNotices.get(document);
+  if (previous) {
+    clearTimeout(previous.timer);
+    previous.element.remove();
+  }
+  const element = document.createElement("div");
+  element.className = "action-toast clipboard-notice";
+  element.setAttribute("role", "status");
+  element.textContent = message;
+  document.body.append(element);
+  copyNotices.set(document, { element, timer: setTimeout(() => element.remove(), 2500) });
+}
 
 export async function copyText(text: string, btn?: HTMLButtonElement): Promise<void> {
   try {
-    await navigator.clipboard.writeText(text);
+    await writeClipboardText(text);
   } catch {
+    if (btn) {
+      clearTimeout(copyFeedback.get(btn));
+      btn.classList.remove("copied");
+    }
+    copyNotice("复制失败，请长按文字手动复制。");
     return;
   }
   if (!btn) return;

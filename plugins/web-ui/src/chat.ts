@@ -2469,10 +2469,7 @@ export function createChatSurface(
     if (stopped) label = `你在 ${goalElapsedLabel(0, workSeconds(work) * 1000)} 后停止`;
     let fold =
       timeline.length || tail.trim() || work.pendingApprovals?.length
-        ? html`<details
-            class=${stopped ? "stopped-work" : `work work-fold work-${work.status}`}
-            ?open=${active || !!work.pendingApprovals?.length}
-          >
+        ? html`<details class=${stopped ? "stopped-work" : `work work-fold work-${work.status}`}>
             <summary class=${stopped ? "stopped-head" : "work-head"}>
               ${sheenLabel(label, animating)}<span class="activity-chevron">${icon(ChevronRight, 14)}</span>
             </summary>
@@ -2487,7 +2484,7 @@ export function createChatSurface(
                   const groupIcon = { read: BookOpen, search: Search, execute: Terminal, other: Wrench }[
                     summary.category
                   ];
-                  return html`<details class="activity-group work-fold" ?open=${active || summary.attention}>
+                  return html`<details class="activity-group work-fold">
                     <summary class="work-head">
                       ${icon(groupIcon, 15)}<span>${summary.label}</span
                       ><span class="activity-chevron">${icon(ChevronRight, 14)}</span>

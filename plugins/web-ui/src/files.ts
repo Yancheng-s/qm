@@ -23,6 +23,7 @@ import { fileListNeedsAllPages } from "./file-list";
 import { scopedSession, scopedViewTopbar } from "./session-scope";
 import { listRowsTpl } from "./list-page";
 import { isTouch } from "./viewport";
+import { sha256Hex } from "./sha256";
 
 interface FileItem {
   id: string;
@@ -245,8 +246,7 @@ function fileRow(f: FileRow) {
 }
 
 async function fileSha256(file: globalThis.File): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return sha256Hex(new Uint8Array(await file.arrayBuffer()));
 }
 
 async function uploadOne(file: globalThis.File): Promise<void> {

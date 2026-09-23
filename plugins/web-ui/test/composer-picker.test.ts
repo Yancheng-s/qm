@@ -30,8 +30,15 @@ test("the shared picker preserves composer choices and saves context defaults", 
     url: "http://localhost/web-ui/",
     pretendToBeVisual: true,
   });
+  let phone = false;
   Object.defineProperty(dom.window, "matchMedia", {
-    value: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+    value: () => ({
+      get matches() {
+        return phone;
+      },
+      addEventListener() {},
+      removeEventListener() {},
+    }),
   });
   Object.defineProperty(dom.window.HTMLElement.prototype, "offsetParent", {
     configurable: true,
@@ -152,7 +159,11 @@ test("the shared picker preserves composer choices and saves context defaults", 
       { value: "pi:gamma", effort: "medium", fast: false },
     ]),
   );
-  const vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom" });
+  const vite = await createServer({
+    configLoader: "runner",
+    server: { middlewareMode: true, hmr: false },
+    appType: "custom",
+  });
   let composer: ComposerSurface | undefined;
   let siblingComposer: ComposerSurface | undefined;
   let resetContext: (() => void) | undefined;
@@ -217,6 +228,52 @@ test("the shared picker preserves composer choices and saves context defaults", 
     await composer!.refreshRuntimeSelection(null, agent, true);
     assert.equal(composer!.state.effortLevel, "high", "identical refresh preserves restored effort");
     assert.equal(composer!.state.fastMode, true, "identical refresh preserves restored 快速模式");
+    phone = true;
+    draw();
+    for (const pickerMode of ["native", "legacy", "fallback"] as const) {
+      for (const [label, accept, capture] of [
+        ["拍照", "image/*", "environment"],
+        ["相册", "image/*", null],
+        ["文件", "", null],
+      ] as const) {
+        host.querySelector<HTMLButtonElement>(".composer-attach")!.click();
+        const tile = [...host.querySelectorAll<HTMLButtonElement>(".composer-add-tile")].find((element) =>
+          element.textContent?.includes(label),
+        )!;
+        assert.ok(tile);
+        assert.equal(tile.disabled, false);
+        const input = host.querySelector<HTMLInputElement>(".file-input")!;
+        let calls = 0;
+        const openPicker = () => {
+          calls++;
+          assert.ok(tile.isConnected, "the triggering button stays mounted until the native picker opens");
+          assert.ok(input.isConnected);
+          assert.equal(input.disabled, false);
+          assert.equal(input.accept, accept);
+          assert.equal(input.getAttribute("capture"), capture);
+          assert.equal(input.multiple, capture === null);
+        };
+        let showPicker: (() => void) | undefined;
+        if (pickerMode === "native") showPicker = openPicker;
+        if (pickerMode === "fallback")
+          showPicker = () => {
+            throw new Error("Picker API unavailable in this WebView");
+          };
+        Object.defineProperty(input, "showPicker", { configurable: true, value: showPicker });
+        input.click = () => {
+          assert.notEqual(pickerMode, "native");
+          openPicker();
+        };
+        tile.click();
+        assert.equal(calls, 1, `${label} opens the picker once via ${pickerMode}`);
+        assert.equal(host.querySelector(".composer-add-sheet"), null);
+        assert.equal(host.querySelector(".file-input"), input, "the picker input survives the redraw");
+        Reflect.deleteProperty(input, "click");
+        Reflect.deleteProperty(input, "showPicker");
+      }
+    }
+    phone = false;
+    draw();
     const siblingHost = document.createElement("section");
     document.body.append(siblingHost);
     const siblingAgent = { state: { isStreaming: false, messages: [] } } as unknown as Agent;
@@ -355,7 +412,7 @@ test("the shared picker preserves composer choices and saves context defaults", 
     assert.equal(composer!.state.fastMode, false);
     assert.deepEqual(saved()[1], { value: "opencode:alpha", effort: "auto", fast: false });
     assert.equal(host.querySelector('[data-loadout-section="effort"]'), null);
-    const unavailableFast = button('[aria-label="Fast"][role="menuitemcheckbox"]');
+    const unavailableFast = button('[aria-label="快速模式"][role="menuitemcheckbox"]');
     assert.equal(unavailableFast.disabled, true);
     assert.equal(unavailableFast.querySelector(".loadout-shortcut")?.textContent, "此执行引擎不支持");
     assert.equal(unavailableFast.getAttribute("aria-checked"), "false");
@@ -372,18 +429,18 @@ test("the shared picker preserves composer choices and saves context defaults", 
     assert.equal(composer!.state.effortLevel, "auto");
     assert.equal(composer!.state.fastMode, false);
     assert.deepEqual(names(), ["Beta", "Alpha", "Gamma"]);
-    assert.equal(button('[aria-label="Fast"][role="menuitemcheckbox"]').disabled, false);
+    assert.equal(button('[aria-label="快速模式"][role="menuitemcheckbox"]').disabled, false);
     pick("Gamma").click();
     button(".loadout-button").click();
     assert.equal(
-      button('[aria-label="Fast"][role="menuitemcheckbox"]').querySelector(".loadout-shortcut")?.textContent,
+      button('[aria-label="快速模式"][role="menuitemcheckbox"]').querySelector(".loadout-shortcut")?.textContent,
       "此模型不支持",
     );
-    assert.equal(button('[aria-label="Fast"][role="menuitemcheckbox"]').disabled, true);
-    assert.equal(button('[aria-label="Fast"][role="menuitemcheckbox"]').getAttribute("aria-checked"), "false");
+    assert.equal(button('[aria-label="快速模式"][role="menuitemcheckbox"]').disabled, true);
+    assert.equal(button('[aria-label="快速模式"][role="menuitemcheckbox"]').getAttribute("aria-checked"), "false");
     pick("Alpha").click();
     button(".loadout-button").click();
-    assert.equal(button('[aria-label="Fast"][role="menuitemcheckbox"]').disabled, false);
+    assert.equal(button('[aria-label="快速模式"][role="menuitemcheckbox"]').disabled, false);
     await tick();
 
     button('[data-loadout-section="harness"]').click();
@@ -550,16 +607,19 @@ test("the shared picker preserves composer choices and saves context defaults", 
     await tick();
     assert.equal(context.contextModelState.config.effective.effortLevel, "high");
     assert.equal(contextButton(".loadout-button").disabled, false);
-    contextButton('[aria-label="Fast"][role="menuitemcheckbox"]').click();
+    contextButton('[aria-label="快速模式"][role="menuitemcheckbox"]').click();
     await tick();
     assert.equal(context.contextModelState.config.effective.fastMode, true);
     assert.equal(updates.at(-1)?.effortLevel, "high");
     failNextPut = true;
-    contextButton('[aria-label="Fast"][role="menuitemcheckbox"]').click();
+    contextButton('[aria-label="快速模式"][role="menuitemcheckbox"]').click();
     await tick();
     assert.match(contextHost.textContent ?? "", /default save failed/);
     assert.equal(context.contextModelState.config.effective.fastMode, true);
-    assert.equal(contextButton('[aria-label="Fast"][role="menuitemcheckbox"]').getAttribute("aria-checked"), "true");
+    assert.equal(
+      contextButton('[aria-label="快速模式"][role="menuitemcheckbox"]').getAttribute("aria-checked"),
+      "true",
+    );
     contextButton(".loadout-button").dispatchEvent(
       new KeyboardEvent("keydown", { code: "KeyE", metaKey: true, shiftKey: true, bubbles: true, cancelable: true }),
     );

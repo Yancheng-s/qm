@@ -270,7 +270,7 @@ async function copyCode(code: string): Promise<void> {
   const state = s;
   const revision = s.revision;
   try {
-    await navigator.clipboard.writeText(code);
+    await writeClipboardText(code);
     if (!current(state, revision)) return;
     s.copied = true;
     paint();
@@ -760,3 +760,4 @@ export function openModelConnectManager(provider?: "anthropic" | "openai"): void
     }
   });
 }
+import { writeClipboardText } from "./clipboard.ts";

@@ -16,6 +16,7 @@ import { base64ToBytes } from "./paste-text.ts";
 import { defaultEffortForModel, harnessSupportsEffort } from "./runtime-capabilities.ts";
 import { SIGNIN_REQUIRED_EVENT, signinRedirect } from "./signin-return.ts";
 import { randomUuid } from "./random-uuid.ts";
+import { sha256Hex } from "./sha256.ts";
 
 const BASE_URL = ((import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? "/").replace(/\/$/, "");
 
@@ -630,15 +631,9 @@ function attachmentBytes(a: PiAttachment): Uint8Array {
   return base64ToBytes(a.content);
 }
 
-function toHex(buf: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 async function toCoreAttachment(a: PiAttachment): Promise<CoreAttachment> {
   const bytes = attachmentBytes(a);
-  const sha256 = toHex(await crypto.subtle.digest("SHA-256", bytes as unknown as ArrayBuffer));
+  const sha256 = await sha256Hex(bytes);
   const r = await webFetch(withBase(`/api/blobs?sha=${sha256}`), {
     method: "POST",
     headers: { "content-type": "application/octet-stream" },

@@ -1,4 +1,27 @@
 import { getTranslations, setTranslations } from "@mariozechner/mini-lit/dist/i18n.js";
+import { copyText } from "./ui.ts";
+
+const copyButtonDocuments = new WeakSet<Document>();
+
+function installCopyButtons(): void {
+  if (typeof document === "undefined" || copyButtonDocuments.has(document)) return;
+  copyButtonDocuments.add(document);
+  document.addEventListener(
+    "click",
+    (event) => {
+      const path = event.composedPath();
+      const component = path.find((node) => node instanceof HTMLElement && node.localName === "copy-button") as
+        (HTMLElement & { text?: string }) | undefined;
+      const button = path.find((node) => node instanceof HTMLElement && node.localName === "button") as
+        HTMLButtonElement | undefined;
+      if (!component || !button || button.disabled || typeof component.text !== "string") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      void copyText(component.text, button);
+    },
+    true,
+  );
+}
 const chinese = {
   Copy: "复制",
   "Copy code": "复制代码",
@@ -32,6 +55,7 @@ const chinese = {
   "Failed to display text content": "显示文本内容失败",
 };
 function applyComponentLanguage(): void {
+  installCopyButtons();
   const messages = { ...getTranslations().en, ...chinese };
   setTranslations({ en: messages, de: messages, zh: messages, "zh-CN": messages });
 }

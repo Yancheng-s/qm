@@ -159,7 +159,7 @@ export async function openSessionShare(id: string): Promise<void> {
                     ?disabled=${busy}
                     @click=${async () => {
                       try {
-                        await navigator.clipboard.writeText(url);
+                        await writeClipboardText(url);
                         copied = true;
                       } catch {
                         error = "复制失败，请选中并复制上方链接。";
@@ -195,3 +195,4 @@ export async function openSessionShare(id: string): Promise<void> {
   draw();
   dialog.showModal();
 }
+import { writeClipboardText } from "./clipboard.ts";

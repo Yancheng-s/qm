@@ -8,20 +8,7 @@ import { FolderDropError, folderToZipFile, isFolderReadError, splitDropItems, ty
 import { html, nothing, render, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { repeat } from "lit/directives/repeat.js";
-import {
-  ArrowUp,
-  Box,
-  Camera,
-  ChevronRight,
-  CornerDownRight,
-  FileText,
-  ImagePlus,
-  Mic,
-  Paperclip,
-  Plus,
-  Square,
-  X,
-} from "lucide";
+import { ArrowUp, Box, Camera, CornerDownRight, FileText, ImagePlus, Mic, Paperclip, Plus, Square, X } from "lucide";
 import { createAudioRecorder, createVoiceInput } from "./voice-input";
 import {
   api,
@@ -63,7 +50,6 @@ import { base64ToText, bytesToBase64, insertIntoDraft, pasteChipLabel } from "./
 import { clearDraft, newChatDraftKey, saveDraft } from "./drafts";
 import { tip } from "./tooltip";
 import { isPhone, onPhoneChange } from "./viewport";
-import { SESSION_TOOLS } from "./session-scope";
 import {
   LOADOUT_CAP,
   loadLoadout,
@@ -722,11 +708,10 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
   }
 
   function addToConversationSheet(agent: Agent, attachingDisabled: boolean): TemplateResult {
-    const close = (restoreFocus = true) => {
+    const close = () => {
       attachmentsOpen = false;
       ctx.chat.drawActiveChat(agent);
-      if (restoreFocus)
-        requestAnimationFrame(() => ctx.chat.state.host?.querySelector<HTMLElement>(".composer-attach")?.focus());
+      requestAnimationFrame(() => ctx.chat.state.host?.querySelector<HTMLElement>(".composer-attach")?.focus());
     };
     const onKeydown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -778,23 +763,6 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
           <div class="composer-add-tiles">
             ${picker("拍照", Camera, "image/*", true)} ${picker("相册", ImagePlus, "image/*")}
             ${picker("文件", FileText, "")}
-          </div>
-          <div class="composer-add-section">此对话的工作区</div>
-          <div class="composer-add-tools">
-            ${SESSION_TOOLS.map(
-              ({ id, glyph, label }) => html`
-                <button
-                  class="composer-add-tool"
-                  type="button"
-                  @click=${() => {
-                    close(false);
-                    ctx.chat.openSessionTool(id);
-                  }}
-                >
-                  ${icon(glyph, 21)}<span>${label}</span>${icon(ChevronRight, 20)}
-                </button>
-              `,
-            )}
           </div>
         </section>
       </div>
@@ -1876,16 +1844,21 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
   function pickFiles(accept = "", capture = false): void {
     if (ctx.chat.hasUnresolvedApproval() || ctx.chat.state.resolvingApprovals.size > 0 || voice.state.phase !== "idle")
       return;
+    const input = ctx.chat.state.host?.querySelector<HTMLInputElement>(".file-input");
+    if (!input || input.disabled) return;
+    input.accept = accept;
+    input.multiple = !capture;
+    if (capture) input.setAttribute("capture", "environment");
+    else input.removeAttribute("capture");
+    if (typeof input.showPicker === "function") {
+      try {
+        input.showPicker();
+      } catch {
+        input.click();
+      }
+    } else input.click();
     attachmentsOpen = false;
     ctx.chat.drawActiveChat();
-    const input = ctx.chat.state.host?.querySelector<HTMLInputElement>(".file-input");
-    if (input) {
-      input.accept = accept;
-      input.multiple = !capture;
-      if (capture) input.setAttribute("capture", "environment");
-      else input.removeAttribute("capture");
-      input.click();
-    }
   }
 
   function openImagePreview(attachment: Attachment): void {

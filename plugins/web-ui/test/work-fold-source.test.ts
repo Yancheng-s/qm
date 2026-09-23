@@ -11,7 +11,8 @@ test("live and completed work share one chronological duration fold", () => {
   assert.match(chat, /let label = stopping \? "已请求停止" : workLabel\(work\)/);
   assert.match(chat, /const animating = active && !stopping;/);
   assert.match(chat, /sheenLabel\(label, animating\)/);
-  assert.match(chat, /\?open=\$\{active \|\| !!work.pendingApprovals\?\.length\}/);
+  const block = chat.slice(chat.indexOf("  function workBlock("), chat.indexOf("  function approvalSummaryView("));
+  assert.doesNotMatch(block, /\?open=|\.open=/);
   assert.doesNotMatch(chat, /function segmentSummaryLabel/);
 });
 

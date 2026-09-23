@@ -143,7 +143,11 @@ test("post replies remain visible in new and continuing conversations", async (t
     if (path === "/api/contexts") return Response.json({ contexts: [] });
     throw new Error(`Unexpected request: ${path}`);
   };
-  const vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom" });
+  const vite = await createServer({
+    configLoader: "runner",
+    server: { middlewareMode: true, hmr: false },
+    appType: "custom",
+  });
   let conv: Conversation | undefined;
   try {
     await vite.ssrLoadModule("/src/shell.ts");
@@ -243,6 +247,68 @@ test("post replies remain visible in new and continuing conversations", async (t
       await settle();
       return text;
     }
+    await t.test("tool activity stays closed until clicked and preserves manual state during streaming", async () => {
+      await mount();
+      const before = FakeEventSource.instances.length;
+      const turn = conv!.state.agent!.prompt("Read the file");
+      await until(() => FakeEventSource.instances.length > before);
+      const run = FakeEventSource.instances.findLast((es) => es.url === "/api/runs/r1/events")!;
+      const activity: SessionEntry[] = [
+        {
+          seq: 1,
+          type: "tool_call",
+          createdAt: Date.now(),
+          payload: { tool: "read", path: "example.txt", callId: "read-1" },
+        },
+      ];
+      run.emit("run", { status: "running", result: null, activity });
+      await settle();
+      const fold = host.querySelector<HTMLDetailsElement>("details.work")!;
+      const group = fold.querySelector<HTMLDetailsElement>("details.activity-group")!;
+      assert.ok(fold);
+      assert.ok(group);
+      assert.equal(fold.open, false);
+      assert.equal(group.open, false);
+      fold.querySelector<HTMLElement>("summary")!.click();
+      group.querySelector<HTMLElement>("summary")!.click();
+      assert.equal(fold.open, true);
+      assert.equal(group.open, true);
+      activity.push({
+        seq: 2,
+        parentSeq: 1,
+        type: "tool_result",
+        createdAt: Date.now(),
+        payload: { tool: "read", callId: "read-1", isError: true, error: "File not found" },
+      });
+      run.emit("run", { status: "running", result: null, activity });
+      await settle();
+      assert.equal(host.querySelector("details.work"), fold);
+      assert.equal(fold.open, true);
+      assert.equal(group.open, true);
+      group.querySelector<HTMLElement>("summary")!.click();
+      fold.querySelector<HTMLElement>("summary")!.click();
+      activity.push(
+        { seq: 3, type: "text", createdAt: Date.now(), payload: { text: "Trying another file." } },
+        {
+          seq: 4,
+          type: "tool_call",
+          createdAt: Date.now(),
+          payload: { tool: "read", path: "another.txt", callId: "read-2" },
+        },
+      );
+      run.emit("run", { status: "running", result: null, activity });
+      await settle();
+      assert.equal(fold.open, false);
+      assert.equal(fold.querySelectorAll("details.activity-group").length, 2);
+      for (const details of fold.querySelectorAll<HTMLDetailsElement>("details.activity-group"))
+        assert.equal(details.open, false);
+      entries = [user, ...activity];
+      run.emit("done", { status: "done", result: { status: "silent", sessionId: row.id }, activity });
+      await turn;
+      await settle();
+      for (const details of host.querySelectorAll<HTMLDetailsElement>("details.work-fold"))
+        assert.equal(details.open, false);
+    });
     await t.test("control: reopening displays a persisted post", async () => {
       await mount(completed);
       assert.ok(shownAnswer());
@@ -341,7 +407,7 @@ test("post replies remain visible in new and continuing conversations", async (t
       delivery.emit("delivery", { threadRef: row.threadRef });
       await settle();
       const inherited = JSON.stringify(conv!.state.inheritedMessages);
-      assert.match(inherited, /当前版本 inherited text/);
+      assert.match(inherited, /Current inherited text/);
       pending.release();
       await settle();
       assert.equal(JSON.stringify(conv!.state.inheritedMessages), inherited);
