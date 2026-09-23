@@ -410,3 +410,11 @@ across accounts is refused. Organizations that already require individual accoun
 continue to require them.
 
 The standalone `::link-slack-account{}` directive offers personal Slack account linking in a web reply. It shows the account card or linked status, requires the company bot to be installed first, and does not include the app picker. `::add-to-slack{}` remains the company installation trigger.
+
+## 附件预览
+
+对话附件、文件列表、项目文件及分享页使用 Open File Viewer 在页内预览。关闭按钮、Esc 和浏览器返回键关闭预览并保留原页面。独立下载按钮仍可下载原文件。
+
+预览模块按需加载，支持图片、PDF、Office、文本、音频和视频；无需 kkFileView 或外部转换服务。文件通过原有鉴权接口读取，不上传到第三方。超过 50 MB 的文件提示下载；复杂 Office 排版、旧版或损坏文件的效果取决于解析器，失败时保留关闭和下载入口。
+
+PDF.js 的 Worker、CMap、标准字体及 WASM 由 Vite 随应用构建，运行时不依赖 PDF CDN。服务器 CSP 的相关改动需重启 web-ui 服务后生效。

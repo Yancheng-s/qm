@@ -56,7 +56,11 @@ test("runtime defaults are shared while pane choices and editor drafts remain lo
     gets++;
     return Response.json(configs.get(scope));
   };
-  const vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom" });
+  const vite = await createServer({
+    configLoader: "runner",
+    server: { middlewareMode: true, hmr: false },
+    appType: "custom",
+  });
   const panes: Array<{ composer: ComposerSurface; ctx: ConvCtx; agent: Agent; host: HTMLElement }> = [];
   let resetPanel: (() => void) | undefined;
   try {

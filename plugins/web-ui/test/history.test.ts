@@ -1587,3 +1587,29 @@ test("a recorded decision clears stale approval labels without consuming a later
   assert.deepEqual((history[0] as AssistantWork).work?.pendingApprovals, []);
   assert.equal(history.at(-1), fresh);
 });
+
+test("image-only display text never falls back to the internal wake envelope", () => {
+  const wake =
+    '<wake reason="addressed" surface="web" channel="project" at="2026-09-23"><why>addressed</why><standing-orders>internal rules</standing-orders><addressed-messages note="directed"><message from="human" trigger="true"></message></addressed-messages><instructions>internal instructions</instructions></wake>';
+  const attachments = [{ artifactId: "image-one", name: "图片.png", mimetype: "image/png" }];
+  for (const payload of [
+    { text: wake, display: "", attachments },
+    { text: wake, attachments },
+  ]) {
+    const messages = entriesToMessages([{ type: "user", createdAt: 1, payload }]);
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0]!.content, "");
+    assert.equal(
+      (messages[0] as unknown as { attachments: { artifactId: string }[] }).attachments[0]!.artifactId,
+      "image-one",
+    );
+  }
+  const explicit = entriesToMessages([
+    { type: "user", createdAt: 1, payload: { text: wake, display: wake, attachments } },
+  ]);
+  assert.equal(explicit[0]!.content, wake);
+  const caption = entriesToMessages([
+    { type: "user", createdAt: 1, payload: { text: wake, display: "帮我看看", attachments } },
+  ]);
+  assert.equal(caption[0]!.content, "帮我看看");
+});

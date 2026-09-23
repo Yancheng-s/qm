@@ -50,9 +50,47 @@ export function precompressStaticAssets(): Plugin {
   };
 }
 
+export function pdfPreviewAssets(): Plugin {
+  const assets = new Map<string, { source: Buffer; type: string }>();
+  function collect(): void {
+    if (assets.size) return;
+    for (const dir of ["cmaps", "standard_fonts", "wasm"]) {
+      const folder = here("node_modules/pdfjs-dist/" + dir);
+      for (const entry of readdirSync(folder, { withFileTypes: true })) {
+        if (!entry.isFile()) continue;
+        assets.set("pdfjs/" + dir + "/" + entry.name, {
+          source: readFileSync(join(folder, entry.name)),
+          type:
+            ({ ".wasm": "application/wasm", ".js": "text/javascript" } as Record<string, string>)[
+              extname(entry.name)
+            ] ?? "application/octet-stream",
+        });
+      }
+    }
+  }
+  return {
+    name: "qm-pdf-preview-assets",
+
+    configureServer(server) {
+      collect();
+      server.middlewares.use((req, res, next) => {
+        const path = (req.url ?? "").split("?")[0]!.replace(/^\//, "");
+        const asset = assets.get(path);
+        if (!asset) return next();
+        res.setHeader("Content-Type", asset.type);
+        res.end(asset.source);
+      });
+    },
+    generateBundle() {
+      collect();
+      for (const [fileName, asset] of assets) this.emitFile({ type: "asset", fileName, source: asset.source });
+    },
+  };
+}
+
 export default defineConfig({
   base: process.env.WEB_UI_BASE ?? "/",
-  plugins: [precompressStaticAssets()],
+  plugins: [pdfPreviewAssets(), precompressStaticAssets()],
   resolve: {
     alias: [
       { find: /^katex$/, replacement: here("src/lazy-katex.ts") },
@@ -73,9 +111,10 @@ export default defineConfig({
   },
   build: {
     outDir: "dist-web",
-    rollupOptions: { input: { main: here("index.html"), shared: here("shared.html") } },
+    rollupOptions: { external: ["@napi-rs/canvas"], input: { main: here("index.html"), shared: here("shared.html") } },
     emptyOutDir: true,
   },
+  optimizeDeps: { exclude: ["@napi-rs/canvas"] },
   server: {
     port: Number(process.env.VITE_PORT ?? 5173),
     fs: { allow: [fileURLToPath(new URL("..", import.meta.url))] },

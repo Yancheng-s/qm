@@ -81,7 +81,11 @@ test("activity selection fills and persists an editable draft without sending or
     descriptors.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   }
-  const vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom" });
+  const vite = await createServer({
+    configLoader: "runner",
+    server: { middlewareMode: true, hmr: false },
+    appType: "custom",
+  });
   let composer: ComposerSurface | undefined;
   try {
     const { appState } = await vite.ssrLoadModule("/src/shell-state.ts");

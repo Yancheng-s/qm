@@ -6,13 +6,31 @@ import { JSDOM } from "jsdom";
 import { createServer } from "vite";
 import type { ComposerSurface, ConvCtx } from "../src/conv-types.ts";
 
-test("stopping returns Send immediately and queues every submit path without interrupting the live run", async (t) => {
+test("one action button preserves drafts and blocks every submit path until stopping completes", async (t) => {
   const dom = new JSDOM('<!doctype html><div id="app"></div><div id="composer"></div>', {
     url: "http://localhost/",
     pretendToBeVisual: true,
   });
+  let phone = false;
   Object.defineProperty(dom.window, "matchMedia", {
-    value: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+    value: () => ({
+      get matches() {
+        return phone;
+      },
+      addEventListener() {},
+      removeEventListener() {},
+    }),
+  });
+  let grantMicrophone: ((stream: MediaStream) => void) | undefined;
+  let recognize: ((response: Response) => void) | undefined;
+  Object.defineProperty(dom.window, "isSecureContext", { value: true });
+  Object.defineProperty(dom.window.navigator, "mediaDevices", {
+    value: {
+      getUserMedia: () =>
+        new Promise<MediaStream>((resolve) => {
+          grantMicrophone = resolve;
+        }),
+    },
   });
   const requests: string[] = [];
   const globals = {
@@ -32,7 +50,29 @@ test("stopping returns Send immediately and queues every submit path without int
     getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
     requestAnimationFrame: dom.window.requestAnimationFrame.bind(dom.window),
     cancelAnimationFrame: dom.window.cancelAnimationFrame.bind(dom.window),
+    MediaRecorder: class {
+      static isTypeSupported() {
+        return true;
+      }
+      mimeType = "audio/webm";
+      state = "inactive";
+      ondataavailable: ((event: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      start() {
+        this.state = "recording";
+      }
+      stop() {
+        this.state = "inactive";
+        this.ondataavailable?.({ data: new Blob(["audio"]) });
+        this.onstop?.();
+      }
+    },
     fetch: async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/asr")
+        return new Promise<Response>((resolve) => {
+          recognize = resolve;
+        });
       requests.push(String(input));
       return Response.json({ runId: "queued-test", sessions: [] });
     },
@@ -42,7 +82,11 @@ test("stopping returns Send immediately and queues every submit path without int
     descriptors.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   }
-  const vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom" });
+  const vite = await createServer({
+    configLoader: "runner",
+    server: { middlewareMode: true, hmr: false },
+    appType: "custom",
+  });
   let composer: ComposerSurface | undefined;
   try {
     const { appState } = await vite.ssrLoadModule("/src/shell-state.ts");
@@ -120,17 +164,22 @@ test("stopping returns Send immediately and queues every submit path without int
     composer!.state.draft = "Keep this draft";
     draw();
     assert.equal(button(".send-btn").disabled, false);
-    button(".stop-btn").click();
+    assert.equal(host.querySelectorAll(".send-btn").length, 1);
+    assert.equal(button(".send-btn").getAttribute("aria-label"), "停止生成");
+    type("Keep this draft");
+    assert.equal(button(".send-btn").disabled, false);
+    button(".task-stop").click();
     assert.equal(stops, 1);
     assert.equal(host.querySelector(".stop-btn"), null);
-    assert.equal(button(".send-btn").getAttribute("aria-label"), "Send");
-    assert.equal(button(".send-btn").disabled, false);
+    assert.equal(button(".send-btn").getAttribute("aria-label"), "正在停止任务");
+    assert.equal(button(".send-btn").disabled, true);
+    assert.ok(button(".send-btn").querySelector(".composer-action-spinner"));
     assert.equal(composer!.state.draft, "Keep this draft");
     assert.equal(agentState.isStreaming, true);
     for (const submit of ["enter", "ctrl-enter", "meta-enter", "form"]) {
-      await t.test(`${submit} queues while stopping`, async () => {
+      await t.test(`${submit} preserves the draft while stopping`, async () => {
         type(`Next instruction via ${submit}`);
-        assert.equal(button(".send-btn").disabled, false);
+        assert.equal(button(".send-btn").disabled, true);
         assert.equal(host.querySelector<HTMLTextAreaElement>("textarea")!.disabled, false);
         const before = requests.length;
         if (submit === "form") {
@@ -149,9 +198,9 @@ test("stopping returns Send immediately and queues every submit path without int
           );
         }
         await new Promise((resolve) => setTimeout(resolve, 20));
-        assert.deepEqual(requests.slice(before), ["/api/turn"]);
+        assert.deepEqual(requests.slice(before), []);
         assert.equal(prompts, 0);
-        assert.equal(composer!.state.draft, "");
+        assert.equal(composer!.state.draft, `Next instruction via ${submit}`);
         assert.equal(agentState.isStreaming, true);
         assert.equal(stopping, true);
       });
@@ -166,7 +215,7 @@ test("stopping returns Send immediately and queues every submit path without int
     };
     composer!.state.attachments = [attachment];
     draw();
-    assert.equal(button(".send-btn").disabled, false, "attachments can be queued while stopping");
+    assert.equal(button(".send-btn").disabled, true, "attachments remain staged while stopping");
     assert.deepEqual(composer!.state.attachments, [attachment]);
     composer!.state.attachments = [];
     stopping = false;
@@ -183,11 +232,43 @@ test("stopping returns Send immediately and queues every submit path without int
     assert.equal(button(".send-btn").disabled, false);
     host.querySelector("form")!.dispatchEvent(new dom.window.Event("submit", { cancelable: true }));
     await new Promise((resolve) => setTimeout(resolve, 20));
-    assert.deepEqual(requests, Array(5).fill("/api/turn"), "normal queue submission still works");
+    assert.deepEqual(requests, [], "running tasks do not accept queued submissions");
+    assert.equal(composer!.state.draft, "Queue normally");
     composer!.state.draft = "Preparing attachment";
     composer!.state.processingFiles = true;
     draw();
-    assert.equal(button(".send-btn").disabled, true, "queue shares file-processing guard");
+    assert.equal(button(".send-btn").disabled, false, "file processing does not disable stopping");
+    agentState.isStreaming = false;
+    draw();
+    assert.equal(button(".send-btn").disabled, true, "file processing prevents sending");
+    composer!.state.processingFiles = false;
+    composer!.state.draft = "";
+    phone = true;
+    draw();
+    assert.equal(button(".send-btn").getAttribute("aria-label"), "语音输入");
+    button(".send-btn").click();
+    assert.equal(button(".send-btn").getAttribute("aria-label"), "正在启动麦克风");
+    assert.equal(button(".send-btn").disabled, true);
+    grantMicrophone!({ getTracks: () => [{ stop() {} }] } as unknown as MediaStream);
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    assert.equal(host.querySelectorAll(".send-btn").length, 1);
+    assert.equal(button(".send-btn").getAttribute("aria-label"), "结束录音");
+    assert.match(host.querySelector(".composer-voice-status")!.textContent!, /正在录音/);
+    button(".send-btn").click();
+    assert.equal(button(".send-btn").getAttribute("aria-label"), "正在识别语音");
+    assert.equal(button(".send-btn").disabled, true);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    recognize!(Response.json({ text: "语音识别草稿" }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(composer!.state.draft, "语音识别草稿");
+    assert.equal(button(".send-btn").getAttribute("aria-label"), "发送");
+    assert.equal(button(".send-btn").disabled, false);
+    assert.equal(prompts, 1, "recognized text is not sent automatically");
+    type("");
+    assert.equal(button(".send-btn").getAttribute("aria-label"), "语音输入");
+    composer!.state.attachments = [attachment];
+    draw();
+    assert.equal(button(".send-btn").getAttribute("aria-label"), "发送");
   } finally {
     composer?.dispose();
     await vite.close();

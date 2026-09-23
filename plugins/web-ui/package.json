@@ -22,6 +22,7 @@
     "@earendil-works/pi-web-ui": "0.75.3",
     "@mariozechner/mini-lit": "^0.2.0",
     "@noble/hashes": "^2.4.0",
+    "@open-file-viewer/core": "0.1.48",
     "@sentry/browser": "10.75.0",
     "@sentry/node": "10.75.0",
     "@tanstack/ai": "0.54.0",
@@ -36,6 +37,7 @@
     "marked": "^18.0.5",
     "mermaid": "^12.0.0",
     "morphdom": "2.7.8",
+    "pdfjs-dist": "6.3.289",
     "posthog-js": "1.433.10"
   },
   "devDependencies": {

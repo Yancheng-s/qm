@@ -42,3 +42,8 @@ declare module "hljs-real-markdown" {
   const lang: unknown;
   export default lang;
 }
+
+declare module "*?url" {
+  const url: string;
+  export default url;
+}

@@ -241,7 +241,15 @@ function fileRow(f: FileRow) {
     >
   `;
   return f.openable
-    ? html`<a class="list-row file-row" href=${contentUrl} target="_blank" rel="noreferrer">${content}</a>`
+    ? html`<a
+        class="list-row file-row"
+        data-file-name=${f.name}
+        data-mime-type=${f.mimetype}
+        href=${contentUrl}
+        target="_blank"
+        rel="noreferrer"
+        >${content}</a
+      >`
     : html`<article class="list-row file-row">${content}</article>`;
 }
 

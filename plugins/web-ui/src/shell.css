@@ -4505,8 +4505,33 @@ qm-markdown .tok-in {
   --send-foreground: #f04438;
   border: 1px solid rgba(240, 68, 56, 0.35);
 }
-.send-btn.voice-stop svg {
+.send-btn.voice-stop svg,
+.send-btn.task-stop svg {
   fill: currentColor;
+}
+.send-btn.task-stop,
+.send-btn.action-busy {
+  --send-background: var(--secondary);
+  --send-hover: var(--muted);
+  --send-foreground: var(--foreground);
+}
+.composer-action-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: composer-action-spin 0.8s linear infinite;
+}
+@keyframes composer-action-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer-action-spinner {
+    animation: none;
+  }
 }
 .send-btn:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--foreground) 35%, transparent);

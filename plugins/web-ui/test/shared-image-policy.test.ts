@@ -7,7 +7,7 @@ for (const origin of ["http://127.0.0.1:41234", "https://chat.example.com", "htt
     const policy = sharedImagePolicy(`${origin}/share/external/example`, "/");
     assert.equal(
       policy,
-      `img-src data: ${origin}/assets/ ${origin}/src/assets/ ${origin}/share/external/example/files/`,
+      `img-src data: blob: ${origin}/assets/ ${origin}/src/assets/ ${origin}/share/external/example/files/`,
     );
     assert.equal(policy.includes("'self'"), false);
     assert.equal(policy.includes("/api/"), false);
@@ -17,6 +17,6 @@ for (const origin of ["http://127.0.0.1:41234", "https://chat.example.com", "htt
 test("shared image policy preserves a deployment base path", () => {
   assert.equal(
     sharedImagePolicy("https://example.com/qm/share/internal/example", "/qm/"),
-    "img-src data: https://example.com/qm/assets/ https://example.com/qm/src/assets/ https://example.com/qm/share/internal/example/files/",
+    "img-src data: blob: https://example.com/qm/assets/ https://example.com/qm/src/assets/ https://example.com/qm/share/internal/example/files/",
   );
 });

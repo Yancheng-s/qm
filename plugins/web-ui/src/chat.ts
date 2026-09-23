@@ -2906,7 +2906,14 @@ export function createChatSurface(
         a.content && (a.content.startsWith("data:") ? a.content : `data:${a.mimeType};base64,${a.content}`);
       const href = artifactHref ?? localContentUrl(a) ?? dataUrl;
       if (href && browserRenderableImage(a.mimeType)) {
-        return html`<a class="file-image" href=${href} target="_blank" rel="noreferrer" ${tip(a.fileName)}
+        return html`<a
+          class="file-image"
+          data-file-name=${a.fileName}
+          data-mime-type=${a.mimeType ?? ""}
+          href=${href}
+          target="_blank"
+          rel="noreferrer"
+          ${tip(a.fileName)}
           ><img src=${href} alt=${a.fileName} loading="lazy"
         /></a>`;
       }
@@ -2927,7 +2934,14 @@ export function createChatSurface(
     const href = fileContentUrl(file.artifactId, file.name);
     if (file.mimetype?.startsWith("image/")) {
       if (!browserRenderableImage(file.mimetype)) return imageChip(file.name, file.sizeBytes, href);
-      return html`<a class="file-image" href=${href} target="_blank" rel="noreferrer" ${tip(file.name)}
+      return html`<a
+        class="file-image"
+        data-file-name=${file.name}
+        data-mime-type=${file.mimetype ?? ""}
+        href=${href}
+        target="_blank"
+        rel="noreferrer"
+        ${tip(file.name)}
         ><img src=${href} alt=${file.name} loading="lazy"
       /></a>`;
     }

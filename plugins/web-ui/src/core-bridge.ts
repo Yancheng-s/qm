@@ -1776,12 +1776,19 @@ function messageRevisionPayload(payload: unknown): HistorySystemNote | null {
 }
 
 function userEntryText(payload: unknown): string | null {
-  const p = (payload ?? {}) as { text?: unknown; display?: unknown; hidden?: unknown };
+  const p = (payload ?? {}) as { text?: unknown; display?: unknown; hidden?: unknown; attachments?: unknown[] };
   if (p.hidden) return null;
-  let display = "";
-  if (typeof p.display === "string" && p.display.trim()) display = p.display;
-  else if (typeof p.text === "string") display = p.text;
-  return display.trim() ? display : null;
+  if (typeof p.display === "string") return p.display;
+  const text = typeof p.text === "string" ? p.text : "";
+  if (
+    p.attachments?.length &&
+    /^<wake reason="addressed" surface="web"\s[^>]*>[\s\S]*<\/wake>\s*$/.test(text) &&
+    /<addressed-messages\b[^>]*>\s*<message\b[^>]*\btrigger="true"[^>]*>\s*<\/message>\s*<\/addressed-messages>/.test(
+      text,
+    )
+  )
+    return "";
+  return text;
 }
 
 export function entriesToMessages(entries: SessionEntry[], model?: Model<Api>): AgentMessage[] {
@@ -1957,8 +1964,8 @@ export function entriesToMessages(entries: SessionEntry[], model?: Model<Api>): 
         flushWork("", e.createdAt);
       }
       const atts = payload?.attachments ?? [];
-      const userText = userEntryText(e.payload) ?? text;
-      if (text || atts.length) {
+      const userText = userEntryText(e.payload) ?? "";
+      if (userText.trim() || atts.length) {
         const mail = subagentMailOf(e.payload);
         const msg: HistoryUserMessage = {
           role: "user",

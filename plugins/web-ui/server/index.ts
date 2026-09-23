@@ -227,8 +227,9 @@ const SPA_CSP = [
   "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
-  `connect-src 'self'${analyticsConfig ? ` ${analyticsConfig.host}` : ""}${browserErrorOrigin ? ` ${browserErrorOrigin}` : ""}`,
+  "font-src 'self' data: blob:",
+  "media-src 'self' blob: data:",
+  `connect-src 'self' blob: data:${analyticsConfig ? ` ${analyticsConfig.host}` : ""}${browserErrorOrigin ? ` ${browserErrorOrigin}` : ""}`,
   "frame-src 'self' data: https:",
   "worker-src 'self' blob:",
   "frame-ancestors 'self'",
@@ -3150,7 +3151,7 @@ const routeRequest = async (req: IncomingMessage, res: ServerResponse) => {
       "Referrer-Policy": "no-referrer",
       "X-Content-Type-Options": "nosniff",
       "X-Robots-Tag": "noindex, nofollow",
-      "Content-Security-Policy": `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src ${dev ? "ws: wss:" : "'none'"}; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`,
+      "Content-Security-Policy": `default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data: blob:; img-src 'self' data: blob:; media-src blob: data:; worker-src 'self' blob:; connect-src 'self' blob: data: ${dev ? "ws: wss:" : ""}; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`,
     });
     return res.end(
       sharedSessionHtml(await brandIndexHtml(template), result.status === 200 ? JSON.parse(result.text) : null),

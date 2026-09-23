@@ -466,14 +466,15 @@ export function chipBadge(
   name: string,
   size?: number,
   href?: string,
-  download = false,
+  compact = false,
 ): TemplateResult {
   const inner = html`${icon(glyph, 14)}<span dir="auto">${name}</span
     >${typeof size === "number" ? html`<small>${formatBytes(size)}</small>` : nothing}`;
   if (!href) return html`<span class="file-chip">${inner}</span>`;
-  if (download) return html`<a class="file-chip" href=${href} download=${name}>${inner}</a>`;
+  if (compact)
+    return html`<a class="file-chip" data-file-name=${name} href=${href} target="_blank" rel="noreferrer">${inner}</a>`;
   return html`<span class="file-chip-group"
-    ><a class="file-chip" href=${href} target="_blank" rel="noreferrer">${inner}</a
+    ><a class="file-chip" data-file-name=${name} href=${href} target="_blank" rel="noreferrer">${inner}</a
     ><a class="file-chip-download" href=${href} download=${name} title="下载 ${name}" aria-label="下载 ${name}"
       >${icon(Download, 14)}</a
     ></span

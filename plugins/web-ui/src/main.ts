@@ -1,3 +1,4 @@
+import "./file-preview-entry";
 import "dockview-core/dist/styles/dockview.css";
 import "./shell.css";
 import { bootSafely, closeUserMenu } from "./shell";

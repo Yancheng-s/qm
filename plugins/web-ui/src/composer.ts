@@ -523,7 +523,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
     if (voice.state.phase === "transcribing") voiceLabel = "正在识别…";
     let placeholder = appEditSlug(ctx.chat.state.threadRef, appState.me?.user) ? "描述你想修改的内容…" : "输入你的问题";
     if (inputBlocked) placeholder = runtimePending ? "正在加载运行配置…" : "请批准或拒绝以继续";
-    else if (agent.state.isStreaming) placeholder = "输入消息，当前任务结束后发送…";
+    else if (agent.state.isStreaming) placeholder = "可先输入，等待回复结束或停止后发送…";
     let composerNotice: TemplateResult | typeof nothing = nothing;
     if (composerState.processingFiles) {
       composerNotice = html`<div class="composer-note">正在准备文件…</div>`;
@@ -846,18 +846,33 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
   }
 
   function sendControls(agent: Agent): TemplateResult {
-    if (voice.state.phase !== "idle") {
+    const phase = voice.state.phase;
+    let busyLabel: string | null = null;
+    if (phase === "starting") busyLabel = "正在启动麦克风";
+    else if (phase === "transcribing") busyLabel = "正在识别语音";
+    else if (ctx.chat.isStopping()) busyLabel = "正在停止任务";
+    if (busyLabel) {
+      return html`<button class="send-btn action-busy" type="button" aria-label=${busyLabel} aria-busy="true" disabled>
+        <span class="composer-action-spinner" aria-hidden="true"></span>
+      </button>`;
+    }
+    if (phase === "recording") {
+      return html`<button class="send-btn voice-stop" type="button" aria-label="结束录音" @click=${() => voice.stop()}>
+        ${icon(Square, 16)}
+      </button>`;
+    }
+    if (agent.state.isStreaming) {
       return html`<button
-        class="send-btn voice-stop"
+        class="send-btn task-stop"
         type="button"
-        aria-label="结束录音"
-        ?disabled=${voice.state.phase !== "recording"}
-        @click=${() => voice.stop()}
+        aria-label="停止生成"
+        ${tip("停止生成")}
+        @click=${() => stopStreaming(agent)}
       >
         ${icon(Square, 16)}
       </button>`;
     }
-    if (isPhone() && !agent.state.isStreaming && !composerState.draft.trim() && !composerState.attachments.length) {
+    if (isPhone() && !composerState.draft.trim() && !composerState.attachments.length) {
       return html`<button
         class="send-btn voice-start"
         type="button"
@@ -872,31 +887,9 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
         ${icon(Mic, 20)}
       </button>`;
     }
-    if (!agent.state.isStreaming || ctx.chat.isStopping()) {
-      return html`<button
-        class="send-btn"
-        type="submit"
-        aria-label="发送"
-        ${tip("发送")}
-        ?disabled=${!composerCanSend()}
-      >
-        ${icon(ArrowUp, 16)}
-      </button>`;
-    }
-    return html`
-      <button class="stop-btn" type="button" aria-label="停止" ${tip("停止")} @click=${() => stopStreaming(agent)}>
-        ${icon(Square, 16)}
-      </button>
-      <button
-        class="send-btn"
-        type="submit"
-        ${tip("当前任务结束后发送")}
-        aria-label="当前任务结束后发送"
-        ?disabled=${!composerCanSend()}
-      >
-        ${icon(ArrowUp, 16)}
-      </button>
-    `;
+    return html`<button class="send-btn" type="submit" aria-label="发送" ${tip("发送")} ?disabled=${!composerCanSend()}>
+      ${icon(ArrowUp, 16)}
+    </button>`;
   }
 
   function queuedStrip(agent: Agent): TemplateResult | typeof nothing {
@@ -1335,7 +1328,13 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
   }
 
   function composerCanSend(): boolean {
-    if (!currentModelOption() || voice.state.phase !== "idle") return false;
+    if (
+      !currentModelOption() ||
+      voice.state.phase !== "idle" ||
+      ctx.chat.state.agent?.state.isStreaming ||
+      ctx.chat.isStopping()
+    )
+      return false;
     return (
       Boolean(composerState.draft.trim() || composerState.attachments.length) &&
       !composerState.processingFiles &&
@@ -1347,7 +1346,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
 
   function syncComposerControls(agent: Agent): void {
     if (!ctx.chat.state.host || agent !== ctx.chat.state.agent) return;
-    const send = ctx.chat.state.host.querySelector<HTMLButtonElement>(".send-btn:not(.voice-start):not(.voice-stop)");
+    const send = ctx.chat.state.host.querySelector<HTMLButtonElement>('.send-btn[type="submit"]');
     if (send) send.disabled = !composerCanSend();
   }
 
@@ -1360,7 +1359,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
       input.style.overflowY = "hidden";
       input.scrollTop = 0;
     }
-    const send = ctx.chat.state.host.querySelector<HTMLButtonElement>(".send-btn");
+    const send = ctx.chat.state.host.querySelector<HTMLButtonElement>('.send-btn[type="submit"]');
     if (send) send.disabled = true;
   }
 

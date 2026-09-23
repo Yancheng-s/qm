@@ -1,3 +1,4 @@
+import "./file-preview-entry";
 import "./component-language";
 import "./shell.css";
 import "@mariozechner/mini-lit/dist/ThemeToggle.js";
@@ -58,7 +59,13 @@ render(
                       const href = `${location.pathname}/files/${encodeURIComponent(file.id)}`;
                       const inlineImage = sharedInlineImage(file.mimetype);
                       if (inlineImage) {
-                        return html`<a class="file-image" href=${`${href}?inline=1`} target="_blank" rel="noreferrer"
+                        return html`<a
+                          class="file-image"
+                          data-file-name=${file.name}
+                          data-mime-type=${file.mimetype}
+                          href=${`${href}?inline=1`}
+                          target="_blank"
+                          rel="noreferrer"
                           ><img src=${`${href}?inline=1`} alt=${file.name} loading="lazy"
                         /></a>`;
                       }

@@ -901,6 +901,7 @@ function fileRow(f: ScopeFile): TemplateResult {
           f.openable
             ? html`<a
                 class="context-resource-link"
+                data-file-name=${f.name}
                 href=${fileContentUrl(f.id, f.name)}
                 target="_blank"
                 rel="noreferrer"
