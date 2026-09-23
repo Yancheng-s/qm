@@ -242,12 +242,12 @@ export function sessionToolView(
     sessions.find((row) => row.id === target || row.title === target) ??
     sessions.find((row) => result.result?.includes(`(sessionId ${row.id})`));
   const sessionId = session?.id ?? result.sessionId;
-  let chipTitle = session?.title || result.title || call.name || "Subagent";
+  let chipTitle = session?.title || result.title || call.name || "子智能体";
   let detail = "";
-  if (action === "wait") return { action, detail: "for agent messages" };
-  if (action === "read" && !target && result.children === undefined) return { action, detail: "subagents" };
+  if (action === "wait") return { action, detail: "等待智能体消息" };
+  if (action === "read" && !target && result.children === undefined) return { action, detail: "子智能体" };
   if (action === "read" && result.children !== undefined) {
-    return { action, detail: `${result.children} subagent${result.children === 1 ? "" : "s"}` };
+    return { action, detail: `${result.children} 个子智能体` };
   }
   if (action === "open" && !session?.title && !result.title && !call.name && call.task) {
     chipTitle = call.task.split("\n")[0].slice(0, 48);
@@ -255,7 +255,7 @@ export function sessionToolView(
   if (action === "write" || action === "send_message" || action === "followup_task") {
     const verbs: Record<string, string> = {
       steered: "steered",
-      queued_turn: "queued a turn",
+      queued_turn: "已将任务加入队列",
       queued_message: "",
       interrupted: "interrupted",
     };

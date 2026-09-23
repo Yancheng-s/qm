@@ -51,7 +51,7 @@ export function parseDeepLink(
   const sessionSeg = sessionRoute ? decodeSegment(segments[1] ?? "") : null;
   const viewFor = (): string | null => {
     if (pathView === "projects") return "contexts";
-    if (sessionRoute) return "chats";
+    if (sessionRoute || pathView === "chat") return "chats";
     return pathView;
   };
   const requestedView = params.get("view") ?? viewFor();

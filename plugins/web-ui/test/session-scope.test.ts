@@ -120,11 +120,11 @@ test("desktop and mobile put Crons and Apps first and badge only those tools", (
   const mobile = [...host.querySelectorAll<HTMLButtonElement>(".menu-option")];
   assert.deepEqual(
     desktop.map((button) => button.getAttribute("aria-label")),
-    ["Crons", "Apps", "Files", "Skills", "Memory", "Your keychain"],
+    ["定时任务", "应用", "文件", "技能", "记忆", "你的密钥库"],
   );
   assert.deepEqual(
     mobile.map((button) => button.querySelector(".menu-option-label")?.textContent),
-    ["Crons", "Apps", "Files", "Skills", "Memory", "Your keychain"],
+    ["定时任务", "应用", "文件", "技能", "记忆", "你的密钥库"],
   );
   for (const buttons of [desktop, mobile]) {
     assert.deepEqual(

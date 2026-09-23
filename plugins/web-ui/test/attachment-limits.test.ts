@@ -51,7 +51,7 @@ test("an oversize attachment is skipped before any bytes go out", async () => {
   assert.equal(skipped.length, 1);
   assert.equal(skipped[0]!.id, "id-huge.bin");
   assert.equal(skipped[0]!.note, oversizeAttachmentNote("huge.bin"));
-  assert.match(skipped[0]!.note, /up to ~1 GB/, "the note names the limit in friendly terms, not an HTTP status");
+  assert.match(skipped[0]!.note, /约 1 GB 以内/, "the note names the limit in friendly terms, not an HTTP status");
 });
 
 test("one failing blob degrades that file only; the rest upload and the send survives", async () => {
@@ -83,7 +83,7 @@ test("a non-413 upload failure is noted per file with its reason", async () => {
   const { uploaded, skipped } = await uploadAttachments([attachment("a.txt")]);
   assert.deepEqual(uploaded, []);
   assert.equal(skipped.length, 1);
-  assert.match(skipped[0]!.note, /"a\.txt" couldn't be uploaded/);
+  assert.match(skipped[0]!.note, /“a\.txt”上传失败/);
   assert.match(skipped[0]!.note, /network unreachable/);
 });
 
@@ -119,7 +119,7 @@ test("the composer pre-checks size and count before reading files into memory", 
 test("a send whose attachments all failed does not go out as an empty turn", () => {
   const fn = bridge.slice(bridge.indexOf("async function drive("), bridge.indexOf("async function resumeDrive"));
   assert.match(fn, /if \(!opener && !text\.trim\(\) && attachments\.length === 0\)/);
-  assert.match(fn, /issues\.join\(" "\) \|\| "Nothing to send\."/);
+  assert.match(fn, /issues\.join\(" "\) \|\| "没有可发送的内容。"/);
   assert.match(
     fn,
     /if \(issues\.length\) onSendIssues\?\.\(issues, retryable\);/,
@@ -164,7 +164,7 @@ test("an empty attachment is reported and left out rather than silently dropped"
   ]);
   assert.deepEqual(uploaded, []);
   assert.equal(skipped[0]?.id, "e1");
-  assert.match(skipped[0]!.note, /"empty\.txt" is empty/);
+  assert.match(skipped[0]!.note, /“empty\.txt”为空/);
 });
 
 test("a transient upload failure is not permanent, so the composer can put the file back", async () => {

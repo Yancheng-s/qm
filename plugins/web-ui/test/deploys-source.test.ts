@@ -27,7 +27,7 @@ test("app index rows launch live apps by default and use Manage for app details"
   const title = row.slice(row.indexOf("const title"), row.indexOf("return html`"));
   assert.doesNotMatch(
     row,
-    /deploy-row-url|deploy-row-meta|ownerLabel|permissionBadge|versionLabel|deployedLabel|Copy app URL/,
+    /deploy-row-url|deploy-row-meta|ownerLabel|permissionBadge|versionLabel|deployedLabel|复制 app URL/,
   );
   assert.match(row, /deploymentTitle\(d\)/);
   assert.match(row, /statusLabel\(d\)/);
@@ -38,7 +38,7 @@ test("app index rows launch live apps by default and use Manage for app details"
   assert.doesNotMatch(title, /deploy-status/);
   assert.match(row, /class="btn deploy-manage"[\s\S]*@click=\$\{\(\) => void openDeploy\(d\)\}/);
   assert.doesNotMatch(row, /deploy-menu|More actions/);
-  assert.doesNotMatch(row, />Open \$\{icon\(ExternalLink/);
+  assert.doesNotMatch(row, />打开 \$\{icon\(ExternalLink/);
   assert.match(css, /\.deploy-row-main\[href\]::after \{\s*position: absolute;\s*inset: 0;/);
   assert.match(css, /\.deploy-row-actions \{\s*position: relative;\s*z-index: 1;/);
 });
@@ -46,7 +46,7 @@ test("app index rows launch live apps by default and use Manage for app details"
 test("app index header keeps search and tabs without secondary controls", () => {
   const draw = bodyOf("drawDeploysPage");
   assert.doesNotMatch(draw, /onScope:|action:|controls:|deploySort|Deploy with Agent/);
-  assert.match(draw, /placeholder: "Search apps"/);
+  assert.match(draw, /placeholder: "搜索应用"/);
   assert.match(draw, /deployTabs\(\)/);
 });
 
@@ -252,7 +252,7 @@ for (const count of [0, 7, 23, 150]) {
     const initialCount = source.match(/let visibleVersionCount = \d+;/)?.[0];
     const orderedVersions = bodyOf("drawDeployDetail").match(/const versions = [^;]+;/)?.[0];
     const section = source.match(
-      /<section class="deploy-detail-section">\s*<h3>Version history<\/h3>[\s\S]*?<\/section>/,
+      /<section class="deploy-detail-section">\s*<h3>版本历史<\/h3>[\s\S]*?<\/section>/,
     )?.[0];
     assert.ok(initialCount && orderedVersions && section);
     runInContext(stripTypeScriptTypes(initialCount + orderedVersions), context);
@@ -265,10 +265,10 @@ for (const count of [0, 7, 23, 150]) {
         numbers,
         Array.from({ length: Math.min(shown, count) }, (_, index) => count - index),
       );
-      assert.equal(rendered.includes("No version history available."), count === 0);
-      assert.equal(rendered.includes('class="badge ok">Live'), count > 0 && shown >= count);
-      assert.equal(rendered.includes('class="badge">Latest'), count > 1);
-      assert.equal(rendered.includes("Show older versions"), shown < count);
+      assert.equal(rendered.includes("暂无版本历史。"), count === 0);
+      assert.equal(rendered.includes('class="badge ok">已上线'), count > 0 && shown >= count);
+      assert.equal(rendered.includes('class="badge">最新'), count > 1);
+      assert.equal(rendered.includes("显示更早版本"), shown < count);
       assert.equal(handlers.length, shown < count ? 1 : 0);
       if (shown >= count) break;
       handlers[0]!();
@@ -305,7 +305,7 @@ test("detail redraws reuse the scroll container and retain focus", () => {
       deploymentContextScope: () => null,
       listBackLink: () => "",
       returnToDeploysList() {},
-      deploymentTitle: () => "App",
+      deploymentTitle: () => "应用",
       statusClass: () => "",
       statusLabel: () => "",
       deploymentSlug: () => "app",

@@ -20,15 +20,15 @@ test("unavailable connections produce one setup message and recover together", a
     for (let i = 0; i < 100 && !h.mainText().includes("App connections aren’t available"); i++)
       await new Promise((resolve) => setTimeout(resolve, 10));
     assert.equal(h.mainText().split("App connections aren’t available").length - 1, 1);
-    assert.doesNotMatch(h.mainText(), /Could not check connected apps|Link your Slack account/);
+    assert.doesNotMatch(h.mainText(), /无法检查已连接的应用|关联你的 Slack 账户/);
     unavailable = false;
     const retry = [...document.querySelectorAll<HTMLButtonElement>(".welcome-load button")][0];
     assert.ok(retry);
     retry.click();
-    for (let i = 0; i < 100 && !h.mainText().includes("Link your Slack account"); i++)
+    for (let i = 0; i < 100 && !h.mainText().includes("关联你的 Slack 账户"); i++)
       await new Promise((resolve) => setTimeout(resolve, 10));
-    assert.match(h.mainText(), /Link your Slack account/);
-    assert.doesNotMatch(h.mainText(), /App connections aren’t available|Could not check connected apps/);
+    assert.match(h.mainText(), /关联你的 Slack 账户/);
+    assert.doesNotMatch(h.mainText(), /App connections aren’t available|无法检查已连接的应用/);
   } finally {
     globalThis.fetch = previousFetch;
     await h.close();

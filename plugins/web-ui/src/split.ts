@@ -215,7 +215,7 @@ function buildDock(): DockviewApi {
     if (e.getData() === undefined) return;
     if (api.groups.length >= MAX_TILES && dropAddsTile(nativeDrop(api, e))) {
       e.preventDefault();
-      canvasToast(`${MAX_TILES} tiles is the limit. Drop it on a tab strip instead`);
+      canvasToast(`最多显示 ${MAX_TILES} 个面板，请拖到标签栏中`);
     }
   };
   api.onWillDrop(holdTileCap);
@@ -325,7 +325,7 @@ function ensureCanvas(): boolean {
 function paneSeedTitle(params: PaneParams): string {
   const entry = paneKindEntry(params);
   if (entry) return entry.kind.title(entry.id);
-  return params.sessionId ? "Conversation" : "New session";
+  return params.sessionId ? "对话" : "新会话";
 }
 
 function addPane(
@@ -572,7 +572,7 @@ function focusExistingPane(existing: () => IDockviewPanel | null, exceptPaneId?:
   if (!dup) return false;
   if (dup.id !== exceptPaneId) {
     activatePanel(dup);
-    canvasToast("Already open in a pane");
+    canvasToast("已在面板中打开");
   }
   return true;
 }
@@ -595,14 +595,14 @@ function openTargetInPane(paneId: string, target: Pick<PaneDrag, "params" | "exi
 
 function roomForAnotherPane(): boolean {
   if ((dockApi?.panels.length ?? 0) < MAX_PANES) return true;
-  canvasToast(`${MAX_PANES} conversations is all one canvas holds. Close one first`);
+  canvasToast(`同一布局最多容纳 ${MAX_PANES} 个对话，请先关闭一个`);
   return false;
 }
 
 function splitPane(paneId: string, edge: SplitEdge, params: PaneParams): void {
   if (!dockApi || !roomForAnotherPane()) return;
   if (dockApi.groups.length >= MAX_TILES) {
-    if (tabIntoPane(paneId, params)) canvasToast(`${MAX_TILES} tiles is the limit, so it opened as a tab`);
+    if (tabIntoPane(paneId, params)) canvasToast(`最多显示 ${MAX_TILES} 个面板，已作为标签页打开`);
     return;
   }
   const fresh = addPane(params, { referencePanel: paneId, direction: edgeToDirection(edge) });
@@ -760,8 +760,8 @@ function zoneTpl(edge: DropEdge, label: string, onDrop: () => void): TemplateRes
 
 function splitZonesTpl(act: (edge: DropEdge) => () => void): TemplateResult {
   return html`
-    ${zoneTpl("left", "Split left", act("left"))} ${zoneTpl("right", "Split right", act("right"))}
-    ${zoneTpl("top", "Split up", act("top"))} ${zoneTpl("bottom", "Split down", act("bottom"))}
+    ${zoneTpl("left", "向左拆分", act("left"))} ${zoneTpl("right", "向右拆分", act("right"))}
+    ${zoneTpl("top", "向上拆分", act("top"))} ${zoneTpl("bottom", "向下拆分", act("bottom"))}
   `;
 }
 
@@ -771,14 +771,14 @@ function paneZonesTpl(paneId: string): TemplateResult | typeof nothing {
   const showing = drag.existing();
   if (showing)
     return showing.id === paneId
-      ? zoneTpl("center", "Show here", () => {
+      ? zoneTpl("center", "在此显示", () => {
           endPaneDrag();
           focusPane(paneId);
         })
       : nothing;
   const act = paneZoneAct(paneId);
   const canSplit = dockApi.panels.length < MAX_PANES && dockApi.groups.length < MAX_TILES;
-  return html`${zoneTpl("center", "Replace pane", act("center"))} ${canSplit ? splitZonesTpl(act) : nothing}`;
+  return html`${zoneTpl("center", "替换面板", act("center"))} ${canSplit ? splitZonesTpl(act) : nothing}`;
 }
 
 function paneZoneAct(paneId: string): (edge: DropEdge) => () => void {
@@ -853,7 +853,7 @@ function paneTitle(panel: IDockviewPanel): string {
   if (entry) return entry.kind.title(entry.id);
   const session = paneSession(panel);
   if (session) return sessionTitle(session);
-  return params.sessionId ? "Conversation" : "New session";
+  return params.sessionId ? "对话" : "新会话";
 }
 
 function paneKindBadge(panel: IDockviewPanel): number {
@@ -873,12 +873,12 @@ function paneCrumb(panel: IDockviewPanel): string | null {
 }
 
 const PANE_TOOLS: { tool: SessionTool; glyph: Parameters<typeof icon>[0]; label: string }[] = [
-  { tool: "crons", glyph: Clock3, label: "Crons" },
-  { tool: "apps", glyph: Rocket, label: "Apps" },
-  { tool: "files", glyph: Files, label: "Files" },
-  { tool: "skills", glyph: Box, label: "Skills" },
-  { tool: "memory", glyph: Brain, label: "Memory" },
-  { tool: "keychain", glyph: KeyRound, label: "Your keychain" },
+  { tool: "crons", glyph: Clock3, label: "定时任务" },
+  { tool: "apps", glyph: Rocket, label: "应用" },
+  { tool: "files", glyph: Files, label: "文件" },
+  { tool: "skills", glyph: Box, label: "技能" },
+  { tool: "memory", glyph: Brain, label: "记忆" },
+  { tool: "keychain", glyph: KeyRound, label: "你的密钥库" },
 ];
 
 function openPaneTool(panel: IDockviewPanel, tool: SessionTool): void {
@@ -889,7 +889,7 @@ function openPaneTool(panel: IDockviewPanel, tool: SessionTool): void {
     scopeId: scope,
     sessionId: params.sessionId ?? session?.id ?? null,
     threadRef: params.threadRef ?? null,
-    title: session?.title?.trim() || "New chat",
+    title: session?.title?.trim() || "新对话",
     crumb: paneCrumb(panel),
   });
   if (scope && (tool === "crons" || tool === "files" || tool === "apps")) contextsState.selected = scope;
@@ -1084,8 +1084,8 @@ function sessionActions(sessionId: string, inTab: boolean, panelId: string): Tem
         ? html`<button
             type="button"
             class="icon-btn subtle ${cls}"
-            aria-label=${`Back to parent: ${sessionTitle(parent)}`}
-            ${tip(`Back to ${sessionTitle(parent)}`)}
+            aria-label=${`返回父会话：${sessionTitle(parent)}`}
+            ${tip(`返回 ${sessionTitle(parent)}`)}
             @pointerdown=${(e: Event) => {
               if (inTab) e.stopPropagation();
             }}
@@ -1101,8 +1101,8 @@ function sessionActions(sessionId: string, inTab: boolean, panelId: string): Tem
     }<button
       type="button"
       class="icon-btn subtle ${cls} split-tab-share"
-      ${tip("Share conversation")}
-      aria-label="Share conversation"
+      ${tip("分享对话")}
+      aria-label="分享对话"
       @pointerdown=${(e: Event) => {
         if (inTab) e.stopPropagation();
       }}
@@ -1116,8 +1116,8 @@ function sessionActions(sessionId: string, inTab: boolean, panelId: string): Tem
     <button
       class="icon-btn subtle ${cls} split-tab-archive"
       type="button"
-      title="Archive session"
-      aria-label="Archive session"
+      title="归档会话"
+      aria-label="归档会话"
       @pointerdown=${(e: Event) => {
         if (inTab) e.stopPropagation();
       }}
@@ -1165,15 +1165,15 @@ class PaneTab implements ITabRenderer {
         html`
           <span class="pane-kind-glyph">${icon(entry.kind.glyph, 12)}</span>
           <span class="split-pane-title-text">${title}</span>
-          ${count > 0 ? html`<span class="pane-kind-count" title=${`${count} waiting on you`}>${count}</span>` : nothing}
+          ${count > 0 ? html`<span class="pane-kind-count" title=${`${count} 项等待你处理`}>${count}</span>` : nothing}
           ${
             this.inStrip
               ? html`<span class="split-tab-actions"
                   ><button
                     class="icon-btn subtle split-tab-close"
                     type="button"
-                    ${tip("Close pane")}
-                    aria-label="Close pane"
+                    ${tip("关闭面板")}
+                    aria-label="关闭面板"
                     @click=${(e: Event) => {
                       e.stopPropagation();
                       closePanels([panel]);
@@ -1199,7 +1199,7 @@ class PaneTab implements ITabRenderer {
     render(
       html`
         ${working ? html`<span class="working-mark" ${ref(syncWorkingPulse)}>${workingWave()}</span>` : nothing}
-        ${awaiting ? html`<span class="awaiting-dot" aria-label="Waiting for your reply"></span>` : nothing}
+        ${awaiting ? html`<span class="awaiting-dot" aria-label="等待你的回复"></span>` : nothing}
         ${
           background
             ? html`<span class="bg-chip" aria-label=${background.label} ${tip(background.label)}
@@ -1223,8 +1223,8 @@ class PaneTab implements ITabRenderer {
                 <button
                   class="icon-btn subtle split-tab-close"
                   type="button"
-                  ${tip("Close pane")}
-                  aria-label="Close pane"
+                  ${tip("关闭面板")}
+                  aria-label="关闭面板"
                   @click=${(e: Event) => {
                     e.stopPropagation();
                     closePanels([panel]);
@@ -1268,7 +1268,7 @@ class StripDrop implements IHeaderActionsRenderer {
     const group = this.group;
     render(
       group && stripJoinable()
-        ? zoneTpl("center", "Open as tab", () => {
+        ? zoneTpl("center", "作为标签页打开", () => {
             const drag = paneDrag;
             endPaneDrag();
             const anchor = group.activePanel ?? group.panels[0];
@@ -1369,16 +1369,14 @@ class GroupActions implements IHeaderActionsRenderer {
                 else props.api.maximize();
               }}
             >
-              ${icon(maximized ? Shrink : Expand, 15)}<span
-                >${maximized ? "Restore to grid (Esc)" : "Focus over the grid"}</span
-              >
+              ${icon(maximized ? Shrink : Expand, 15)}<span>${maximized ? "恢复网格布局（Esc）" : "聚焦当前面板"}</span>
             </button>
           </div>
         `
       : nothing;
     const buttons: { label: string; glyph: TemplateResult | SVGElement; cls?: string; run: () => void }[] = [
       {
-        label: "Split this pane with a new session",
+        label: "拆分此面板并新建会话",
         glyph: icon(Plus, 15),
         run: () => {
           const p = activePanel();
@@ -1386,7 +1384,7 @@ class GroupActions implements IHeaderActionsRenderer {
         },
       },
       {
-        label: "Open full screen",
+        label: "全屏打开",
         glyph: icon(Maximize2, 14),
         run: () => {
           const p = activePanel();
@@ -1396,7 +1394,7 @@ class GroupActions implements IHeaderActionsRenderer {
         },
       },
       {
-        label: "Close pane",
+        label: "关闭面板",
         glyph: icon(X, 15),
         cls: " split-group-close",
         run: () => {
@@ -1426,8 +1424,8 @@ class GroupActions implements IHeaderActionsRenderer {
               <button
                 class="icon-btn subtle split-tools-btn ${this.menuOpen ? "active" : ""}"
                 type="button"
-                ${tip("Tools")}
-                aria-label="Tools"
+                ${tip("工具")}
+                aria-label="工具"
                 aria-haspopup="menu"
                 aria-expanded=${this.menuOpen ? "true" : "false"}
                 @click=${() => {

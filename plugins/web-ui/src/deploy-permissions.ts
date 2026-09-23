@@ -64,7 +64,7 @@ export async function openDeploymentPermissions(id: string, title: string, owner
       searchSequence++;
       matches = [];
     } catch (e) {
-      error = errMessage(e, "Could not update permissions.");
+      error = errMessage(e, "无法更新权限。");
     } finally {
       busy = false;
       if (dialog.isConnected) draw();
@@ -97,7 +97,7 @@ export async function openDeploymentPermissions(id: string, title: string, owner
         .slice(0, 8);
       searched = true;
     } catch (e) {
-      if (sequence === searchSequence) error = errMessage(e, "Could not find people.");
+      if (sequence === searchSequence) error = errMessage(e, "无法查找人员。");
     } finally {
       if (sequence === searchSequence && dialog.isConnected) {
         searching = false;
@@ -111,9 +111,9 @@ export async function openDeploymentPermissions(id: string, title: string, owner
         value,
         ariaLabel: label,
         options: [
-          { value: "view", label: "Can view" },
-          { value: "manage", label: "Can manage" },
-          ...(removable ? [{ value: "none", label: "Remove access" }] : []),
+          { value: "view", label: "可查看" },
+          { value: "manage", label: "可管理" },
+          ...(removable ? [{ value: "none", label: "移除访问权限" }] : []),
         ],
         onSelect: (next) => {
           if (next) update(next);
@@ -125,10 +125,10 @@ export async function openDeploymentPermissions(id: string, title: string, owner
       html`
         <div class="project-dialog-head">
           <div>
-            <h2 id="deployment-permissions-heading">App permissions</h2>
+            <h2 id="deployment-permissions-heading">应用权限</h2>
             <p>${title}</p>
           </div>
-          <button class="chip-x" type="button" aria-label="Close" @click=${close}>${icon(X, 16)}</button>
+          <button class="chip-x" type="button" aria-label="关闭" @click=${close}>${icon(X, 16)}</button>
         </div>
         ${
           loaded
@@ -144,7 +144,7 @@ export async function openDeploymentPermissions(id: string, title: string, owner
                         </div>
                         <button
                           class="chip-x"
-                          aria-label="Cancel selection"
+                          aria-label="取消选择"
                           ?disabled=${busy}
                           @click=${() => {
                             selected = null;
@@ -154,7 +154,7 @@ export async function openDeploymentPermissions(id: string, title: string, owner
                           ${icon(X, 14)}
                         </button>
                         <div class="permission-invite-actions">
-                          ${permissionMenu(access, "New person's access", (value) => {
+                          ${permissionMenu(access, "新成员权限", (value) => {
                             access = value;
                             draw();
                           })}<button
@@ -167,7 +167,7 @@ export async function openDeploymentPermissions(id: string, title: string, owner
                               }
                             }}
                           >
-                            Add
+                            添加
                           </button>
                         </div>
                       </div>`
@@ -181,8 +181,8 @@ export async function openDeploymentPermissions(id: string, title: string, owner
                         <div class="project-member-search-row">
                           ${icon(Search, 16)}<input
                             id="app-people-query"
-                            aria-label="Add people"
-                            placeholder="Add people by name or handle"
+                            aria-label="添加成员"
+                            placeholder="按姓名或账户名添加成员"
                             type="search"
                             autocomplete="off"
                             maxlength="80"
@@ -203,26 +203,26 @@ export async function openDeploymentPermissions(id: string, title: string, owner
                           closeFormMenus();
                           draw();
                         })}
-                        ${searching ? html`<p class="permission-note" role="status">Searching…</p>` : nothing}
-                        ${!searching && searched && !matches.length ? html`<p class="permission-note">No additional people found.</p>` : nothing}
+                        ${searching ? html`<p class="permission-note" role="status">正在搜索…</p>` : nothing}
+                        ${!searching && searched && !matches.length ? html`<p class="permission-note">没有找到其他成员。</p>` : nothing}
                       </form>`
                 }
               </div>`
             : nothing
         }
-        <div class="permission-section-label">People with access</div>
+        <div class="permission-section-label">有权访问的成员</div>
         <div class="project-member-list">
           <div class="permission-row">
             <span class="project-member-avatar" aria-hidden="true">${initials(owner.replace("personal:", ""))}</span
             ><span class="permission-person-label"
               >${owner.startsWith("personal:") ? friendlyPrincipal(owner.slice(9)) : scopeChip(owner)}</span
-            ><span class="permission-owner">Owner</span>
+            ><span class="permission-owner">所有者</span>
           </div>
-          ${grantees.map((grant) => html`<div class="permission-row"><span class="project-member-avatar" aria-hidden="true">${initials(grant.scope.replace("personal:", ""))}</span><span class="permission-person-label">${names.get(grant.scope) ?? (grant.scope.startsWith("personal:") ? grant.scope.slice(9) : scopeChip(grant.scope))}${names.has(grant.scope) ? html`<small>${grant.scope.replace("personal:", "")}</small>` : nothing}</span>${permissionMenu(grant.permission === "write" ? "manage" : "view", `Access for ${grant.scope}`, (value) => void change(grant.scope, value), true)}</div>`)}
+          ${grantees.map((grant) => html`<div class="permission-row"><span class="project-member-avatar" aria-hidden="true">${initials(grant.scope.replace("personal:", ""))}</span><span class="permission-person-label">${names.get(grant.scope) ?? (grant.scope.startsWith("personal:") ? grant.scope.slice(9) : scopeChip(grant.scope))}${names.has(grant.scope) ? html`<small>${grant.scope.replace("personal:", "")}</small>` : nothing}</span>${permissionMenu(grant.permission === "write" ? "manage" : "view", `${grant.scope} 的访问权限`, (value) => void change(grant.scope, value), true)}</div>`)}
         </div>
-        ${busy ? html`<p role="status">Loading…</p>` : nothing}
+        ${busy ? html`<p role="status">加载中…</p>` : nothing}
         ${error ? html`<p class="composer-error" role="alert">${error}</p>` : nothing}
-        <div class="project-dialog-actions actions"><button class="btn" @click=${close}>Done</button></div>
+        <div class="project-dialog-actions actions"><button class="btn" @click=${close}>完成</button></div>
       `,
       dialog,
     );
@@ -232,7 +232,7 @@ export async function openDeploymentPermissions(id: string, title: string, owner
     grantees = (await api<{ grantees: Grant[] }>(endpoint)).grantees;
     loaded = true;
   } catch (e) {
-    error = errMessage(e, "Could not load permissions.");
+    error = errMessage(e, "无法加载权限。");
   } finally {
     busy = false;
     if (dialog.isConnected) draw();

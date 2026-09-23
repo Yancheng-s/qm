@@ -84,15 +84,15 @@ test("work duration survives a transcript refresh — persisted turn timing wins
     finishedAt: runFinishedAt,
     activity: [],
   };
-  const liveLabel = workedLabel("Worked", workSeconds(liveWork));
-  assert.equal(liveLabel, "Worked for 13s");
+  const liveLabel = workedLabel("已执行", workSeconds(liveWork));
+  assert.equal(liveLabel, "已执行，耗时 13秒");
 
   const msgs = entriesToMessages(entries, MODEL);
   const rebuilt = (msgs[1] as AssistantWork).work;
   assert.ok(rebuilt, "the assistant reply carries a work block after refresh");
   assert.equal(rebuilt.startedAt, runStartedAt, "persisted turn start round-trips");
   assert.equal(rebuilt.finishedAt, runFinishedAt, "persisted turn finish round-trips");
-  const refreshedLabel = workedLabel("Worked", workSeconds(rebuilt));
+  const refreshedLabel = workedLabel("已执行", workSeconds(rebuilt));
   assert.equal(refreshedLabel, liveLabel, "the duration label is unchanged after refresh");
 });
 
@@ -107,15 +107,15 @@ test("fold expansion does not change the duration — the label derives only fro
     ],
   };
 
-  const before = workedLabel("Worked", workSeconds(work));
-  const after = workedLabel("Worked", workSeconds(work));
-  assert.equal(before, "Worked for 13s");
+  const before = workedLabel("已执行", workSeconds(work));
+  const after = workedLabel("已执行", workSeconds(work));
+  assert.equal(before, "已执行，耗时 13秒");
   assert.equal(after, before, "re-rendering (fold toggle) yields the identical label");
 
   const realNow = Date.now;
   try {
     Date.now = () => realNow() + 3_600_000;
-    assert.equal(workedLabel("Worked", workSeconds(work)), before);
+    assert.equal(workedLabel("已执行", workSeconds(work)), before);
   } finally {
     Date.now = realNow;
   }
@@ -141,19 +141,19 @@ test("live and historical rendering consume the same duration helper (source-lev
     "chat renders via the shared helper",
   );
 
-  assert.match(chat, /workedLabel\(work.status === "working" \? "Working" : "Worked", secs\)/);
+  assert.match(chat, /workedLabel\(work.status === "working" \? "执行中" : "已执行", secs\)/);
   assert.match(chat, /function workLabel[\s\S]{0,400}?workSeconds\(work\)/);
 });
 
 test("live and completed work use compact minute and second labels", () => {
-  for (const prefix of ["Working", "Worked"]) {
+  for (const prefix of ["执行中", "已执行"]) {
     for (const [seconds, duration] of [
-      [7, "7s"],
-      [60, "1m"],
-      [65, "1m 5s"],
-      [365, "6m 5s"],
+      [7, "7秒"],
+      [60, "1分钟"],
+      [65, "1分钟 5秒"],
+      [365, "6分钟 5秒"],
     ] as const)
-      assert.equal(workedLabel(prefix, seconds), `${prefix} for ${duration}`);
+      assert.equal(workedLabel(prefix, seconds), `${prefix}，耗时 ${duration}`);
   }
 });
 

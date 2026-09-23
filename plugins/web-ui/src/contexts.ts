@@ -1,3 +1,4 @@
+import { displayStatus } from "./display-labels";
 import { peopleResults, type DirectoryMatch } from "./people-results";
 import { html, nothing, render, type TemplateResult } from "lit";
 import {
@@ -174,7 +175,7 @@ export async function renderContexts(): Promise<void> {
     if (seq !== appState.viewRenderSeq || appState.currentView !== "contexts") return;
   } catch (e) {
     if (seq !== appState.viewRenderSeq || appState.currentView !== "contexts") return;
-    contextsNotice = errMessage(e, "Failed to load contexts.");
+    contextsNotice = errMessage(e, "加载项目失败。");
   }
   contextsLoading = false;
   if (
@@ -195,23 +196,23 @@ function contextMeta(c: CoreContext): { title: string; sub: string; glyph: IconN
     const memberCount = projectPeople(c).length;
     return {
       title: c.project.name,
-      sub: `${memberCount} ${memberCount === 1 ? "member" : "members"}`,
+      sub: `${memberCount} 位成员`,
       glyph: Folder,
     };
   }
   if (c.kind === "personal") {
-    return { title: "Personal", sub: "Just you. Your web chats and DMs with the agent live here.", glyph: User };
+    return { title: "个人", sub: "仅你可见。你的网页对话和与智能体的私聊都在这里。", glyph: User };
   }
   if (c.kind === "group") {
     return {
-      title: sharedContextLabel(c.scopeId, c.name) ?? "Group DM",
-      sub: "Shared with everyone in this group conversation.",
+      title: sharedContextLabel(c.scopeId, c.name) ?? "群聊",
+      sub: "与此群聊的所有成员共享。",
       glyph: Users,
     };
   }
   return {
-    title: sharedContextLabel(c.scopeId, c.name) ?? "Channel",
-    sub: "Shared with everyone in this channel.",
+    title: sharedContextLabel(c.scopeId, c.name) ?? "频道",
+    sub: "与此频道的所有成员共享。",
     glyph: Hash,
   };
 }
@@ -250,9 +251,8 @@ function metaForScope(scopeId: string | null, fallbackName?: string | null): { t
   }
   const shared = sharedContextLabel(scopeId, fallbackName ?? null);
   if (shared) return { title: shared, glyph: scopeId?.startsWith("group:") ? Users : Hash };
-  if (scopeId?.startsWith("personal:") && scopeId !== personalScopeId())
-    return { title: "Shared personal space", glyph: User };
-  return { title: fallbackName?.trim() || "Personal", glyph: User };
+  if (scopeId?.startsWith("personal:") && scopeId !== personalScopeId()) return { title: "共享个人空间", glyph: User };
+  return { title: fallbackName?.trim() || "个人", glyph: User };
 }
 
 export function scopeTitle(scopeId: string | null, fallbackName?: string | null): string {
@@ -261,7 +261,7 @@ export function scopeTitle(scopeId: string | null, fallbackName?: string | null)
 
 export function scopeChip(scopeId: string | null, fallbackName?: string | null): TemplateResult {
   const { title, glyph } = metaForScope(scopeId, fallbackName);
-  return html`<span class="scope-chip" ${tip(`In ${title}`)}
+  return html`<span class="scope-chip" ${tip(`位于 ${title}`)}
     >${icon(glyph, 12)}<span dir="auto">${title.replace(/^#/, "")}</span></span
   >`;
 }
@@ -269,12 +269,12 @@ export function scopeChip(scopeId: string | null, fallbackName?: string | null):
 export function scopeFilterControl(current: string | null, onSelect: (scopeId: string | null) => void): TemplateResult {
   return menuSelect({
     value: current,
-    prefix: "Filter by: ",
-    ariaLabel: "Filter by context",
+    prefix: "筛选：",
+    ariaLabel: "按项目筛选",
     className: "scope-filter",
     onSelect,
     options: [
-      { value: null, label: "All contexts", glyph: Boxes },
+      { value: null, label: "所有项目", glyph: Boxes },
       ...contextsState.list.map((c) => ({
         value: c.scopeId,
         label: contextMeta(c).title,
@@ -304,7 +304,7 @@ function drawContexts(): void {
 }
 
 function gridTpl(): TemplateResult {
-  const status = contextsNotice || (contextsLoading && contextsState.list.length === 0 ? "Loading projects…" : "");
+  const status = contextsNotice || (contextsLoading && contextsState.list.length === 0 ? "正在加载项目…" : "");
   const q = contextsQuery.trim().toLowerCase();
   const matches = (context: CoreContext) => {
     const meta = contextMeta(context);
@@ -322,8 +322,8 @@ function gridTpl(): TemplateResult {
     return context.project ? "web" : "slack";
   };
   const groups = [
-    { key: "personal", label: "Personal" },
-    { key: "web", label: "Web" },
+    { key: "personal", label: "个人" },
+    { key: "web", label: "网页" },
     { key: "slack", label: "Slack" },
   ]
     .map((g) => ({ ...g, items: projects.filter((context) => groupOf(context) === g.key) }))
@@ -344,30 +344,30 @@ function gridTpl(): TemplateResult {
     </div>`;
   else if (!contextsLoading) {
     projectList = html`<div class="empty compact project-empty">
-      ${projectsFiltered ? "No projects match your search." : "No projects yet."}
+      ${projectsFiltered ? "没有匹配的项目。" : "暂无项目。"}
     </div>`;
   }
   return html`
     <div class="project-grid-content">
       <div class="list-page-head">
-        <h1 class="pane-title">Projects</h1>
+        <h1 class="pane-title">项目</h1>
         <div class="list-page-actions">
           <button
             class="btn primary project-create-button"
             type="button"
-            aria-label="New project"
+            aria-label="新建项目"
             @click=${openCreateProject}
           >
-            ${icon(FolderPlus, 15)}<span>New project</span>
+            ${icon(FolderPlus, 15)}<span>新建项目</span>
           </button>
         </div>
         <label class="list-search"
-          >${icon(Search, 16)}<span class="sr-only">Search projects</span
+          >${icon(Search, 16)}<span class="sr-only">搜索项目</span
           ><input
             data-focus-key="contexts-search"
             type="search"
-            aria-label="Search projects"
-            placeholder="Search projects…"
+            aria-label="搜索项目"
+            placeholder="搜索项目…"
             .value=${contextsQuery}
             @input=${(event: InputEvent) => {
               contextsQuery = (event.currentTarget as HTMLInputElement).value;
@@ -377,14 +377,14 @@ function gridTpl(): TemplateResult {
       </div>
       <div class="list-toolbar">
         <label class="list-select"
-          ><span>Show</span>${fieldSelect({
+          ><span>显示</span>${fieldSelect({
             compact: true,
             value: contextsWorkspaceFilter,
             onChange: (value) => {
               contextsWorkspaceFilter = value as typeof contextsWorkspaceFilter;
               drawContexts();
             },
-            options: [html`<option value="active">Active only</option>`, html`<option value="all">Everything</option>`],
+            options: [html`<option value="active">仅未归档</option>`, html`<option value="all">全部</option>`],
           })}</label
         >
       </div>
@@ -396,15 +396,15 @@ function gridTpl(): TemplateResult {
 
 function contextRow(c: CoreContext): TemplateResult {
   const { title, sub, glyph } = contextMeta(c);
-  const count = c.sessionCount === 1 ? "1 conversation" : `${c.sessionCount} conversations`;
-  const meta = [c.project ? sub : "", count, c.lastActivityAt ? `active ${relTime(c.lastActivityAt)}` : ""]
+  const count = c.sessionCount === 1 ? "1 个对话" : `${c.sessionCount} 个对话`;
+  const meta = [c.project ? sub : "", count, c.lastActivityAt ? `活跃于 ${relTime(c.lastActivityAt)}` : ""]
     .filter(Boolean)
     .join(" · ");
   return html`
     <button class="context-row" type="button" ${tip(sub)} @click=${() => selectContext(c.scopeId)}>
       <span class="context-glyph">${icon(glyph, 15)}</span>
       <span class="context-row-title" dir="auto">${title}</span>
-      ${c.isPrivate ? html`<span class="context-lock" ${tip("Private channel")}>${icon(Lock, 12)}</span>` : nothing}
+      ${c.isPrivate ? html`<span class="context-lock" ${tip("私密频道")}>${icon(Lock, 12)}</span>` : nothing}
       <span class="context-row-meta">${meta}</span>
     </button>
   `;
@@ -417,29 +417,27 @@ function detailTpl(c: CoreContext): TemplateResult {
   return html`
     <div class="context-detail">
       <button class="context-back" type="button" @click=${() => selectContext(null)}>
-        ${icon(ArrowLeft, 15)}<span>Projects</span>
+        ${icon(ArrowLeft, 15)}<span>项目</span>
       </button>
       <div class="context-detail-head">
         <span class="context-glyph large">${icon(glyph, 22)}</span>
         <div class="context-detail-titles">
           <h1 class="pane-title">
             ${title}
-            ${c.isPrivate ? html`<span class="context-lock" ${tip("Private channel")}>${icon(Lock, 14)}</span>` : nothing}
+            ${c.isPrivate ? html`<span class="context-lock" ${tip("私密频道")}>${icon(Lock, 14)}</span>` : nothing}
           </h1>
-          <div class="context-sub">
-            ${c.project ? sub : `${sub} The agent's files and memory here are separate from your other contexts.`}
-          </div>
+          <div class="context-sub">${c.project ? sub : `${sub} 此处的智能体文件和记忆独立于其他项目。`}</div>
         </div>
         <div class="context-detail-actions">
           ${
             c.project
               ? html`<button class="btn context-add-member" type="button" @click=${() => toggleMemberPicker(c)}>
-                  ${icon(UserPlus, 15)}<span>Add people</span>
+                  ${icon(UserPlus, 15)}<span>添加成员</span>
                 </button>`
               : nothing
           }
           <button class="btn primary context-new-chat" type="button" @click=${() => startChatIn(c)}>
-            ${icon(Plus, 15)}<span>New chat</span>
+            ${icon(Plus, 15)}<span>新对话</span>
           </button>
         </div>
       </div>
@@ -450,30 +448,27 @@ function detailTpl(c: CoreContext): TemplateResult {
               ? html`
                   <section class="context-panel context-project-empty">
                     <span class="context-glyph large" aria-hidden="true">${icon(glyph, 22)}</span>
-                    <h2>This project is ready for work</h2>
-                    <p>
-                      Start a conversation with New chat. Files, automations, and other work created there will stay
-                      scoped to this project.
-                    </p>
+                    <h2>项目已准备就绪</h2>
+                    <p>点击“新对话”开始。对话中创建的文件、自动化任务和其他工作都会保存在此项目下。</p>
                   </section>
                 `
               : html`
                   <section class="context-panel context-conversations" aria-labelledby="context-conversations-title">
                     <div class="context-panel-heading">
-                      <h2 class="context-panel-title" id="context-conversations-title">Conversations</h2>
+                      <h2 class="context-panel-title" id="context-conversations-title">对话</h2>
                       ${sessions.length ? html`<span class="context-panel-count">${sessions.length}</span>` : nothing}
                     </div>
                     ${
                       sessions.length
                         ? html`<div class="context-session-list">${sessions.map((s) => contextSessionRow(s))}</div>`
-                        : html`<div class="context-inline-empty">No conversations yet.</div>`
+                        : html`<div class="context-inline-empty">暂无对话。</div>`
                     }
                   </section>
                   ${resourceSections(c.scopeId)}
                 `
           }
         </div>
-        <aside class="context-settings" aria-label=${c.project ? "Project settings" : "Context settings"}>
+        <aside class="context-settings" aria-label=${c.project ? "项目设置" : "上下文设置"}>
           ${c.project ? projectMembersSection(c) : nothing} ${c.project ? projectSlackSection(c) : nothing}
           ${contextModelSection(c.scopeId)} ${channelHeaderSection(c.scopeId)} ${ambientPolicySection(c.scopeId)}
         </aside>
@@ -504,7 +499,7 @@ function isProjectOwner(context: CoreContext): boolean {
 }
 
 function memberLabel(context: CoreContext, principalId: string): string {
-  if (principalId === appState.me?.user) return "You";
+  if (principalId === appState.me?.user) return "你";
   return context.project?.members.find((member) => member.principalId === principalId)?.displayName || principalId;
 }
 
@@ -533,13 +528,13 @@ async function linkProjectSlackChannel(context: CoreContext): Promise<void> {
     });
     if (resetSeq !== contextsResetSeq) return;
     const project = projectFromResponse(response);
-    if (!project) throw new Error("Core returned an invalid project");
+    if (!project) throw new Error("服务器返回的项目无效");
     upsertProject(project);
     contextsState.slackEditing = false;
     contextsState.slackValue = "";
   } catch (error) {
     if (resetSeq !== contextsResetSeq) return;
-    contextsState.slackError = errMessage(error, "Couldn't link that channel. You must be a member of it.");
+    contextsState.slackError = errMessage(error, "无法关联该频道，请确保你是频道成员。");
   } finally {
     if (resetSeq === contextsResetSeq) {
       contextsState.slackBusy = false;
@@ -551,7 +546,7 @@ async function linkProjectSlackChannel(context: CoreContext): Promise<void> {
 async function unlinkProjectSlackChannel(context: CoreContext): Promise<void> {
   const linked = context.project?.slackChannel;
   if (!context.project || !linked || contextsState.slackBusy) return;
-  if (!window.confirm(`Unlink #${linked.channelName} from ${context.name || "this project"}?`)) return;
+  if (!window.confirm(`取消 #${linked.channelName} 与 ${context.name || "此项目"} 的关联？`)) return;
   const resetSeq = contextsResetSeq;
   contextsState.slackBusy = true;
   contextsState.slackError = "";
@@ -562,11 +557,11 @@ async function unlinkProjectSlackChannel(context: CoreContext): Promise<void> {
     });
     if (resetSeq !== contextsResetSeq) return;
     const project = projectFromResponse(response);
-    if (!project) throw new Error("Core returned an invalid project");
+    if (!project) throw new Error("服务器返回的项目无效");
     upsertProject(project);
   } catch (error) {
     if (resetSeq !== contextsResetSeq) return;
-    contextsState.slackError = errMessage(error, "Couldn't unlink the channel.");
+    contextsState.slackError = errMessage(error, "无法取消频道关联。");
   } finally {
     if (resetSeq === contextsResetSeq) {
       contextsState.slackBusy = false;
@@ -584,17 +579,15 @@ function projectSlackLinked(context: CoreContext): TemplateResult {
       <button
         class="project-icon-button danger"
         type="button"
-        aria-label=${`Unlink #${linked.channelName}`}
-        ${tip(`Unlink #${linked.channelName}`)}
+        aria-label=${`取消关联 #${linked.channelName}`}
+        ${tip(`取消关联 #${linked.channelName}`)}
         ?disabled=${contextsState.slackBusy}
         @click=${() => void unlinkProjectSlackChannel(context)}
       >
         ${icon(X, 15)}
       </button>
     </div>
-    <p class="context-hint">
-      The agent posts this project's updates to #${linked.channelName}, and everyone in the channel is in the project.
-    </p>
+    <p class="context-hint">智能体会将项目更新发送到 #${linked.channelName}，频道内的所有成员都属于此项目。</p>
   `;
 }
 
@@ -615,9 +608,9 @@ function projectSlackEditor(context: CoreContext): TemplateResult {
           data-focus-key="project-slack-channel"
           autocomplete="off"
           maxlength="200"
-          placeholder="channel name"
+          placeholder="频道名称"
           list="project-slack-channels"
-          aria-label="Slack channel to link"
+          aria-label="要关联的 Slack 频道"
           .value=${contextsState.slackValue}
           ?disabled=${contextsState.slackBusy}
           @input=${(e: Event) => {
@@ -627,7 +620,7 @@ function projectSlackEditor(context: CoreContext): TemplateResult {
       </div>
       <datalist id="project-slack-channels">${options.map((name) => html`<option value=${name}></option>`)}</datalist>
       <div class="project-slack-actions">
-        <button class="btn primary" type="submit" ?disabled=${contextsState.slackBusy}>Link</button>
+        <button class="btn primary" type="submit" ?disabled=${contextsState.slackBusy}>关联</button>
         <button
           class="btn"
           type="button"
@@ -639,7 +632,7 @@ function projectSlackEditor(context: CoreContext): TemplateResult {
             drawContexts();
           }}
         >
-          Cancel
+          取消
         </button>
       </div>
     </form>
@@ -658,12 +651,9 @@ function projectSlackIdle(): TemplateResult {
         drawContexts();
       }}
     >
-      ${icon(Hash, 15)}<span>Link a channel</span>
+      ${icon(Hash, 15)}<span>关联频道</span>
     </button>
-    <p class="context-hint">
-      Give this project a home channel on Slack. The agent will post updates there, and everyone in the channel joins
-      the project.
-    </p>
+    <p class="context-hint">为项目关联一个 Slack 频道。智能体将在其中发送更新，频道内的所有成员都会加入项目。</p>
   `;
 }
 
@@ -676,7 +666,7 @@ function projectSlackSection(context: CoreContext): TemplateResult {
   return html`
     <section class="context-panel project-slack" aria-labelledby="project-slack-title">
       <div class="context-panel-heading">
-        <h2 class="context-panel-title" id="project-slack-title">Slack channel</h2>
+        <h2 class="context-panel-title" id="project-slack-title">Slack 频道</h2>
       </div>
       ${body}
       ${contextsState.slackError ? html`<div class="project-member-status error" aria-live="polite">${contextsState.slackError}</div>` : nothing}
@@ -690,7 +680,7 @@ function projectMembersSection(context: CoreContext): TemplateResult {
   return html`
     <section class="context-panel project-members" aria-labelledby="project-people-title">
       <div class="context-panel-heading">
-        <h2 class="context-panel-title" id="project-people-title">People</h2>
+        <h2 class="context-panel-title" id="project-people-title">成员</h2>
         <span class="context-panel-count">${projectPeople(context).length}</span>
       </div>
       <div class="project-member-list">
@@ -701,10 +691,10 @@ function projectMembersSection(context: CoreContext): TemplateResult {
             <div class="project-member-row">
               <span class="project-member-avatar" aria-hidden="true">${initials(label)}</span>
               <span class="project-member-name" dir="auto">${label}</span>
-              ${principalId === project.ownerId ? html`<span class="badge">Owner</span>` : nothing}
+              ${principalId === project.ownerId ? html`<span class="badge">所有者</span>` : nothing}
               ${
                 viaChannel && project.slackChannel
-                  ? html`<span class="badge" ${tip("Joined via the linked Slack channel")}
+                  ? html`<span class="badge" ${tip("通过关联的 Slack 频道加入")}
                       ><bdi>#${project.slackChannel.channelName}</bdi></span
                     >`
                   : nothing
@@ -714,8 +704,8 @@ function projectMembersSection(context: CoreContext): TemplateResult {
                   ? html`<button
                       class="project-icon-button danger"
                       type="button"
-                      aria-label=${`Remove ${label}`}
-                      ${tip(`Remove ${label}`)}
+                      aria-label=${`移除 ${label}`}
+                      ${tip(`移除 ${label}`)}
                       ?disabled=${contextsState.memberSearching || contextsState.memberBusy}
                       @click=${() => void removeProjectMember(context, principalId)}
                     >
@@ -740,15 +730,15 @@ function memberPicker(context: CoreContext): TemplateResult {
   let emptyNote = "";
   if (idle && contextsState.memberSearchedQuery && matches.length === 0) {
     emptyNote = contextsState.memberMatches.length
-      ? "Everyone matching is already in this project."
-      : `No matches for “${contextsState.memberSearchedQuery}”.`;
+      ? "匹配的人员都已加入此项目。"
+      : `没有与“${contextsState.memberSearchedQuery}”匹配的结果。`;
   }
   let memberStatus = emptyNote;
-  if (contextsState.memberSearching) memberStatus = "Searching…";
-  else if (contextsState.memberBusy) memberStatus = "Working…";
+  if (contextsState.memberSearching) memberStatus = "正在搜索…";
+  else if (contextsState.memberBusy) memberStatus = "处理中…";
   return html`
     <form class="project-member-picker" @submit=${(event: SubmitEvent) => void searchProjectMembers(event, context)}>
-      <label for="project-member-search">Add people</label>
+      <label for="project-member-search">添加成员</label>
       <div class="project-member-search-row">
         ${icon(Search, 16)}
         <input
@@ -758,7 +748,7 @@ function memberPicker(context: CoreContext): TemplateResult {
           type="search"
           autocomplete="off"
           maxlength="80"
-          placeholder="Search by name or handle"
+          placeholder="按姓名或账户名搜索"
           .value=${contextsState.memberQuery}
           ?disabled=${contextsState.memberBusy}
           @input=${(event: InputEvent) => {
@@ -769,8 +759,8 @@ function memberPicker(context: CoreContext): TemplateResult {
         <button
           class="project-icon-button"
           type="submit"
-          aria-label="Search"
-          ${tip("Search")}
+          aria-label="搜索"
+          ${tip("搜索")}
           ?disabled=${contextsState.memberSearching || contextsState.memberBusy}
         >
           ${icon(Search, 15)}
@@ -778,8 +768,8 @@ function memberPicker(context: CoreContext): TemplateResult {
         <button
           class="project-icon-button"
           type="button"
-          aria-label="Close"
-          ${tip("Close")}
+          aria-label="关闭"
+          ${tip("关闭")}
           ?disabled=${contextsState.memberBusy}
           @click=${closeMemberPicker}
         >
@@ -798,7 +788,7 @@ function resourceSections(scopeId: string): TemplateResult | typeof nothing {
   const r = contextsState.resources;
   if (!r) {
     return contextsState.resourcesLoading
-      ? html`<div class="empty compact">Loading this context's files, webhooks, crons, apps and skills…</div>`
+      ? html`<div class="empty compact">正在加载此项目的文件、Webhook、定时任务、应用和技能…</div>`
       : html``;
   }
   if (
@@ -812,11 +802,12 @@ function resourceSections(scopeId: string): TemplateResult | typeof nothing {
   }
   const manage = r.manageable;
   return html`
-    ${r.files.length ? resourceGroup("Files", r.files.map(fileRow)) : nothing}
+    ${r.files.length ? resourceGroup("files", "文件", r.files.map(fileRow)) : nothing}
     ${
       r.skills.length
         ? resourceGroup(
-            "Skills",
+            "skills",
+            "技能",
             r.skills.map((s) => skillRow(s, manage)),
           )
         : nothing
@@ -824,13 +815,14 @@ function resourceSections(scopeId: string): TemplateResult | typeof nothing {
     ${
       r.crons.length
         ? resourceGroup(
-            "Crons",
+            "crons",
+            "定时任务",
             r.crons.map((c) => cronRow(c, manage)),
           )
         : nothing
     }
-    ${r.webhooks.length ? resourceGroup("Webhooks", r.webhooks.map(webhookRow)) : nothing}
-    ${r.deployments.length ? resourceGroup("Apps", r.deployments.map(deploymentRow)) : nothing}
+    ${r.webhooks.length ? resourceGroup("webhooks", "Webhook", r.webhooks.map(webhookRow)) : nothing}
+    ${r.deployments.length ? resourceGroup("deploys", "应用", r.deployments.map(deploymentRow)) : nothing}
   `;
 }
 
@@ -839,7 +831,7 @@ const resourceBusy = new Set<string>();
 async function manageCron(id: string, action: "enable" | "disable" | "delete"): Promise<void> {
   const key = `cron:${id}`;
   if (resourceBusy.has(key)) return;
-  if (action === "delete" && !confirm("Delete this cron? This can't be undone.")) return;
+  if (action === "delete" && !confirm("确定删除此定时任务吗？此操作无法撤销。")) return;
   resourceBusy.add(key);
   drawContexts();
   try {
@@ -848,7 +840,7 @@ async function manageCron(id: string, action: "enable" | "disable" | "delete"): 
     const scope = contextsState.resourcesScope;
     if (scope) await loadScopeResources(scope);
   } catch (e) {
-    contextsState.resourcesNotice = errMessage(e, "Couldn't update that cron.");
+    contextsState.resourcesNotice = errMessage(e, "无法更新该定时任务。");
   } finally {
     resourceBusy.delete(key);
     drawContexts();
@@ -858,7 +850,7 @@ async function manageCron(id: string, action: "enable" | "disable" | "delete"): 
 async function deleteScopeSkill(id: string): Promise<void> {
   const key = `skill:${id}`;
   if (resourceBusy.has(key)) return;
-  if (!confirm("Delete this skill? This can't be undone.")) return;
+  if (!confirm("确定删除此技能吗？此操作无法撤销。")) return;
   resourceBusy.add(key);
   drawContexts();
   try {
@@ -866,15 +858,18 @@ async function deleteScopeSkill(id: string): Promise<void> {
     const scope = contextsState.resourcesScope;
     if (scope) await loadScopeResources(scope);
   } catch (e) {
-    contextsState.resourcesNotice = errMessage(e, "Couldn't delete that skill.");
+    contextsState.resourcesNotice = errMessage(e, "无法删除该技能。");
   } finally {
     resourceBusy.delete(key);
     drawContexts();
   }
 }
 
-function resourceGroup(label: string, rows: TemplateResult[]): TemplateResult {
-  const view = label === "Apps" ? "deploys" : label.toLowerCase();
+function resourceGroup(
+  view: "files" | "skills" | "crons" | "webhooks" | "deploys",
+  label: string,
+  rows: TemplateResult[],
+): TemplateResult {
   const scope = contextsState.resourcesScope;
   const supportsScopeLink = view === "files" || view === "deploys";
   const href = `${UI_BASE}/${encodeURIComponent(view)}${scope && supportsScopeLink ? `?scope=${encodeURIComponent(scope)}` : ""}`;
@@ -882,7 +877,7 @@ function resourceGroup(label: string, rows: TemplateResult[]): TemplateResult {
     <section class="context-panel context-resource-group">
       <div class="context-panel-heading context-resource-heading">
         <h2 class="context-panel-title">${label}</h2>
-        <a href=${href}>View all</a>
+        <a href=${href}>查看全部</a>
       </div>
       <div class="context-session-list">${rows}</div>
     </section>
@@ -903,7 +898,7 @@ function fileRow(f: ScopeFile): TemplateResult {
                 href=${fileContentUrl(f.id, f.name)}
                 target="_blank"
                 rel="noreferrer"
-                >Open</a
+                >打开</a
               >`
             : nothing
         }
@@ -913,15 +908,15 @@ function fileRow(f: ScopeFile): TemplateResult {
 }
 
 function webhookRow(w: WebhookView): TemplateResult {
-  let lastRun = "never fired";
-  if (w.lastError) lastRun = "error";
+  let lastRun = "从未触发";
+  if (w.lastError) lastRun = "出错";
   else if (w.lastFiredAt) lastRun = relTime(w.lastFiredAt);
   return html`
     <div class="context-session-row context-resource-row">
       <span class="context-session-title">${actionSnippet(w.action)}</span>
       <span class="context-session-meta">
         <span class="badge">${w.verification.scheme}</span>
-        <span class="badge">${w.enabled ? "enabled" : "disabled"}</span>
+        <span class="badge">${w.enabled ? "已启用" : "已停用"}</span>
         <span>${lastRun}</span>
       </span>
     </div>
@@ -938,7 +933,7 @@ function cronRow(c: CronView, manage = false): TemplateResult {
       <span class="context-session-title" dir="auto">${c.title ?? actionSnippet(c.message ?? c.action ?? "")}</span>
       <span class="context-session-meta">
         <span class="badge">${cronScheduleSummary(c)}</span>
-        <span class="badge">${status}</span>
+        <span class="badge">${displayStatus(status)}</span>
         <span ${tip(cronRunSummaryTitle(c))}>${cronRunSummary(c)}</span>
         ${
           manage && !c.archived
@@ -949,7 +944,7 @@ function cronRow(c: CronView, manage = false): TemplateResult {
                   ?disabled=${busy}
                   @click=${() => void manageCron(c.id, c.enabled ? "disable" : "enable")}
                 >
-                  ${c.enabled ? "Disable" : "Enable"}
+                  ${c.enabled ? "停用" : "启用"}
                 </button>
                 <button
                   class="context-resource-action danger"
@@ -957,7 +952,7 @@ function cronRow(c: CronView, manage = false): TemplateResult {
                   ?disabled=${busy}
                   @click=${() => void manageCron(c.id, "delete")}
                 >
-                  Delete
+                  删除
                 </button>
               `
             : nothing
@@ -974,7 +969,7 @@ function skillRow(s: ScopeSkill, manage = false): TemplateResult {
       <span class="context-session-title" dir="auto">${s.name}</span>
       <span class="context-session-meta">
         ${s.description ? html`<span class="context-resource-desc">${s.description}</span>` : nothing}
-        <span class="badge">${s.status}</span>
+        <span class="badge">${displayStatus(s.status)}</span>
         ${
           manage
             ? html`<button
@@ -983,7 +978,7 @@ function skillRow(s: ScopeSkill, manage = false): TemplateResult {
                 ?disabled=${busy}
                 @click=${() => void deleteScopeSkill(s.id)}
               >
-                Delete
+                删除
               </button>`
             : nothing
         }
@@ -998,8 +993,8 @@ function deploymentRow(d: ScopeDeployment): TemplateResult {
       <span class="context-session-title" dir="auto">${d.name}</span>
       <span class="context-session-meta">
         <span class="badge">v${d.currentVersion}</span>
-        <span class="badge">${d.status}</span>
-        <span class="badge">${d.permission === "write" ? "manage" : "read"}</span>
+        <span class="badge">${displayStatus(d.status)}</span>
+        <span class="badge">${d.permission === "write" ? "管理" : "只读"}</span>
       </span>
     </div>
   `;
@@ -1040,26 +1035,26 @@ function createProjectDialog(): TemplateResult | typeof nothing {
       <form @submit=${(event: SubmitEvent) => void createProject(event)}>
         <div class="project-dialog-head">
           <span class="context-glyph large">${icon(FolderPlus, 21)}</span>
-          <div><h2 id="project-dialog-title">New project</h2></div>
+          <div><h2 id="project-dialog-title">新建项目</h2></div>
           <button
             class="project-icon-button"
             type="button"
-            aria-label="Close new project"
-            ${tip("Close")}
+            aria-label="关闭新建项目"
+            ${tip("关闭")}
             @click=${closeCreateProject}
           >
             ${icon(X, 16)}
           </button>
         </div>
         <label class="project-name-field" for="project-name">
-          <span>Name</span>
+          <span>名称</span>
           <input
             id="project-name"
             data-focus-key="project-name"
             name="name"
             maxlength="200"
             autocomplete="off"
-            placeholder="launch cohort"
+            placeholder="例如：产品发布"
             .value=${contextsState.createName}
             ?disabled=${contextsState.createSaving}
             @input=${(event: InputEvent) => {
@@ -1071,10 +1066,10 @@ function createProjectDialog(): TemplateResult | typeof nothing {
         <div class="form-error" aria-live="polite">${contextsState.createError}</div>
         <div class="project-dialog-actions">
           <button class="btn" type="button" @click=${closeCreateProject}>
-            ${contextsState.createSaving ? "Close" : "Cancel"}
+            ${contextsState.createSaving ? "关闭" : "取消"}
           </button>
           <button class="btn primary" type="submit" ?disabled=${contextsState.createSaving}>
-            ${icon(FolderPlus, 15)}<span>${contextsState.createSaving ? "Creating…" : "Create project"}</span>
+            ${icon(FolderPlus, 15)}<span>${contextsState.createSaving ? "正在创建…" : "创建项目"}</span>
           </button>
         </div>
       </form>
@@ -1142,7 +1137,7 @@ async function createProject(event: SubmitEvent): Promise<void> {
   if (contextsState.createSaving) return;
   const name = contextsState.createName.trim();
   if (!name) {
-    contextsState.createError = "Enter a project name.";
+    contextsState.createError = "请输入项目名称。";
     drawContexts();
     queueMicrotask(() => document.querySelector<HTMLInputElement>("#project-name")?.focus());
     return;
@@ -1154,7 +1149,7 @@ async function createProject(event: SubmitEvent): Promise<void> {
   try {
     const project = projectFromResponse(await api("/api/projects", { method: "POST", body: JSON.stringify({ name }) }));
     if (resetSeq !== contextsResetSeq) return;
-    if (!project) throw new Error("Core returned an invalid project");
+    if (!project) throw new Error("服务器返回的项目无效");
     const loaded = contextsState.loaded;
     let context = upsertProject(project);
     if (!loaded) {
@@ -1173,7 +1168,7 @@ async function createProject(event: SubmitEvent): Promise<void> {
   } catch (error) {
     if (seq !== createProjectSeq || resetSeq !== contextsResetSeq) return;
     contextsState.createSaving = false;
-    contextsState.createError = errMessage(error, "Couldn't create that project.");
+    contextsState.createError = errMessage(error, "无法创建该项目。");
     drawContexts();
     queueMicrotask(() => document.querySelector<HTMLInputElement>("#project-name")?.focus());
   }
@@ -1252,7 +1247,7 @@ async function searchProjectMembers(event: SubmitEvent, context: CoreContext): P
   if (query.length < 2) {
     contextsState.memberMatches = [];
     contextsState.memberSearchedQuery = "";
-    contextsState.memberError = "Enter at least two characters.";
+    contextsState.memberError = "请输入至少两个字符。";
     drawContexts();
     return;
   }
@@ -1274,7 +1269,7 @@ async function runMemberSearch(context: CoreContext, query: string): Promise<voi
   } catch (error) {
     if (searchSeq !== memberSearchSeq || contextsState.memberProjectId !== projectId) return;
     contextsState.memberSearchedQuery = "";
-    contextsState.memberError = errMessage(error, "Couldn't search for people.");
+    contextsState.memberError = errMessage(error, "无法搜索人员。");
   } finally {
     if (searchSeq === memberSearchSeq) {
       contextsState.memberSearching = false;
@@ -1299,14 +1294,14 @@ async function addProjectMember(context: CoreContext, member: DirectoryMatch): P
     });
     if (resetSeq !== contextsResetSeq) return;
     const project = projectFromResponse(response);
-    if (!project) throw new Error("Core returned an invalid project");
+    if (!project) throw new Error("服务器返回的项目无效");
     upsertProject(project);
     contextsState.memberQuery = "";
     contextsState.memberMatches = [];
     contextsState.memberSearchedQuery = "";
   } catch (error) {
     if (resetSeq !== contextsResetSeq) return;
-    contextsState.memberError = errMessage(error, "Couldn't add that person.");
+    contextsState.memberError = errMessage(error, "无法添加该成员。");
   } finally {
     if (resetSeq === contextsResetSeq) {
       contextsState.memberBusy = false;
@@ -1318,7 +1313,7 @@ async function addProjectMember(context: CoreContext, member: DirectoryMatch): P
 async function removeProjectMember(context: CoreContext, principalId: string): Promise<void> {
   if (!context.project || contextsState.memberBusy) return;
   const label = memberLabel(context, principalId);
-  if (!window.confirm(`Remove ${label} from ${context.name || "this project"}?`)) return;
+  if (!window.confirm(`将 ${label} 从 ${context.name || "此项目"} 中移除？`)) return;
   const resetSeq = contextsResetSeq;
   memberSearchSeq++;
   cancelMemberSearchTimer();
@@ -1333,11 +1328,11 @@ async function removeProjectMember(context: CoreContext, principalId: string): P
     );
     if (resetSeq !== contextsResetSeq) return;
     const project = projectFromResponse(response);
-    if (!project) throw new Error("Core returned an invalid project");
+    if (!project) throw new Error("服务器返回的项目无效");
     upsertProject(project);
   } catch (error) {
     if (resetSeq !== contextsResetSeq) return;
-    contextsState.memberError = errMessage(error, "Couldn't remove that person.");
+    contextsState.memberError = errMessage(error, "无法移除该成员。");
   } finally {
     if (resetSeq === contextsResetSeq) {
       contextsState.memberBusy = false;
@@ -1368,7 +1363,7 @@ async function loadScopeResources(scopeId: string): Promise<void> {
     };
   } catch (e) {
     if (stale()) return;
-    contextsState.resourcesNotice = errMessage(e, "Failed to load this context's resources.");
+    contextsState.resourcesNotice = errMessage(e, "加载此项目的资源失败。");
   } finally {
     if (!stale()) {
       contextsState.resourcesLoading = false;
@@ -1385,7 +1380,7 @@ function contextSessionRow(s: CoreSession): TemplateResult {
       <span class="context-session-title" dir="auto">${groupDmTitle(s)}</span>
       <span class="context-session-meta">
         ${surface === "slack" ? html`<span class="surface surface-slack">${slackLogo(13)}</span>` : html`<span class="badge">${surface}</span>`}
-        ${readOnly ? html`<span class="ro-lock" ${tip("Read-only. Replies happen on the original surface")}>${icon(Lock, 12)}</span>` : nothing}
+        ${readOnly ? html`<span class="ro-lock" ${tip("此处只读，请在原平台回复")}>${icon(Lock, 12)}</span>` : nothing}
         <span>${relTime(activityOf(s))}</span>
       </span>
     </button>

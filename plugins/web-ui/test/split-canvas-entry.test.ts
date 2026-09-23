@@ -35,7 +35,7 @@ test("every new-chat affordance follows the shared placement rule", () => {
     assert.doesNotMatch(source, /\.newChat\(/);
     assert.match(source, /startNewChat\(/);
   }
-  assert.match(sessions, /action: \{ label: "New chat", onClick: \(\) => startNewChat\(\) \}/);
+  assert.match(sessions, /action: \{ label: "新对话", onClick: \(\) => startNewChat\(\) \}/);
 });
 
 test("a pane opened from a project's + starts its chat in that project", () => {
@@ -97,7 +97,7 @@ test("the pane body no longer offers a tab zone", () => {
   assert.doesNotMatch(layout, /"tab"/, "DropEdge must drop the zone that no longer exists");
   const zones = fn(split, "paneZonesTpl") + fn(split, "splitZonesTpl");
   assert.doesNotMatch(zones, /"tab"/);
-  assert.match(zones, /zoneTpl\("center", "Replace pane"/);
+  assert.match(zones, /zoneTpl\("center", "替换面板"/);
   for (const edge of ["left", "right", "top", "bottom"]) assert.match(zones, new RegExp(`zoneTpl\\("${edge}"`));
   assert.doesNotMatch(css, /\.zone-tab \{/);
   const center = css.match(/\.zone-center \{[^}]*\}/)?.[0] ?? "";
@@ -124,7 +124,10 @@ test("boot mounts a restored canvas before it awaits the session list", () => {
   assert.ok(listStart > 0, "boot still loads the session list");
   assert.ok(early < listStart, "the mount must come BEFORE the list fetch the panes never read");
 
-  assert.match(boot, /const bareEntry = !viewIntent && !wantedSession && wanted !== "app-edit" && !connectedProvider;/);
+  assert.match(
+    boot,
+    /const bareEntry = !viewIntent && !wantedSession && !projectEntry && wanted !== "app-edit" && !connectedProvider;/,
+  );
 
   assert.match(
     boot.slice(listAwait),

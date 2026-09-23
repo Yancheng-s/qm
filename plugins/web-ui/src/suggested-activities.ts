@@ -18,7 +18,7 @@ export function suggestedActivities(
   if (!activities?.length) return nothing;
   return html`<section
     class="suggested-activities ${collapsed ? "is-collapsed" : ""}"
-    aria-label="Suggested activities"
+    aria-label="推荐活动"
     aria-hidden=${collapsed ? "true" : "false"}
     ?inert=${collapsed}
   >

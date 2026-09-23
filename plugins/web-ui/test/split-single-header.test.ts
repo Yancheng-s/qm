@@ -37,7 +37,7 @@ test("the pane tab carries the scope / title breadcrumb", () => {
 
 test("project tools live behind the header overflow menu, left of the split button", () => {
   const toolsIdx = split.indexOf("split-tools-btn");
-  const plusIdx = split.indexOf("Split this pane with a new session");
+  const plusIdx = split.indexOf("拆分此面板并新建会话");
   assert.ok(toolsIdx > 0 && plusIdx > 0 && toolsIdx < plusIdx, "tools menu renders before the + button");
   for (const tool of ['"crons"', '"files"', '"apps"', '"skills"', '"memory"', '"keychain"']) {
     assert.ok(split.includes(`tool: ${tool}`), `${tool} reachable from the pane menu`);
@@ -59,9 +59,9 @@ test("inline pane chrome is exactly tools, split, full screen, close", () => {
   // focus-over-grid moved into the menu; not an inline button
   const inlineButtons = draw.slice(draw.indexOf("const buttons"));
   assert.doesNotMatch(inlineButtons, /Focus this pane over the grid/);
-  assert.match(draw, /Restore to grid \(Esc\)/); // still reachable via the menu
-  assert.match(inlineButtons, /Open full screen/);
-  assert.match(inlineButtons, /Close pane/);
+  assert.match(draw, /恢复网格布局（Esc）/); // still reachable via the menu
+  assert.match(inlineButtons, /全屏打开/);
+  assert.match(inlineButtons, /关闭面板/);
 });
 
 test("a topbar-less pane keeps the two-row grid: transcript bounded, composer at the bottom", () => {

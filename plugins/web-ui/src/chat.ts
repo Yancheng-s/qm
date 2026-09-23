@@ -1,3 +1,5 @@
+import { loadPiWebUi } from "./component-language";
+import { displayStatus } from "./display-labels";
 import { formatMessageTime } from "./message-time.ts";
 import { messageEntrySeqs, highlightMessage } from "./message-link.ts";
 import { appEditSlug } from "./app-edit";
@@ -151,7 +153,7 @@ import {
 } from "./ui";
 import { appState, renderSidebarTop, switchView, syncUrlFromState } from "./shell";
 import { contextsState, scopeTitle } from "./contexts";
-import { openProjectPage, scopeToolCount, sessionTopbarTpl, setScopedSession } from "./session-scope";
+import { openProjectPage, scopeToolCount, sessionTopbarTpl, setScopedSession, type SessionTool } from "./session-scope";
 import {
   addPendingSession,
   onSessionDragStart,
@@ -208,11 +210,11 @@ interface SettledRowKey {
 }
 const settledRowCache = new WeakMap<object, SettledRowKey>();
 const CHAT_CTAS = [
-  "What can I help with?",
-  "Ahoy, what are we after?",
-  "What are we charting today?",
-  "Where shall we set sail?",
-  "What's the heading, captain?",
+  "有什么可以帮你？",
+  "你好，今天想探索什么？",
+  "今天有什么计划？",
+  "我们从哪里开始？",
+  "今天的目标是什么？",
 ];
 const CTA_INDEX_KEY = "web-ui:chat-cta";
 
@@ -311,7 +313,7 @@ export function createChatSurface(
       const listed = sessionsState.list.find((session) => session.id === sourceId);
       const page = await transcriptFetcher(sourceId, { tailTurns: TAIL_TURNS });
       const source = listed ?? page.session;
-      if (!source) throw new Error("missing source session");
+      if (!source) throw new Error("找不到来源对话");
       await sessionOpener(source, Promise.resolve(page));
     },
     current: () => Boolean(chatState.forkSession && chatState.sessionId === chatState.forkSession.id),
@@ -329,10 +331,10 @@ export function createChatSurface(
       const listed = sessionsState.list.find((session) => session.id === sourceId);
       const page = await transcriptFetcher(sourceId, { tailTurns: TAIL_TURNS });
       const source = listed ?? page.session;
-      if (!source) throw new Error("missing session");
+      if (!source) throw new Error("找不到对话");
       await sessionOpener(source, Promise.resolve(page));
     } catch {
-      ctx.composer.state.error = "Couldn't open that session.";
+      ctx.composer.state.error = "无法打开该会话。";
       redrawTranscript();
     }
   }
@@ -485,7 +487,7 @@ export function createChatSurface(
         messages,
         tools: [],
       },
-      convertToLlm: (messages) => import("@earendil-works/pi-web-ui").then((m) => m.defaultConvertToLlm(messages)),
+      convertToLlm: (messages) => loadPiWebUi().then((m) => m.defaultConvertToLlm(messages)),
     });
     chatState.agent = agent;
     clearLiveWork();
@@ -588,7 +590,7 @@ export function createChatSurface(
       try {
         await agent.continue();
       } catch (err) {
-        if (agent === chatState.agent) ctx.composer.state.error = errMessage(err, "Could not start the conversation.");
+        if (agent === chatState.agent) ctx.composer.state.error = errMessage(err, "无法开始对话。");
       } finally {
         if (agent === chatState.agent) {
           agent.streamFn = normalStreamFn;
@@ -609,7 +611,7 @@ export function createChatSurface(
 
   function currentTurnOptions(): TurnOptions {
     const selected = ctx.composer.currentModelOption();
-    if (!selected) throw new Error("No model is available");
+    if (!selected) throw new Error("暂无可用模型");
     const harness = selected.harnessId;
     return {
       ...(harnessSupportsEffort(harness) ? { effortLevel: ctx.composer.state.effortLevel } : {}),
@@ -725,7 +727,7 @@ export function createChatSurface(
         });
     } catch (err) {
       if (agent === chatState.agent) {
-        ctx.composer.state.error = err instanceof Error ? err.message : "Could not send the approval.";
+        ctx.composer.state.error = err instanceof Error ? err.message : "无法提交审批结果。";
         drawActiveChat(agent);
       }
     } finally {
@@ -858,7 +860,7 @@ export function createChatSurface(
     try {
       await (!active.run.input && next && !recorded ? agent.prompt(next.text) : agent.continue());
     } catch (err) {
-      if (agent === chatState.agent) ctx.composer.state.error = errMessage(err, "Could not follow the queued message.");
+      if (agent === chatState.agent) ctx.composer.state.error = errMessage(err, "无法跟进队列中的消息。");
     } finally {
       if (agent === chatState.agent) {
         agent.streamFn = normalStreamFn;
@@ -912,7 +914,7 @@ export function createChatSurface(
       await completion;
     } catch (err) {
       if (agent === chatState.agent)
-        ctx.composer.state.error = err instanceof Error ? err.message : "Could not reconnect to the running task.";
+        ctx.composer.state.error = err instanceof Error ? err.message : "无法重新连接正在运行的任务。";
     } finally {
       if (agent === chatState.agent) {
         agent.streamFn = normalStreamFn;
@@ -1029,23 +1031,23 @@ export function createChatSurface(
             <div class="readonly-banner">
               ${
                 surfaceOf(s) === "slack"
-                  ? html`This conversation lives in Slack. Replies happen
-                    there.${
+                  ? html`此对话位于 Slack，请前往 Slack
+                    回复。${
                       sessionSlackUrl(s)
                         ? html` <a
                             class="readonly-banner-link"
                             href=${sessionSlackUrl(s)!}
                             target="_blank"
                             rel="noreferrer"
-                            >Open in Slack</a
+                            >在 Slack 中打开</a
                           >`
                         : nothing
                     }`
-                  : "This conversation is read-only here."
+                  : "此对话在这里仅可查看。"
               }
             </div>
             ${backgroundActivityStrip()} ${approvals.length ? ctx.composer.composerApprovalPanel(approvals) : nothing}
-            <section class="chat-scroll readonly-scroll" tabindex="0" aria-label="Conversation">
+            <section class="chat-scroll readonly-scroll" tabindex="0" aria-label="对话">
               ${pinnedStrip()}
               <div class="message-stack">
                 ${inheritedHeader()}
@@ -1057,7 +1059,7 @@ export function createChatSurface(
                           @click=${async (e: Event) => {
                             const btn = e.currentTarget as HTMLButtonElement;
                             btn.disabled = true;
-                            btn.textContent = "Loading earlier messages\u2026";
+                            btn.textContent = "正在加载更早的消息…";
                             try {
                               const page = await fetchTranscript(
                                 s.id,
@@ -1090,11 +1092,11 @@ export function createChatSurface(
                               });
                             } catch {
                               btn.disabled = false;
-                              btn.textContent = "Show earlier messages";
+                              btn.textContent = "查看更早的消息";
                             }
                           }}
                         >
-                          Show earlier messages
+                          查看更早的消息
                         </button>
                       </div>`
                     : nothing
@@ -1102,7 +1104,7 @@ export function createChatSurface(
                 ${
                   shownMessages.length
                     ? shownMessages.map((m, i) => chatMessage(m, i))
-                    : html`<div class="empty compact">No readable messages in this conversation.</div>`
+                    : html`<div class="empty compact">此对话暂无可读消息。</div>`
                 }
                 ${ctx.composer.state.error ? html`<div class="composer-error inline">${ctx.composer.state.error}</div>` : nothing}
               </div>
@@ -1135,7 +1137,7 @@ export function createChatSurface(
         await runApprovalTurn(new Agent({ initialState: { model: transcriptModel() } }), decision, undefined);
         completed = true;
       } catch (error) {
-        if (current()) ctx.composer.state.error = errMessage(error, "Could not send the approval.");
+        if (current()) ctx.composer.state.error = errMessage(error, "无法提交审批结果。");
       } finally {
         if (current()) {
           chatState.resolvingApprovals.delete(decision.requestId);
@@ -1187,6 +1189,21 @@ export function createChatSurface(
   }
 
   function welcomeGreeting(animate = true): TemplateResult {
+    if (chatState.scopeId?.startsWith("group:")) {
+      const context = contextsState.list.find((item) => item.scopeId === chatState.scopeId);
+      const name = context?.project?.name?.trim() || context?.name?.trim() || chatState.contextName?.trim();
+      return html`
+        <article class="message-row assistant-row welcome-greeting">
+          <div class="assistant-body">
+            <div class="welcome-content employee-welcome">
+              <h1>你好，我是${name ? html`<bdi>${name}</bdi>` : "你的专属数字员工"}。</h1>
+              <p>很高兴与你一起工作。告诉我你想完成的任务，我会结合当前项目的信息，协助你处理。</p>
+              <p>今天有什么可以帮你？</p>
+            </div>
+          </div>
+        </article>
+      `;
+    }
     return html`
       <article class="message-row assistant-row welcome-greeting">
         <div class="assistant-body">
@@ -1235,12 +1252,16 @@ export function createChatSurface(
         ${icon(Pin, 13)}<span class="pinned-strip-count">${pins.length}</span>
         ${
           expanded
-            ? html`<span class="pinned-strip-label">Pinned</span>`
+            ? html`<span class="pinned-strip-label">已置顶</span>`
             : html`<span class="pinned-strip-peek"
-                >${linkifiedText(first.text ?? first.preview ?? `entry #${first.entrySeq}`)}</span
+                >${linkifiedText(first.text ?? first.preview ?? `记录 #${first.entrySeq}`)}</span
               >`
         }
-        <button class="pinned-strip-toggle" aria-expanded=${expanded} title=${expanded ? "Collapse pins" : "Show pins"}>
+        <button
+          class="pinned-strip-toggle"
+          aria-expanded=${expanded}
+          title=${expanded ? "收起置顶内容" : "显示置顶内容"}
+        >
           ${icon(expanded ? ChevronUp : ChevronDown, 13)}
         </button>
       </div>
@@ -1249,7 +1270,7 @@ export function createChatSurface(
           ? pins.map(
               (p) =>
                 html`<div class="pinned-item" title=${p.text ?? p.preview ?? ""}>
-                  <span class="pinned-item-text">${linkifiedText(p.text ?? p.preview ?? `entry #${p.entrySeq}`)}</span>
+                  <span class="pinned-item-text">${linkifiedText(p.text ?? p.preview ?? `记录 #${p.entrySeq}`)}</span>
                   ${p.text && p.preview ? html`<span class="pinned-item-preview">${linkifiedText(p.preview)}</span>` : nothing}
                 </div>`,
             )
@@ -1279,7 +1300,7 @@ export function createChatSurface(
         ?disabled=${chatState.loadingEarlier || agent.state.isStreaming}
         @click=${() => void loadEarlierMessages()}
       >
-        ${chatState.loadingEarlier ? "Loading earlier messages…" : "Show earlier messages"}
+        ${chatState.loadingEarlier ? "正在加载更早的消息…" : "查看更早的消息"}
       </button>
     </div>`;
   }
@@ -1348,7 +1369,7 @@ export function createChatSurface(
     const snippet = last ? messageText(last).trim() : "";
     if (tier === "strip") {
       return html`
-        <button type="button" class="pane-strip" ${tip("Expand this pane")} @click=${() => ctx.onExpand?.()}>
+        <button type="button" class="pane-strip" ${tip("展开此面板")} @click=${() => ctx.onExpand?.()}>
           <span class="pane-strip-text" dir="auto">${now ?? snippet}</span>
           ${icon(Maximize2, 13)}
         </button>
@@ -1356,20 +1377,20 @@ export function createChatSurface(
     }
     return html`
       <section class="pane-card" aria-live="polite">
-        ${now ? html`<div class="pane-card-now"><span class="pane-card-now-label">Now</span><span class="pane-card-now-text" dir="auto">${now}</span></div>` : nothing}
+        ${now ? html`<div class="pane-card-now"><span class="pane-card-now-label">现在</span><span class="pane-card-now-text" dir="auto">${now}</span></div>` : nothing}
         ${snippet ? html`<div class="pane-card-last" dir="auto">${snippet}</div>` : nothing}
       </section>
     `;
   }
 
   function paneNowLine(agent: Agent): string | null {
-    if (activePendingApprovals().length) return "Needs your approval";
+    if (activePendingApprovals().length) return "需要你的批准";
     if (agent.state.isStreaming || chatState.resolvingApprovals.size > 0) {
       const work = chatState.liveWork ?? { status: "thinking", activity: [] };
-      if (runSlot.stopGeneration === runSlot.generation) return "Stop requested";
-      if (currentTextPhase(work)?.phase === "final_answer") return "Responding…";
+      if (runSlot.stopGeneration === runSlot.generation) return "已请求停止";
+      if (currentTextPhase(work)?.phase === "final_answer") return "正在回复…";
       const summary = liveWorkSummary(work);
-      if (!summary) return "Thinking…";
+      if (!summary) return "正在思考…";
       return summary.detail ? `${summary.label}: ${summary.detail}` : summary.label;
     }
     return null;
@@ -1391,11 +1412,15 @@ export function createChatSurface(
     updateSpeakerLabels(messages);
     const isNewUser = sessionsState.list.filter((s) => s.id).length === 0;
     const editingApp = appEditSlug(chatState.threadRef, appState.me?.user);
+    const personalScope = chatState.scopeId === null || chatState.scopeId === `personal:${appState.me?.user}`;
     const showWelcome =
       !editingApp &&
-      (appState.me?.welcomeCohort
-        ? isWelcomeConversation(sessionsState.list, appState.me.user, chatState.threadRef, chatState.scopeId)
-        : isNewUser && !messages.length);
+      (chatState.scopeId?.startsWith("group:")
+        ? !messages.length && !chatState.forkSession && !chatState.earlierCount
+        : personalScope &&
+          (appState.me?.welcomeCohort
+            ? isWelcomeConversation(sessionsState.list, appState.me.user, chatState.threadRef, chatState.scopeId)
+            : isNewUser && !messages.length));
     let messageContent: Array<TemplateResult | typeof nothing> | TemplateResult | typeof nothing = nothing;
     const inheritedOffset = chatState.inheritedExpanded ? chatState.inheritedMessages.length : 0;
     if (messages.length) {
@@ -1420,13 +1445,13 @@ export function createChatSurface(
           ${
             ctx.composer.state.dragging
               ? html`<div class="drop-overlay">
-                  <div class="drop-overlay-card">${icon(Files, 30)}<span>Drop files or folders to attach</span></div>
+                  <div class="drop-overlay-card">${icon(Files, 30)}<span>拖入文件或文件夹以添加附件</span></div>
                 </div>`
               : nothing
           }
           ${glanceTier || ctx.pane || editingApp ? nothing : sessionTopbar()}
           ${glanceTier ? paneGlance(agent, messages, glanceTier) : nothing}
-          <section class="chat-scroll" tabindex="0" aria-label="Conversation">
+          <section class="chat-scroll" tabindex="0" aria-label="对话">
             ${pinnedStrip()}
             <div class="message-stack ${emptyChat ? "empty-stack" : ""}">
               ${showWelcome ? welcomeGreeting(!messages.length) : nothing} ${inheritedHeader()}
@@ -1475,6 +1500,26 @@ export function createChatSurface(
     postCurrentPaneState();
   }
 
+  function openSessionTool(tool: SessionTool): void {
+    const scope = chatState.scopeId;
+    const session = sessionsState.list.find((s) =>
+      chatState.sessionId
+        ? s.id === chatState.sessionId
+        : Boolean(chatState.threadRef) && s.threadRef === chatState.threadRef,
+    );
+    const title = (session ?? chatState.forkSession)?.title?.trim() ?? "";
+    const crumb = scope && !scope.startsWith("personal:") ? scopeTitle(scope, chatState.contextName) : null;
+    setScopedSession({
+      scopeId: scope ?? "",
+      sessionId: chatState.sessionId,
+      threadRef: chatState.threadRef,
+      title: title || "新对话",
+      crumb,
+    });
+    if (scope && (tool === "crons" || tool === "files" || tool === "apps")) contextsState.selected = scope;
+    switchView(tool === "apps" ? "deploys" : tool);
+  }
+
   function sessionTopbar(): TemplateResult {
     const scope = chatState.scopeId;
     const session = sessionsState.list.find((s) =>
@@ -1497,27 +1542,17 @@ export function createChatSurface(
       crumb,
       title,
       parent: parentId
-        ? { title: parent?.title?.trim() || "Parent session", onClick: () => void openSessionById(parentId) }
+        ? { title: parent?.title?.trim() || "父会话", onClick: () => void openSessionById(parentId) }
         : null,
       fork: forkedFrom
         ? {
-            title: forkedFrom.title?.trim() || "another conversation",
+            title: forkedFrom.title?.trim() || "其他对话",
             onClick: () => void forkOriginController.navigate(),
           }
         : null,
       onCrumb: crumb && scope ? () => openProjectPage(scope) : null,
       toolCount: scope ? (t) => scopeToolCount(t, scope, () => drawActiveChat()) : null,
-      onTool: (tool) => {
-        setScopedSession({
-          scopeId: scope ?? "",
-          sessionId: chatState.sessionId,
-          threadRef: chatState.threadRef,
-          title: title || "New chat",
-          crumb,
-        });
-        if (scope && (tool === "crons" || tool === "files" || tool === "apps")) contextsState.selected = scope;
-        switchView(tool === "apps" ? "deploys" : tool);
-      },
+      onTool: openSessionTool,
     });
   }
 
@@ -1526,7 +1561,7 @@ export function createChatSurface(
       <header class="chat-topbar">
         <div class="chat-heading">
           <div class="chat-title" dir="auto">${title}</div>
-          <div class="chat-subtitle">${readOnly ? "Read-only" : detail}</div>
+          <div class="chat-subtitle">${readOnly ? "只读" : detail}</div>
         </div>
       </header>
     `;
@@ -1545,7 +1580,7 @@ export function createChatSurface(
     try {
       await agent.continue();
     } catch (err) {
-      if (agent === chatState.agent) ctx.composer.state.error = errMessage(err, "Could not retry the message.");
+      if (agent === chatState.agent) ctx.composer.state.error = errMessage(err, "无法重试发送消息。");
     }
   }
 
@@ -1650,7 +1685,7 @@ export function createChatSurface(
           data-index=${index}
           data-entry-seqs=${messageEntrySeqs(message).join(" ")}
         >
-          ${steered ? html`<div class="steer-label">↪ steered the running task</div>` : nothing}
+          ${steered ? html`<div class="steer-label">↪ 已调整正在运行的任务</div>` : nothing}
           ${speaker ? html`<div class="speaker-label">${speaker}</div>` : nothing}
           ${attachmentGallery(attachments, (attachment) => browserRenderableImage(attachment.mimeType), userAttachmentBadge)}
           <div
@@ -1659,16 +1694,16 @@ export function createChatSurface(
           >
             <div class="pin-content">
               ${isReadOnlySlackView() ? slackWireBubble(messageText(message)) : markdown(messageText(message))}
-              ${edited || deleted ? html`<span class="revision-badge">(${deleted ? "deleted" : "edited"})</span>` : nothing}
+              ${edited || deleted ? html`<span class="revision-badge">（${deleted ? "已删除" : "已编辑"}）</span>` : nothing}
             </div>
-            <button class="pin-toggle" type="button" hidden aria-expanded="false">Show more</button>
+            <button class="pin-toggle" type="button" hidden aria-expanded="false">展开更多</button>
           </div>
           ${
             sendFailure
               ? html`<div class="send-failure">
                   <span>${sendFailure}</span>
                   <button class="btn compact" type="button" @click=${() => void retryFailedSend(message, index)}>
-                    ${icon(RefreshCw, 12)} Retry
+                    ${icon(RefreshCw, 12)} 重试
                   </button>
                 </div>`
               : nothing
@@ -1679,14 +1714,14 @@ export function createChatSurface(
     }
     if (role === "approval-decision") {
       const decision = message as unknown as HistoryApprovalDecision;
-      let label = "Approval denied";
+      let label = "审批已拒绝";
       if (decision.approved) {
         const labels: Record<string, string> = {
-          once: "Approved once",
-          session: "Approved for this session",
-          always: "Approved always",
+          once: "已批准一次",
+          session: "已批准本次会话",
+          always: "已始终批准",
         };
-        label = labels[decision.scope ?? "once"] ?? "Approved";
+        label = labels[decision.scope ?? "once"] ?? "已批准";
       }
       return html`<article
         class="message-row system-note-row"
@@ -1698,7 +1733,7 @@ export function createChatSurface(
     }
     if (role === "system-note") {
       const note = message as unknown as HistorySystemNote;
-      const who = note.speaker ?? "The user";
+      const who = note.speaker ?? "用户";
       return html`
         <article
           class="message-row system-note-row"
@@ -1708,8 +1743,8 @@ export function createChatSurface(
           <div class="system-note">
             ${
               note.action === "deleted"
-                ? html`${who} deleted their message`
-                : html`${who} edited their message: <span class="system-note-text">${note.content}</span>`
+                ? html`${who} 删除了消息`
+                : html`${who} 编辑了消息： <span class="system-note-text">${note.content}</span>`
             }
           </div>
         </article>
@@ -1733,7 +1768,7 @@ export function createChatSurface(
           )
         : nothing;
       if (msg.stopReason === "aborted") {
-        workView = work ? workBlock(work, false, "", "", true) : html`<div class="stopped-head">You stopped</div>`;
+        workView = work ? workBlock(work, false, "", "", true) : html`<div class="stopped-head">你已停止</div>`;
       }
       const deliveredFiles = (msg as AssistantWork).deliveredFiles;
       const hasVisibleContent =
@@ -1782,8 +1817,8 @@ export function createChatSurface(
             ? html`<button
                 class="msg-copy"
                 type="button"
-                ${tip("Copy")}
-                aria-label="Copy message"
+                ${tip("复制")}
+                aria-label="复制消息"
                 @click=${(e: Event) => void copyText(text, e.currentTarget as HTMLButtonElement)}
               >
                 ${icon(Copy, 13)}${icon(Check, 13)}
@@ -1793,10 +1828,10 @@ export function createChatSurface(
         ${
           chatState.sessionId && messageEntrySeqs(message).length
             ? html`<button
-                class="msg-copy"
+                class="msg-copy msg-copy-link"
                 type="button"
-                ${tip("Copy message link")}
-                aria-label="Copy message link"
+                ${tip("复制消息链接")}
+                aria-label="复制消息链接"
                 @click=${(e: Event) => void copyText(sessionLink(location.origin, UI_BASE, chatState.sessionId!, messageEntrySeqs(message)[0]), e.currentTarget as HTMLButtonElement)}
               >
                 ${icon(Link2, 13)}${icon(Check, 13)}
@@ -1808,8 +1843,8 @@ export function createChatSurface(
             ? html`<button
                 class="msg-copy msg-fork"
                 type="button"
-                ${tip("Fork conversation from here")}
-                aria-label="Fork conversation from here"
+                ${tip("从此处创建分支对话")}
+                aria-label="从此处创建分支对话"
                 @click=${() => void forkFromMessage(index)}
               >
                 ${icon(GitFork, 13)}
@@ -1854,7 +1889,7 @@ export function createChatSurface(
       await refreshSessions({ silent: true });
       renderList();
     } catch (err) {
-      ctx.composer.state.error = errMessage(err, "Could not fork the conversation.");
+      ctx.composer.state.error = errMessage(err, "无法创建分支对话。");
       drawActiveChat();
     }
   }
@@ -1876,9 +1911,9 @@ export function createChatSurface(
     return html`<section class="playground-card">
       <header class="playground-header">
         <span class="playground-title">${icon(Rocket, 16)}<strong>${playground.title}</strong></span>
-        <nav class="playground-actions" aria-label="Playground actions">
-          <a href=${source} target="_blank" rel="noreferrer">${icon(FileText, 14)} Source</a>
-          <a href=${src} target="_blank" rel="noreferrer">${icon(Maximize2, 14)} Open</a>
+        <nav class="playground-actions" aria-label="试验区操作">
+          <a href=${source} target="_blank" rel="noreferrer">${icon(FileText, 14)} 源代码</a>
+          <a href=${src} target="_blank" rel="noreferrer">${icon(Maximize2, 14)} 打开</a>
         </nav>
       </header>
       <iframe
@@ -1958,7 +1993,7 @@ export function createChatSurface(
       if (chunk.type === "thinking" && chunk.thinking.trim()) {
         parts.push(
           html`<details class="thinking">
-            <summary>${sheenLabel("Thinking", animating)}</summary>
+            <summary>${sheenLabel("思考中", animating)}</summary>
             ${markdown(chunk.thinking)}
           </details>`,
         );
@@ -2018,7 +2053,7 @@ export function createChatSurface(
     text: string,
   ): boolean {
     if ((message as AssistantWork & { approvalDecision?: "denied" }).approvalDecision === "denied") return false;
-    if (text === "Denied." && work?.activity.some((a) => a.type === "tool_call" || a.type === "approval_request"))
+    if (text === "已拒绝。" && work?.activity.some((a) => a.type === "tool_call" || a.type === "approval_request"))
       return false;
     return true;
   }
@@ -2110,7 +2145,7 @@ export function createChatSurface(
       bgPanel.error = "";
     } catch (e) {
       if (seq !== bgPanel.fetchSeq) return;
-      bgPanel.error = errMessage(e, "Failed to load background activity.");
+      bgPanel.error = errMessage(e, "加载后台活动失败。");
     } finally {
       if (seq === bgPanel.fetchSeq) {
         bgPanel.loading = false;
@@ -2177,8 +2212,8 @@ export function createChatSurface(
   function timeLeft(expiresAt: number): string {
     const mins = Math.round((expiresAt - Date.now()) / 60_000);
     if (mins <= 0) return "expiring";
-    if (mins < 60) return `${mins}m left`;
-    return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m left`;
+    if (mins < 60) return `剩余 ${mins} 分钟`;
+    return `剩余 ${Math.floor(mins / 60)} 小时 ${String(mins % 60).padStart(2, "0")} 分钟`;
   }
 
   function backgroundActivityStrip(): TemplateResult | typeof nothing {
@@ -2197,7 +2232,7 @@ export function createChatSurface(
           aria-expanded=${String(bgPanel.open)}
           @click=${toggleBackgroundPanel}
         >
-          ${icon(Activity, 13)}<span class="bg-activity-label">${label ?? "Background activity"}</span>
+          ${icon(Activity, 13)}<span class="bg-activity-label">${label ?? "后台活动"}</span>
           <span class="bg-activity-toggle">${icon(ChevronRight, 14)}</span>
         </button>
         ${bgPanel.open ? backgroundPanelBody() : nothing}
@@ -2208,10 +2243,10 @@ export function createChatSurface(
   function backgroundPanelBody(): TemplateResult {
     const d = bgPanel.detail;
     const empty = d && d.jobs.length === 0 && d.watches.length === 0 && d.crons.length === 0;
-    return html`<div class="bg-panel" role="region" aria-label="Background activity">
+    return html`<div class="bg-panel" role="region" aria-label="后台活动">
       ${bgPanel.error ? html`<div class="bg-panel-note">${bgPanel.error}</div>` : nothing}
-      ${!d && bgPanel.loading ? html`<div class="bg-panel-note">Loading…</div>` : nothing}
-      ${empty && !bgPanel.error ? html`<div class="bg-panel-note">Nothing running here anymore.</div>` : nothing}
+      ${!d && bgPanel.loading ? html`<div class="bg-panel-note">加载中…</div>` : nothing}
+      ${empty && !bgPanel.error ? html`<div class="bg-panel-note">这里已没有正在运行的任务。</div>` : nothing}
       ${d ? d.jobs.map((j) => backgroundJobRow(j)) : nothing}
       ${d ? d.watches.map((w) => backgroundWatchRow(w)) : nothing}
       ${d ? d.crons.map((c) => backgroundCronRow(c)) : nothing}
@@ -2231,15 +2266,15 @@ export function createChatSurface(
           type="button"
           class="bg-row-head"
           aria-expanded=${String(open)}
-          ${tip(open ? "Hide output" : "Show live output")}
+          ${tip(open ? "隐藏输出" : "查看实时输出")}
           @click=${() => toggleJobOutput(j.processId)}
         >
           ${icon(Terminal, 13)}
           <code class="bg-row-cmd">${j.command}</code>
-          <span class="bg-row-meta">started ${relTime(j.startedAt)} · ${status}</span>
+          <span class="bg-row-meta">开始于 ${relTime(j.startedAt)} · ${displayStatus(status)}</span>
           <span class="bg-row-toggle">${icon(ChevronRight, 13)}</span>
         </button>
-        ${open ? html`<pre class="bg-row-output">${out ? out.text || "(no output yet)" : "Loading output…"}</pre>` : nothing}
+        ${open ? html`<pre class="bg-row-output">${out ? out.text || "（暂无输出）" : "正在加载输出…"}</pre>` : nothing}
       </div>
     `;
   }
@@ -2249,8 +2284,8 @@ export function createChatSurface(
       <div class="bg-row watch">
         <a class="bg-row-head" href=${deepLinkPath(UI_BASE, "crons", null, null, c.id)}>
           ${icon(Clock3, 13)}
-          <span class="bg-row-cmd">Cron: <bdi>${c.title ?? "scheduled task"}</bdi></span>
-          <span class="bg-row-meta">${c.nextFireAt ? `next fire ${nextFireIn(c.nextFireAt)}` : "paused"}</span>
+          <span class="bg-row-cmd">定时任务： <bdi>${c.title ?? "定时任务"}</bdi></span>
+          <span class="bg-row-meta">${c.nextFireAt ? `下次触发 ${nextFireIn(c.nextFireAt)}` : "paused"}</span>
         </a>
       </div>
     `;
@@ -2258,22 +2293,22 @@ export function createChatSurface(
 
   function nextFireIn(at: number): string {
     const mins = Math.round((at - Date.now()) / 60_000);
-    if (mins <= 0) return "due now";
-    if (mins < 60) return `in ${mins}m`;
-    if (mins < 1440) return `in ${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
-    return `in ${Math.floor(mins / 1440)}d`;
+    if (mins <= 0) return "现在到期";
+    if (mins < 60) return `${mins} 分钟后`;
+    if (mins < 1440) return `${Math.floor(mins / 60)} 小时 ${String(mins % 60).padStart(2, "0")} 分钟后`;
+    return `${Math.floor(mins / 1440)} 天后`;
   }
 
   function backgroundWatchRow(w: SessionBackgroundView["watches"][number]): TemplateResult {
-    const what = w.pattern ? `output matching /${w.pattern}/` : "any new output";
+    const what = w.pattern ? `匹配 /${w.pattern}/ 的输出` : "任何新输出";
     const note = w.instructions?.trim();
     return html`
       <div class="bg-row watch">
         <div class="bg-row-head static">
           ${icon(Radar, 13)}
-          <span class="bg-row-cmd">Watch: wakes on ${what}${note ? ` · “${note}”` : ""}</span>
+          <span class="bg-row-cmd">监听：在${what}${note ? ` · “${note}”` : ""}时唤醒</span>
           <span class="bg-row-meta"
-            >armed ${relTime(w.createdAt)} · ${watchActivityLabel(w)} · ${timeLeft(w.expiresAt)}</span
+            >已启用 ${relTime(w.createdAt)} · ${watchActivityLabel(w)} · ${timeLeft(w.expiresAt)}</span
           >
         </div>
       </div>
@@ -2286,15 +2321,15 @@ export function createChatSurface(
     const paused = goal.status === "paused";
     const streaming = agent.state.isStreaming;
     const elapsed = goalElapsedLabel(goal.createdAt, Date.now());
-    let title = "Goal";
-    if (paused) title = "Goal paused";
-    else if (streaming) title = "Pursuing goal";
+    let title = "目标";
+    if (paused) title = "目标已暂停";
+    else if (streaming) title = "正在执行目标";
     return html`
       <section class="goal-strip ${paused ? "paused" : ""}" aria-live="polite" title=${goal.objective}>
         <span class="goal-strip-icon">${icon(paused ? Pause : Target, 13)}</span>
         <span class="goal-strip-title">${title}</span>
         <span class="goal-strip-objective" dir="auto">${goalObjectiveLabel(goal.objective)}</span>
-        ${goal.floor ? html`<span class="goal-strip-meta">at least ${goal.floor}</span>` : nothing}
+        ${goal.floor ? html`<span class="goal-strip-meta">至少 ${goal.floor}</span>` : nothing}
         ${paused ? nothing : html`<span class="goal-strip-meta">· ${elapsed}</span>`}
       </section>
     `;
@@ -2303,7 +2338,7 @@ export function createChatSurface(
   function liveWorkStatus(agent: Agent): TemplateResult | typeof nothing {
     if (!agent.state.isStreaming && chatState.resolvingApprovals.size === 0) return nothing;
     if (runSlot.stopGeneration === runSlot.generation)
-      return html`<div class="stopped-head" role="status">${icon(Ban, 13)}<span>Stop requested</span></div>`;
+      return html`<div class="stopped-head" role="status">${icon(Ban, 13)}<span>已请求停止</span></div>`;
     const work = chatState.liveWork ?? { status: "thinking", activity: [] };
     if (work.status !== "thinking" && work.status !== "working") return nothing;
     if (currentTextPhase(work)?.phase === "final_answer" || shouldShowWork(work, "")) return nothing;
@@ -2311,7 +2346,7 @@ export function createChatSurface(
     const expandable = Boolean(summary?.detail);
     const expanded = expandable && liveWorkExpanded;
     let title = "";
-    if (expandable) title = liveWorkExpanded ? "Show less" : "Show more";
+    if (expandable) title = liveWorkExpanded ? "收起" : "展开更多";
     return html`
       <section class="live-work-status ${expanded ? "expanded" : ""}" aria-live="polite">
         <button
@@ -2324,7 +2359,7 @@ export function createChatSurface(
         >
           ${summary ? html`<span class="tool-icon">${icon(summary.icon, 15)}</span>` : nothing}
           <span class="live-work-label"
-            >${summary ? summary.label : sheenLabel(`Thinking${usedToolsSuffix(work)}`, true)}</span
+            >${summary ? summary.label : sheenLabel(`思考中${usedToolsSuffix(work)}`, true)}</span
           >
           ${summary?.detail ? html`<span class="live-work-detail">${summary.detail}</span>` : nothing}
           ${expandable ? html`<span class="live-work-toggle">${icon(ChevronRight, 14)}</span>` : nothing}
@@ -2346,7 +2381,7 @@ export function createChatSurface(
       const verb = active ? (TOOL_META[toolCategory(call)] ?? UNKNOWN_TOOL).active : null;
       return {
         icon: RefreshCw,
-        label: verb ? `${verb} interrupted, resuming…` : "Interrupted, resuming…",
+        label: verb ? `${verb} 已中断，正在恢复…` : "已中断，正在恢复…",
         detail: active ? toolDetail(tool, call, (active.result?.payload ?? {}) as ToolPayload) : "",
       };
     }
@@ -2373,13 +2408,13 @@ export function createChatSurface(
     if (posting) {
       return {
         icon: MessageSquare,
-        label: secs > 0 ? `Posting message for ${secs}s` : "Posting message",
+        label: secs > 0 ? `正在发送消息，已用 ${secs} 秒` : "正在发送消息",
         detail: firstLine(posting, 60),
       };
     }
     return {
       icon: meta.icon,
-      label: secs > 0 ? `${meta.active} for ${secs}s` : meta.active,
+      label: secs > 0 ? `${meta.active}，已用 ${secs} 秒` : meta.active,
       detail: toolDetail(tool, call, result),
     };
   }
@@ -2391,15 +2426,15 @@ export function createChatSurface(
 
   function usedToolsSuffix(work: WorkBlock): string {
     const n = work.activity.filter((a) => a.type === "tool_call").length;
-    return n > 0 ? ` (used ${n} tool${n === 1 ? "" : "s"})` : "";
+    return n > 0 ? `（已使用 ${n} 个工具）` : "";
   }
 
   function workLabel(work: WorkBlock): string {
-    if (work.stale && (work.status === "thinking" || work.status === "working")) return "Interrupted, resuming…";
-    if (currentTextPhase(work)?.phase === "final_answer") return workedLabel("Worked", workSeconds(work));
-    if (work.status === "thinking") return "Thinking";
+    if (work.stale && (work.status === "thinking" || work.status === "working")) return "已中断，正在恢复…";
+    if (currentTextPhase(work)?.phase === "final_answer") return workedLabel("已执行", workSeconds(work));
+    if (work.status === "thinking") return "思考中";
     const secs = workSeconds(work);
-    return workedLabel(work.status === "working" ? "Working" : "Worked", secs);
+    return workedLabel(work.status === "working" ? "执行中" : "已执行", secs);
   }
 
   function timelineKey(item: TimelineItem): string {
@@ -2429,8 +2464,8 @@ export function createChatSurface(
     const tail = active ? streamingTextTail(text, work.activity) : "";
     const stopping = isStreaming && runSlot.stopGeneration === runSlot.generation;
     const animating = active && !stopping;
-    let label = stopping ? "Stop requested" : workLabel(work);
-    if (stopped) label = `You stopped after ${goalElapsedLabel(0, workSeconds(work) * 1000)}`;
+    let label = stopping ? "已请求停止" : workLabel(work);
+    if (stopped) label = `你在 ${goalElapsedLabel(0, workSeconds(work) * 1000)} 后停止`;
     let fold =
       timeline.length || tail.trim() || work.pendingApprovals?.length
         ? html`<details
@@ -2473,11 +2508,11 @@ export function createChatSurface(
     const truncated = a.command.includes("\n") || a.command.length > 80;
     return html`
       <div class="approval-head">
-        <span class="approval-title">Approval needed</span>
+        <span class="approval-title">需要审批</span>
         ${a.reason ? html`<span class="approval-reason-badge">${a.reason}</span>` : nothing}
       </div>
       ${a.summary ? html`<div class="approval-summary-line">${a.summary}</div>` : nothing}
-      ${a.purpose ? html`<div class="approval-why"><span class="approval-why-label">Why</span>${a.purpose}</div>` : nothing}
+      ${a.purpose ? html`<div class="approval-why"><span class="approval-why-label">原因</span>${a.purpose}</div>` : nothing}
       ${
         expanded
           ? html`<code class="approval-cmd approval-cmd-full">${a.command}</code>`
@@ -2486,15 +2521,14 @@ export function createChatSurface(
       ${
         a.matched
           ? html`<div class="approval-match">
-              <span class="approval-match-label">Triggered by</span
-              ><code class="approval-match-snippet">${a.matched}</code>
+              <span class="approval-match-label">触发来源</span><code class="approval-match-snippet">${a.matched}</code>
             </div>`
           : nothing
       }
       ${
         !expanded && truncated
           ? html`<details class="approval-full">
-              <summary>Show full command</summary>
+              <summary>显示完整命令</summary>
               <code class="approval-cmd">${a.command}</code>
             </details>`
           : nothing
@@ -2538,27 +2572,27 @@ export function createChatSurface(
   }
 
   const TOOL_META: Record<string, { icon: IconNode; active: string; done: string; attempted: string }> = {
-    execute: { icon: Terminal, active: "Running command", done: "Ran command", attempted: "Tried command" },
-    read: { icon: BookOpen, active: "Reading file", done: "Read file", attempted: "Tried reading file" },
-    skill: { icon: BookOpen, active: "Loading skill", done: "Loaded skill", attempted: "Tried loading skill" },
-    write: { icon: Pencil, active: "Writing file", done: "Wrote file", attempted: "Tried writing file" },
-    publish: { icon: Rocket, active: "Publishing", done: "Published", attempted: "Tried publishing" },
-    recall: { icon: Brain, active: "Searching memory", done: "Searched memory", attempted: "Tried searching memory" },
-    memory: { icon: Brain, active: "Using memory", done: "Used memory", attempted: "Tried using memory" },
+    execute: { icon: Terminal, active: "正在运行命令", done: "已运行命令", attempted: "已尝试运行命令" },
+    read: { icon: BookOpen, active: "正在读取文件", done: "已读取文件", attempted: "已尝试读取文件" },
+    skill: { icon: BookOpen, active: "正在加载技能", done: "已加载技能", attempted: "已尝试加载技能" },
+    write: { icon: Pencil, active: "正在写入文件", done: "已写入文件", attempted: "已尝试写入文件" },
+    publish: { icon: Rocket, active: "正在发布", done: "已发布", attempted: "已尝试发布" },
+    recall: { icon: Brain, active: "正在搜索记忆", done: "已搜索记忆", attempted: "已尝试搜索记忆" },
+    memory: { icon: Brain, active: "正在使用记忆", done: "已使用记忆", attempted: "已尝试使用记忆" },
     history: {
       icon: ScrollText,
-      active: "Searching history",
-      done: "Searched history",
-      attempted: "Tried searching history",
+      active: "正在搜索历史",
+      done: "已搜索历史",
+      attempted: "已尝试搜索历史",
     },
     background: {
       icon: Terminal,
-      active: "Managing process",
-      done: "Managed process",
-      attempted: "Tried managing process",
+      active: "正在管理进程",
+      done: "已管理进程",
+      attempted: "已尝试管理进程",
     },
   };
-  const UNKNOWN_TOOL = { icon: Wrench, active: "Working", done: "Finished step", attempted: "Tried step" };
+  const UNKNOWN_TOOL = { icon: Wrench, active: "执行中", done: "步骤已完成", attempted: "已尝试执行步骤" };
 
   function toolName(tool: string): string {
     const parts = tool.split(/__|[/:.]/).filter(Boolean);
@@ -2573,10 +2607,10 @@ export function createChatSurface(
 
   const SUBAGENT_MAIL_NOTES: Record<string, string> = {
     final_answer: "finished",
-    no_reply: "finished without a reply",
-    awaiting_input: "needs an approval",
+    no_reply: "已完成，但未回复",
+    awaiting_input: "需要批准",
     errored: "failed",
-    refused: "was refused",
+    refused: "已被拒绝",
   };
 
   function subagentChip(title: string, sessionId?: string): TemplateResult {
@@ -2586,7 +2620,7 @@ export function createChatSurface(
     return html`<button
       class="subagent-chip"
       type="button"
-      title="Open subagent · Drag to the sidebar to make a top-level session"
+      title="打开子智能体 · 拖到侧边栏可设为顶层会话"
       draggable=${session ? "true" : "false"}
       @dragstart=${(e: DragEvent) => {
         if (session) onSessionDragStart(e, session);
@@ -2626,18 +2660,18 @@ export function createChatSurface(
       case "recall":
       case "history": {
         const seq = call.seq ?? result.seq;
-        if (seq !== undefined) return result.found === false ? `entry #${seq} · not found` : `entry #${seq}`;
+        if (seq !== undefined) return result.found === false ? `记录 #${seq} · 未找到` : `记录 #${seq}`;
         const q = call.query ?? result.query ?? "";
-        return result.count !== undefined ? `${q} · ${result.count} result${result.count === 1 ? "" : "s"}` : q;
+        return result.count !== undefined ? `${q} · ${result.count} 条结果` : q;
       }
       case "memory": {
         const action = call.action ?? result.action ?? "";
         const q = call.query ?? result.query ?? "";
         let detail = q;
         if (result.count !== undefined) {
-          detail = `${q} · ${result.count} result${result.count === 1 ? "" : "s"}`;
+          detail = `${q} · ${result.count} 条结果`;
         } else if (result.added !== undefined) {
-          detail = `${result.added} saved`;
+          detail = `${result.added} 已保存`;
         }
         return [action, detail].filter(Boolean).join(" ");
       }
@@ -2702,7 +2736,7 @@ export function createChatSurface(
     return html`<div class="tool-payload-card">
       ${label ? html`<div class="tool-payload-label">${label}</div>` : nothing}
       <pre class="tool-payload-body">${text}</pre>
-      ${loadFull ? html`<div class="code-card-foot"><button class="show-full-btn" type="button" @click=${loadFull}>Show full ${label?.toLowerCase() ?? "command"}</button></div>` : nothing}
+      ${loadFull ? html`<div class="code-card-foot"><button class="show-full-btn" type="button" @click=${loadFull}>显示完整${label ?? "命令"}</button></div>` : nothing}
     </div>`;
   }
 
@@ -2717,8 +2751,8 @@ export function createChatSurface(
     const input = execution ? (call.command ?? "") : toolPayloadText(call);
     const output = execution ? "" : toolPayloadText(result);
     return html`<div class="tool-disclosure">
-      ${toolPayloadCard(execution ? null : "Input", input, row.call?.truncated ? () => void loadFullEntry(work, row.call!) : undefined)}
-      ${toolPayloadCard("Result", output, row.result?.truncated ? () => void loadFullEntry(work, row.result!) : undefined)}
+      ${toolPayloadCard(execution ? null : "输入", input, row.call?.truncated ? () => void loadFullEntry(work, row.call!) : undefined)}
+      ${toolPayloadCard("结果", output, row.result?.truncated ? () => void loadFullEntry(work, row.result!) : undefined)}
     </div>`;
   }
 
@@ -2728,8 +2762,7 @@ export function createChatSurface(
       return html`<div class="tool-row tool-approval">
         <span class="tool-icon">${icon(Wrench, 13)}</span>
         <span class="tool-label"
-          >Approval
-          needed${p.reason ? html` <span class="tool-detail">${firstLine(p.reason, 90)}</span>` : nothing}</span
+          >需要审批${p.reason ? html` <span class="tool-detail">${firstLine(p.reason, 90)}</span>` : nothing}</span
         >
       </div>`;
     }
@@ -2738,20 +2771,20 @@ export function createChatSurface(
     const tool = call.tool ?? result.tool ?? "unknown";
     const knownMeta = TOOL_META[toolCategory({ ...result, ...call, tool })];
     const meta = knownMeta ?? UNKNOWN_TOOL;
-    const name = toolName(tool) || "Tool";
+    const name = toolName(tool) || "工具";
     const kind = toolRowKind(row, status);
-    let label = knownMeta ? meta.attempted : `Tried ${name}`;
-    if (kind === "approval") label = row.pending ? "Approval needed" : "Approval requested";
+    let label = knownMeta ? meta.attempted : `已尝试 ${name}`;
+    if (kind === "approval") label = row.pending ? "需要审批" : "已请求审批";
     else if (kind === "running") {
       const active = knownMeta ? meta.active : name;
-      label = stale ? `${active} — interrupted` : active;
+      label = stale ? `${active} — 已中断` : active;
     } else if (kind === "ok") label = knownMeta ? meta.done : name;
-    else if (kind === "failed") label = `Failed ${name}`;
+    else if (kind === "failed") label = `${name} 失败`;
     let why = "";
     if (kind === "approval") why = firstLine(result.reason ?? "", 90);
     else if (kind === "failed") why = firstLine(result.error ?? result.reason ?? "", 90);
     const base = kind === "approval" ? "" : toolDetail(tool, call, result);
-    const attempts = row.attempts && row.attempts > 1 ? `${row.attempts} attempts` : "";
+    const attempts = row.attempts && row.attempts > 1 ? `${row.attempts} 次尝试` : "";
     const detail = [base, why, attempts].filter(Boolean).join(" · ");
     const semantic = activityLabel(row, status);
     const visible = semantic
@@ -2801,7 +2834,7 @@ export function createChatSurface(
         a === activity ? { ...a, payload: full.payload, truncated: false } : a,
       );
     } catch (err) {
-      ctx.composer.state.error = errMessage(err, "Couldn't load the full output.");
+      ctx.composer.state.error = errMessage(err, "无法加载完整输出。");
     }
     redrawTranscript();
   }
@@ -2826,8 +2859,8 @@ export function createChatSurface(
         ><span dir="auto">${name}</span
         ><button
           type="button"
-          aria-label="Dismiss ${name} preview"
-          title="Dismiss preview"
+          aria-label="关闭 ${name} 预览"
+          title="关闭预览"
           @click=${() => {
             dismissedHtmlPreviews.add(key);
             redrawTranscript();
@@ -2922,6 +2955,7 @@ export function createChatSurface(
 
   return {
     state: chatState,
+    openSessionTool,
     hasLiveRun: () => hasLiveRun(runSlot),
     signalLiveRun: (kind, text, queuedRunId) =>
       signalLiveRun(
@@ -2955,7 +2989,7 @@ export function createChatSurface(
       transcriptViewport.cancelFollow();
       const found = host ? highlightMessage(host, seq) : false;
       if (!found) {
-        ctx.composer.state.error = "The linked message is unavailable or isn't visible in this conversation.";
+        ctx.composer.state.error = "链接指向的消息不可用，或不在此对话的可见范围内。";
         if (readonlyRedraw) readonlyRedraw();
         else drawActiveChat();
       }

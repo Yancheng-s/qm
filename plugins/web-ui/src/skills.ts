@@ -1,3 +1,4 @@
+import { scopeTypeLabel } from "./display-labels";
 import { html, nothing, render, type TemplateResult } from "lit";
 import { api, type CoreContext } from "./core-bridge";
 import type { SkillItem } from "./composer";
@@ -97,12 +98,12 @@ export function routeSkillsHistory(skillId: string | null): void {
 }
 
 function scopeLabel(scope: string): string {
-  return scope ? scope.charAt(0).toUpperCase() + scope.slice(1) : "";
+  return scopeTypeLabel(scope);
 }
 
 function editAudience(scopeId: string | undefined): string {
-  if (scopeId?.startsWith("personal:")) return "only you";
-  return scopeId ? scopeTitle(scopeId) : "this context";
+  if (scopeId?.startsWith("personal:")) return "仅自己";
+  return scopeId ? scopeTitle(scopeId) : "当前项目";
 }
 
 async function startEdit(s: SkillItem): Promise<void> {
@@ -114,7 +115,7 @@ async function startEdit(s: SkillItem): Promise<void> {
   editing = null;
   editingTarget = s;
   editError = "";
-  skillsNotice = "Loading skill instructions…";
+  skillsNotice = "正在加载技能说明…";
   drawSkills();
   queueMicrotask(() => skillsPageHost?.querySelector<HTMLElement>(".context-back")?.focus());
   try {
@@ -134,7 +135,7 @@ async function startEdit(s: SkillItem): Promise<void> {
     skillsNotice = "";
   } catch (e) {
     if (request !== editRequestSeq) return;
-    editError = errMessage(e, "Failed to load skill details.");
+    editError = errMessage(e, "加载技能详情失败。");
     skillsNotice = "";
   }
   drawSkills();
@@ -203,15 +204,15 @@ function skillScopeTitle(s: SkillItem): string {
 function skillVariant(s: SkillItem, hasScopeVariants: boolean): TemplateResult {
   const actions = skillActions(s);
   const archived = isArchivedSkill(s);
-  let archiveLabel = "Archive";
-  if (deleting === s.id) archiveLabel = "Working…";
-  else if (archived) archiveLabel = "Restore";
+  let archiveLabel = "归档";
+  if (deleting === s.id) archiveLabel = "处理中…";
+  else if (archived) archiveLabel = "恢复";
   return html`
     <div class="skill-variant ${archived ? "archived" : ""}">
       <a
         class="skill-variant-main"
         href=${deepLinkPath(UI_BASE, "skills", null, null, s.id ?? null)}
-        aria-label=${`Open /${s.name}`}
+        aria-label=${`打开 /${s.name}`}
         @click=${(event: MouseEvent) => {
           if (!isPlainLeftClick(event)) return;
           event.preventDefault();
@@ -222,9 +223,9 @@ function skillVariant(s: SkillItem, hasScopeVariants: boolean): TemplateResult {
         <span class="skill-variant-description" ${tip(s.description)}>${s.description}</span>
       </a>
       <div class="skill-variant-state">
-        ${archived ? html`<span class="badge">Archived</span>` : nothing}
-        ${!archived && hasScopeVariants ? html`<span class="badge">Scope variant</span>` : nothing}
-        ${actions.edit && !archived ? html`<button class="btn skill-edit-trigger" data-skill-id=${s.id ?? ""} type="button" ?disabled=${deleting === s.id} @click=${() => void startEdit(s)}>Edit</button>` : nothing}
+        ${archived ? html`<span class="badge">已归档</span>` : nothing}
+        ${!archived && hasScopeVariants ? html`<span class="badge">作用域版本</span>` : nothing}
+        ${actions.edit && !archived ? html`<button class="btn skill-edit-trigger" data-skill-id=${s.id ?? ""} type="button" ?disabled=${deleting === s.id} @click=${() => void startEdit(s)}>编辑</button>` : nothing}
         ${
           actions.delete
             ? html`<button
@@ -252,33 +253,33 @@ function openSkill(s: SkillItem, opts: { push?: boolean } = {}): void {
   host.className = "resource-pane skill-pane";
   render(
     html`<div class="resource-detail">
-      ${listBackLink("Skills", () => drawSkills())}
+      ${listBackLink("技能", () => drawSkills())}
       <div class="resource-heading">
         <h2 dir="auto">/${s.name}</h2>
-        ${archived ? html`<span class="badge">Archived</span>` : nothing}
+        ${archived ? html`<span class="badge">已归档</span>` : nothing}
       </div>
       <div class="field">
-        <label>Description</label>
+        <label>描述</label>
         <div class="value" dir="auto">${s.description}</div>
       </div>
       <div class="field">
-        <label>Scope</label>
+        <label>作用域</label>
         <div class="value">${skillScopeTitle(s)}</div>
       </div>
       <div class="field">
-        <label>Version</label>
+        <label>版本</label>
         <div class="value">${s.version ?? 1}</div>
       </div>
       <div class="field">
-        <label>Source</label>
-        <div class="value">${s.source === "pack" ? `Pack ${s.pack?.upstreamName ?? "source"}` : "Local"}</div>
+        <label>来源</label>
+        <div class="value">${s.source === "pack" ? `技能包 ${s.pack?.upstreamName ?? "来源"}` : "本地"}</div>
       </div>
       <div class="field">
-        <label>Capabilities</label>
-        <div class="value">${s.requiredCapabilities?.length ? s.requiredCapabilities.join(", ") : "None required"}</div>
+        <label>能力</label>
+        <div class="value">${s.requiredCapabilities?.length ? s.requiredCapabilities.join(", ") : "无需"}</div>
       </div>
       <div class="field">
-        <label>Assets</label>
+        <label>资源</label>
         <div class="value">${s.assetCount ?? 0}</div>
       </div>
     </div>`,
@@ -299,20 +300,20 @@ function editorPane() {
   const e = editing;
   if (!e) {
     return html`<section class="skill-form-page">
-      ${listBackLink("Back to skills", closeFocusedFlow)}
+      ${listBackLink("返回技能列表", closeFocusedFlow)}
       <div class="skill-form-heading">
         <div>
-          <h1 class="pane-title">Edit <bdi>/${editingTarget?.name ?? "skill"}</bdi></h1>
-          <p>${editError ? "Instructions unavailable." : "Loading instructions…"}</p>
+          <h1 class="pane-title">编辑 <bdi>/${editingTarget?.name ?? "skill"}</bdi></h1>
+          <p>${editError ? "说明不可用。" : "正在加载说明…"}</p>
         </div>
       </div>
       ${editError ? html`<div class="form-error" role="alert">${editError}</div>` : nothing}
     </section>`;
   }
   const reviewed = reviewMatches(e.review, e.description, e.body);
-  let saveLabel = "Save";
-  if (saving) saveLabel = "Saving…";
-  else if (reviewed) saveLabel = "Publish change";
+  let saveLabel = "保存";
+  if (saving) saveLabel = "正在保存…";
+  else if (reviewed) saveLabel = "发布修改";
   return html`
     <form
       class="skill-form-page"
@@ -321,16 +322,16 @@ function editorPane() {
         void saveEdit();
       }}
     >
-      ${listBackLink("Back to skills", closeFocusedFlow)}
+      ${listBackLink("返回技能列表", closeFocusedFlow)}
       <div class="skill-form-heading">
         <div>
-          <h1 class="pane-title">Edit <bdi>/${e.name}</bdi></h1>
-          <p>Available to ${editAudience(e.scopeId)}</p>
+          <h1 class="pane-title">编辑 <bdi>/${e.name}</bdi></h1>
+          <p>可用范围：${editAudience(e.scopeId)}</p>
         </div>
-        <span class="badge">Editing</span>
+        <span class="badge">编辑中</span>
       </div>
       <label class="skill-field">
-        <span>Description</span>
+        <span>描述</span>
         <input
           id="skill-edit-description"
           class="skill-desc-input"
@@ -345,7 +346,7 @@ function editorPane() {
         />
       </label>
       <label class="skill-field">
-        <span>Instructions</span>
+        <span>使用说明</span>
         <textarea
           class="skill-body-input"
           spellcheck="false"
@@ -362,11 +363,9 @@ function editorPane() {
       ${
         reviewed
           ? html`<div class="skill-impact" role="alert">
-              <strong>Publish this change to <bdi>${scopeTitle(e.scopeId ?? null)}</bdi>?</strong>
+              <strong>将此修改发布到 <bdi>${scopeTitle(e.scopeId ?? null)}</bdi>?</strong>
               <div class="card-meta">
-                Everyone in this context can invoke the updated instructions. Description
-                ${e.description === e.originalDescription ? "unchanged" : "changed"}; instructions
-                ${e.body === e.originalBody ? "unchanged" : "changed"}.
+                当前项目的所有成员都可使用更新后的技能。描述${e.description === e.originalDescription ? "未修改" : "已修改"}；说明${e.body === e.originalBody ? "未修改" : "已修改"}。
               </div>
             </div>`
           : nothing
@@ -393,11 +392,11 @@ function editorPane() {
                   drawSkills();
                 }}
               >
-                Review again
+                重新审核
               </button>`
             : nothing
         }
-        <button class="btn" type="button" ?disabled=${saving} @click=${closeFocusedFlow}>Cancel</button>
+        <button class="btn" type="button" ?disabled=${saving} @click=${closeFocusedFlow}>取消</button>
       </div>
     </form>
   `;
@@ -407,9 +406,9 @@ function creatorPane() {
   const c = creating!;
   const ready = c.name.trim() !== "" && c.description.trim() !== "" && c.body.trim() !== "";
   const reviewed = createReviewMatches(c.review, c.name.trim(), c.description.trim(), c.body.trim(), c.scopeId);
-  let createLabel = "Create skill";
-  if (creatingSaving) createLabel = "Saving…";
-  else if (reviewed) createLabel = "Publish skill";
+  let createLabel = "创建技能";
+  if (creatingSaving) createLabel = "正在保存…";
+  else if (reviewed) createLabel = "发布技能";
   return html`
     <form
       class="skill-form-page"
@@ -418,16 +417,16 @@ function creatorPane() {
         void saveCreate();
       }}
     >
-      ${listBackLink("Back to skills", closeFocusedFlow)}
+      ${listBackLink("返回技能列表", closeFocusedFlow)}
       <div class="skill-form-heading">
         <div>
-          <h1 class="pane-title">New skill</h1>
-          <p>Create a reusable procedure for yourself or a shared context.</p>
+          <h1 class="pane-title">新建技能</h1>
+          <p>为自己或共享项目创建可复用的操作流程。</p>
         </div>
-        <span class="badge">New</span>
+        <span class="badge">新建</span>
       </div>
       <label class="skill-field">
-        <span>Name</span>
+        <span>名称</span>
         <input
           id="skill-create-name"
           class="skill-desc-input"
@@ -443,7 +442,7 @@ function creatorPane() {
         />
       </label>
       <label class="skill-field">
-        <span>Available to</span>
+        <span>可用范围</span>
         ${fieldSelect({
           className: "skill-scope-select",
           value: c.scopeId,
@@ -455,14 +454,14 @@ function creatorPane() {
           },
           options: createScopes.map((scope) => html`<option value=${scope.scopeId}>${scope.name}</option>`),
         })}
-        <small class="card-meta">Everyone in a shared context can invoke and edit this skill.</small>
+        <small class="card-meta">共享项目的所有成员都可使用和编辑此技能。</small>
       </label>
       <label class="skill-field">
-        <span>Description</span>
+        <span>描述</span>
         <input
           class="skill-desc-input"
           type="text"
-          placeholder="One line: what it does / when to use it"
+          placeholder="用一句话说明功能及使用场景"
           data-focus-key="skill-create-description"
           .value=${c.description}
           ?disabled=${creatingSaving}
@@ -473,11 +472,11 @@ function creatorPane() {
         />
       </label>
       <label class="skill-field">
-        <span>Instructions</span>
+        <span>使用说明</span>
         <textarea
           class="skill-body-input"
           spellcheck="false"
-          placeholder="The SKILL.md contents: the steps to follow when this skill is used."
+          placeholder="SKILL.md 内容：使用此技能时应遵循的步骤。"
           data-focus-key="skill-create-body"
           ?disabled=${creatingSaving}
           @input=${(ev: Event) => {
@@ -491,8 +490,8 @@ function creatorPane() {
       ${
         reviewed
           ? html`<div class="skill-impact" role="alert">
-              <strong>Publish <bdi>/${c.name.trim()}</bdi> to <bdi>${scopeTitle(c.scopeId)}</bdi>?</strong>
-              <div class="card-meta">Everyone in this context can invoke and edit these instructions.</div>
+              <strong>发布 <bdi>/${c.name.trim()}</bdi> 到 <bdi>${scopeTitle(c.scopeId)}</bdi>?</strong>
+              <div class="card-meta">当前项目的所有成员都可使用和编辑这些说明。</div>
             </div>`
           : nothing
       }
@@ -518,11 +517,11 @@ function creatorPane() {
                   drawSkills();
                 }}
               >
-                Review again
+                重新审核
               </button>`
             : nothing
         }
-        <button class="btn" type="button" ?disabled=${creatingSaving} @click=${closeFocusedFlow}>Cancel</button>
+        <button class="btn" type="button" ?disabled=${creatingSaving} @click=${closeFocusedFlow}>取消</button>
       </div>
     </form>
   `;
@@ -563,34 +562,33 @@ function drawSkills(loading = false): void {
     drawSkills();
   };
   const emptyState = skillEmptyState(skillRows.length, filtered.length, loading);
-  let empty: string | TemplateResult = scopedScope ? "No skills in this context." : "No skills available yet.";
+  let empty: string | TemplateResult = scopedScope ? "当前项目中没有技能。" : "暂无可用技能。";
   if (emptyState === "filtered") {
     empty = html`<div class="skill-empty">
-      <span>No skills match these filters.</span
-      ><button class="btn" type="button" @click=${clearFilters}>Clear filters</button>
+      <span>没有符合筛选条件的技能。</span><button class="btn" type="button" @click=${clearFilters}>清除筛选</button>
     </div>`;
   } else if (emptyState === "loading") {
-    empty = "Loading skills…";
+    empty = "正在加载技能…";
   }
   render(
     html`${scopedViewTopbar("skills", () => drawSkills())}${listPageTpl({
-      title: "Skills",
-      action: { label: "New skill", onClick: startCreate },
+      title: "技能",
+      action: { label: "新建技能", onClick: startCreate },
       search: {
         value: skillSearch,
-        placeholder: "Search skills…",
+        placeholder: "搜索技能…",
         onInput: (value) => {
           skillSearch = value;
           drawSkills();
         },
       },
       filters: html`<div class="skill-registry-controls">
-          <div class="resource-tabs" role="group" aria-label="Filter by skill status">
+          <div class="resource-tabs" role="group" aria-label="按技能状态筛选">
             ${(
               [
-                ["active", "Active", counts.active],
-                ["archived", "Archived", counts.archived],
-                ["all", "All", counts.all],
+                ["active", "进行中", counts.active],
+                ["archived", "已归档", counts.archived],
+                ["all", "全部", counts.all],
               ] as const
             ).map(
               ([value, label, count]) =>
@@ -609,45 +607,45 @@ function drawSkills(loading = false): void {
           </div>
           <div class="skill-filter-fields">
             <label class="list-select"
-              ><span>Scope</span>${fieldSelect({
+              ><span>作用域</span>${fieldSelect({
                 compact: true,
-                ariaLabel: "Filter skills by scope",
+                ariaLabel: "按技能作用域筛选",
                 value: scopeFilter,
                 onChange: (value) => {
                   scopeFilter = value;
                   drawSkills();
                 },
                 options: [
-                  html`<option value="all">All scopes</option>`,
-                  html`<option value="personal">Personal</option>`,
-                  html`<option value="channel">Channel</option>`,
-                  html`<option value="group">Project / group</option>`,
-                  html`<option value="team">Team</option>`,
-                  html`<option value="org">Organization</option>`,
+                  html`<option value="all">所有作用域</option>`,
+                  html`<option value="personal">个人</option>`,
+                  html`<option value="channel">频道</option>`,
+                  html`<option value="group">项目 / 群组</option>`,
+                  html`<option value="team">团队</option>`,
+                  html`<option value="org">组织</option>`,
                 ],
               })}</label
             >
             <label class="list-select"
-              ><span>Source</span>${fieldSelect({
+              ><span>来源</span>${fieldSelect({
                 compact: true,
-                ariaLabel: "Filter skills by source",
+                ariaLabel: "按技能来源筛选",
                 value: sourceFilter,
                 onChange: (value) => {
                   sourceFilter = value;
                   drawSkills();
                 },
                 options: [
-                  html`<option value="all">All sources</option>`,
-                  html`<option value="native">Local</option>`,
-                  html`<option value="pack">Skill packs</option>`,
-                  html`<option value="overrides">Overrides</option>`,
+                  html`<option value="all">所有来源</option>`,
+                  html`<option value="native">本地</option>`,
+                  html`<option value="pack">技能包</option>`,
+                  html`<option value="overrides">覆盖版本</option>`,
                 ],
               })}</label
             >
           </div>
         </div>
         <div class="skill-result-count" aria-live="polite">
-          ${loading ? "Loading…" : `${filtered.length} skill${filtered.length === 1 ? "" : "s"} in ${groups.length} ${groups.length === 1 ? "group" : "groups"}`}
+          ${loading ? "加载中…" : `${filtered.length} 个技能，位于 ${groups.length} 个分组`}
         </div>
         ${skillsNotice ? html`<div class="status">${skillsNotice}</div>` : nothing}`,
       rows,
@@ -685,7 +683,7 @@ function archiveDialog(skill: SkillItem): TemplateResult {
   const audience =
     skill.scope === "personal"
       ? "you"
-      : `everyone in ${skill.scopeId ? scopeTitle(skill.scopeId) : `this ${skill.scope}`}`;
+      : `${skill.scopeId ? scopeTitle(skill.scopeId) : `此${skill.scope}`} 中的所有成员`;
   return html`<div
     class="project-dialog-backdrop"
     @click=${(event: MouseEvent) => event.target === event.currentTarget && closeArchiveDialog()}
@@ -700,12 +698,12 @@ function archiveDialog(skill: SkillItem): TemplateResult {
     >
       <div class="project-dialog-head">
         <div>
-          <h2 id="skill-archive-title">Archive <bdi>/${skill.name}</bdi>?</h2>
+          <h2 id="skill-archive-title">归档 <bdi>/${skill.name}</bdi>?</h2>
         </div>
       </div>
       <p id="skill-archive-impact">
-        This version will stop being available to ${audience}. If it overrides a broader <bdi>/${skill.name}</bdi>, that
-        version becomes effective. Its history and assets are kept, and you can restore it later.
+        此版本将不再对${audience}可用。如果它覆盖了更大范围的
+        <bdi>/${skill.name}</bdi>，则该版本将生效。历史记录和资源会保留，你可以稍后恢复。
       </p>
       <div class="project-dialog-actions actions">
         <button
@@ -715,14 +713,14 @@ function archiveDialog(skill: SkillItem): TemplateResult {
           ?disabled=${deleting === skill.id}
           @click=${closeArchiveDialog}
         >
-          Cancel</button
+          取消</button
         ><button
           class="btn danger skill-archive-confirm"
           type="button"
           ?disabled=${deleting === skill.id}
           @click=${() => void performArchive(skill)}
         >
-          ${deleting === skill.id ? "Archiving…" : "Archive skill"}
+          ${deleting === skill.id ? "正在归档…" : "归档技能"}
         </button>
       </div>
     </div>
@@ -758,7 +756,7 @@ async function saveEdit(): Promise<void> {
     restoreFocusedFlow(returnTarget);
   } catch (e) {
     if (!skillMutations.isCurrent(operation)) return;
-    editError = errMessage(e, "Failed to save skill.");
+    editError = errMessage(e, "保存技能失败。");
     saving = false;
     drawSkills();
   }
@@ -770,7 +768,7 @@ async function saveCreate(): Promise<void> {
   const description = creating.description.trim();
   const body = creating.body.trim();
   if (!name || !description || !body) {
-    createError = "Name, description, and instructions are all required.";
+    createError = "名称、描述和说明均为必填项。";
     drawSkills();
     return;
   }
@@ -803,7 +801,7 @@ async function saveCreate(): Promise<void> {
     restoreFocusedFlow(returnTarget);
   } catch (e) {
     if (!skillMutations.isCurrent(operation)) return;
-    createError = errMessage(e, "Failed to create skill.");
+    createError = errMessage(e, "创建技能失败。");
     creatingSaving = false;
     drawSkills();
   }
@@ -819,7 +817,7 @@ async function deleteSkill(s: SkillItem, trigger?: HTMLElement): Promise<void> {
       return void renderSkills();
     } catch (e) {
       deleting = null;
-      skillsNotice = errMessage(e, "Failed to restore skill.");
+      skillsNotice = errMessage(e, "恢复技能失败。");
       return drawSkills();
     }
   }
@@ -854,7 +852,7 @@ async function performArchive(s: SkillItem): Promise<void> {
     await renderSkills();
   } catch (e) {
     deleting = null;
-    skillsNotice = errMessage(e, "Failed to archive skill.");
+    skillsNotice = errMessage(e, "归档技能失败。");
     drawSkills();
     requestAnimationFrame(() => {
       const fallback = focusTarget?.dataset.skillId
@@ -893,7 +891,7 @@ export async function renderSkills(): Promise<void> {
     skillRows = (r.skills ?? []).slice().sort((a, b) => a.name.localeCompare(b.name));
     const personal = appState.me ? `personal:${appState.me.user}` : "";
     createScopes = [
-      { scopeId: personal, name: "Personal (only you)" },
+      { scopeId: personal, name: "个人（仅自己）" },
       ...(contexts.contexts ?? [])
         .filter(
           (context) =>
@@ -905,11 +903,11 @@ export async function renderSkills(): Promise<void> {
   } catch (e) {
     if (!skillsRefreshes.isCurrent(request) || seq !== appState.viewRenderSeq || appState.currentView !== "skills")
       return;
-    skillsNotice = errMessage(e, "Failed to load skills.");
+    skillsNotice = errMessage(e, "加载技能失败。");
   }
   if (!skillsRefreshes.isCurrent(request)) return;
   const skill = wanted ? skillRows.find((candidate) => candidate.id === wanted) : undefined;
-  if (wanted && !skill) skillsNotice = "That skill wasn't found, or you don't have access to it.";
+  if (wanted && !skill) skillsNotice = "找不到该技能，或你没有访问权限。";
   if (skill) openSkill(skill);
   else drawSkills(false);
 }

@@ -1,3 +1,4 @@
+import { loadPiWebUi } from "./component-language";
 import { appEditSlug } from "./app-edit";
 import { getRuntimeConfig, loadRuntimeConfig, saveRuntimeConfig, subscribeRuntimeConfig } from "./runtime-config-store";
 import type { Agent, AgentMessage } from "@earendil-works/pi-agent-core";
@@ -7,7 +8,21 @@ import { FolderDropError, folderToZipFile, isFolderReadError, splitDropItems, ty
 import { html, nothing, render, type TemplateResult } from "lit";
 import { live } from "lit/directives/live.js";
 import { repeat } from "lit/directives/repeat.js";
-import { ArrowUp, Box, CornerDownRight, FileText, Paperclip, Square, X } from "lucide";
+import {
+  ArrowUp,
+  Box,
+  Camera,
+  ChevronRight,
+  CornerDownRight,
+  FileText,
+  ImagePlus,
+  Mic,
+  Paperclip,
+  Plus,
+  Square,
+  X,
+} from "lucide";
+import { createAudioRecorder, createVoiceInput } from "./voice-input";
 import {
   api,
   ApiError,
@@ -47,7 +62,8 @@ import { appState } from "./shell";
 import { base64ToText, bytesToBase64, insertIntoDraft, pasteChipLabel } from "./paste-text";
 import { clearDraft, newChatDraftKey, saveDraft } from "./drafts";
 import { tip } from "./tooltip";
-import { isPhone } from "./viewport";
+import { isPhone, onPhoneChange } from "./viewport";
+import { SESSION_TOOLS } from "./session-scope";
 import {
   LOADOUT_CAP,
   loadLoadout,
@@ -247,6 +263,54 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
     pasteView: null as { id: string; text: string; initial: string; dirty: boolean } | null,
   };
 
+  let attachmentsOpen = false;
+  let voiceThread: string | null = null;
+  const voice = createVoiceInput({
+    supported: () =>
+      Boolean(
+        window.isSecureContext &&
+        typeof navigator.mediaDevices?.getUserMedia === "function" &&
+        typeof MediaRecorder !== "undefined",
+      ),
+    openMicrophone: () =>
+      navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+      }),
+    createRecorder: createAudioRecorder,
+    transcribe: async (audio, durationMs, signal) => {
+      const result = await api<{ text: string }>("/api/asr", {
+        method: "POST",
+        signal,
+        body: JSON.stringify({
+          audio: bytesToBase64(new Uint8Array(await audio.arrayBuffer())),
+          mimeType: audio.type,
+          durationMs,
+        }),
+      });
+      return result.text;
+    },
+    onChange: () => ctx.chat.drawActiveChat(),
+    onText: (text) => {
+      if (ctx.chat.state.threadRef !== voiceThread) return;
+      composerState.draft = composerState.draft.trim() ? `${composerState.draft.trimEnd()} ${text}` : text;
+      composerState.error = "";
+      persistDraft();
+      ctx.chat.drawActiveChat();
+      focusComposerEnd();
+    },
+  });
+  const cancelHiddenVoice = (): void => {
+    if (document.hidden && voice.state.phase !== "idle") voice.cancel();
+  };
+  const cancelPageVoice = (): void => voice.cancel(false);
+  document.addEventListener("visibilitychange", cancelHiddenVoice);
+  window.addEventListener("pagehide", cancelPageVoice);
+  const unsubscribePhone = onPhoneChange(() => {
+    voice.cancel(false);
+    attachmentsOpen = false;
+    ctx.chat.drawActiveChat();
+  });
+
   const pastedTextIds = new Set<string>();
 
   const queuedRuns = new Map<string, QueuedRun[]>();
@@ -279,6 +343,8 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
   }
 
   function resetComposer(): void {
+    voice.cancel(false);
+    attachmentsOpen = false;
     composerState.draft = "";
     composerState.attachments = [];
     composerState.pasteView = null;
@@ -333,7 +399,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
     syncRuntimeSelection(agent);
     const config = key === null ? null : await loadRuntimeConfig(key, refresh);
     if (request !== runtimeRequest) return;
-    if (!config) composerState.error = "Could not load runtime settings.";
+    if (!config) composerState.error = "无法加载运行设置。";
     if (config && !loadoutRestored) {
       restoreLoadoutSelection();
       loadoutRestored = true;
@@ -418,7 +484,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
       placeLoadout();
     } catch (e) {
       if (request !== runtimeRequest || scopeId !== scopeKey()) return;
-      composerState.error = errMessage(e, "Could not update the scope default.");
+      composerState.error = errMessage(e, "无法更新项目默认设置。");
       ctx.chat.drawActiveChat(agent);
     }
   }
@@ -433,15 +499,15 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
       return html`<div class="composer-wrap">
         ${header} ${composerApprovalPanel(ctx.chat.activePendingApprovals())}
         <p role="status">
-          ${composerState.error || activeRuntimeConfig?.unavailableReason || "Selected model is unavailable. Choose a replacement to continue."}
+          ${composerState.error || activeRuntimeConfig?.unavailableReason || "所选模型不可用，请选择其他模型以继续。"}
           ${selected}
         </p>
         <label
-          >Replacement model
+          >替代模型
           ${fieldSelect({
-            ariaLabel: "Replacement model",
+            ariaLabel: "替代模型",
             value: "",
-            options: html`<option value="" selected>Select a model…</option>
+            options: html`<option value="" selected>选择模型…</option>
               ${getModelOptions(scopeKey()).map((option) => html`<option value=${option.value}>${option.harnessLabel} · ${option.label}</option>`)}`,
             onChange: async (value) => {
               const option = modelOptionFor(value, scopeKey());
@@ -456,7 +522,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
           })}
         </label>
         <button type="button" @click=${() => void refreshRuntimeSelection(ctx.chat.state.scopeId, agent, true)}>
-          Refresh models
+          刷新模型
         </button>
       </div>`;
     }
@@ -465,21 +531,25 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
     const runtimePending = activeRuntimeConfig === null;
     const inputBlocked = runtimePending || ctx.chat.state.resolvingApprovals.size > 0 || blockingPauses.length > 0;
     const attachingDisabled = inputBlocked;
-    let placeholder = appEditSlug(ctx.chat.state.threadRef, appState.me?.user) ? "Describe a change…" : "Ask anything";
-    if (inputBlocked) placeholder = runtimePending ? "Loading runtime…" : "Approve or deny to continue";
-    else if (agent.state.isStreaming) placeholder = "Queue a message for after this turn…";
+    const voiceActive = voice.state.phase !== "idle";
+    let voiceLabel = `正在录音 ${Math.floor(voice.state.seconds / 60)}:${String(voice.state.seconds % 60).padStart(2, "0")}`;
+    if (voice.state.phase === "starting") voiceLabel = "正在启动麦克风…";
+    if (voice.state.phase === "transcribing") voiceLabel = "正在识别…";
+    let placeholder = appEditSlug(ctx.chat.state.threadRef, appState.me?.user) ? "描述你想修改的内容…" : "输入你的问题";
+    if (inputBlocked) placeholder = runtimePending ? "正在加载运行配置…" : "请批准或拒绝以继续";
+    else if (agent.state.isStreaming) placeholder = "输入消息，当前任务结束后发送…";
     let composerNotice: TemplateResult | typeof nothing = nothing;
     if (composerState.processingFiles) {
-      composerNotice = html`<div class="composer-note">Preparing files...</div>`;
+      composerNotice = html`<div class="composer-note">正在准备文件…</div>`;
     } else if (!approvalPauses.length && runtimePending) {
       composerNotice = composerState.error
         ? html`<div class="composer-error">
             ${composerState.error}
             <button type="button" @click=${() => void refreshRuntimeSelection(ctx.chat.state.scopeId, agent, true)}>
-              Retry
+              重试
             </button>
           </div>`
-        : html`<div class="composer-note">Loading runtime settings…</div>`;
+        : html`<div class="composer-note">正在加载运行设置…</div>`;
     } else if (composerState.error) {
       composerNotice = html`<div class="composer-error">${composerState.error}</div>`;
     }
@@ -494,24 +564,36 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
         @keydown=${(e: KeyboardEvent) => composerShortcut(e, agent, inputBlocked)}
       >
         ${header} ${slashMenu(agent)}
+        ${isPhone() && attachmentsOpen ? addToConversationSheet(agent, attachingDisabled || voiceActive) : nothing}
+        ${
+          voiceActive
+            ? html`<div class="composer-voice-status">
+                <div role="status">
+                  <span class="voice-recording-dot"></span>${voiceLabel}<span class="voice-limit">最长 60 秒</span>
+                </div>
+                <button type="button" @click=${() => voice.cancel()}>取消</button>
+              </div>`
+            : nothing
+        }
+        ${voice.state.error ? html`<div class="composer-error" role="alert">${voice.state.error}</div>` : nothing}
         ${
           activeRuntimeConfig?.upgradeAvailable
             ? html`<div class="runtime-upgrade">
                 <span
-                  >The org now recommends
+                  >组织当前推荐
                   ${modelOptionFor(`${activeRuntimeConfig.orgDefault.harnessId}:${activeRuntimeConfig.orgDefault.modelId}`, scopeKey())?.harnessLabel ?? activeRuntimeConfig.orgDefault.harnessId}
                   ·
-                  ${modelOptionFor(`${activeRuntimeConfig.orgDefault.harnessId}:${activeRuntimeConfig.orgDefault.modelId}`, scopeKey())?.buttonLabel ?? activeRuntimeConfig.orgDefault.modelId}.</span
+                  ${modelOptionFor(`${activeRuntimeConfig.orgDefault.harnessId}:${activeRuntimeConfig.orgDefault.modelId}`, scopeKey())?.buttonLabel ?? activeRuntimeConfig.orgDefault.modelId}。</span
                 >
                 <button
                   type="button"
                   @click=${() => changeScopeRuntime({ harnessId: activeRuntimeConfig!.orgDefault.harnessId, modelId: activeRuntimeConfig!.orgDefault.modelId }, agent)}
                 >
-                  Upgrade
+                  升级
                 </button>
-                <button type="button" @click=${() => changeScopeRuntime({ keep: true }, agent)}>Keep mine</button>
+                <button type="button" @click=${() => changeScopeRuntime({ keep: true }, agent)}>保留我的设置</button>
                 <button type="button" @click=${() => changeScopeRuntime({ inherit: true }, agent)}>
-                  Inherit future defaults
+                  跟随后续默认设置
                 </button>
               </div>`
             : nothing
@@ -530,7 +612,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
                             ? html`<button
                                 type="button"
                                 class="composer-image-open"
-                                aria-label=${`Preview ${a.fileName}`}
+                                aria-label=${`预览 ${a.fileName}`}
                                 @click=${() => openImagePreview(a)}
                               >
                                 <img
@@ -549,8 +631,8 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
                                 <button
                                   type="button"
                                   class="chip-open"
-                                  aria-label="View pasted text"
-                                  ${tip("View pasted text")}
+                                  aria-label="查看粘贴的文本"
+                                  ${tip("查看粘贴的文本")}
                                   @click=${() => openPasteView(a.id, agent)}
                                 >
                                   ${icon(FileText, 14)}
@@ -566,8 +648,8 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
                         <button
                           type="button"
                           class="chip-x"
-                          aria-label="Remove attachment"
-                          ${tip("Remove")}
+                          aria-label="移除附件"
+                          ${tip("移除")}
                           @click=${() => removeAttachment(a.id, agent)}
                         >
                           ${icon(X, 13)}
@@ -589,7 +671,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
                   dir="auto"
                   rows="1"
                   placeholder=${placeholder}
-                  ?disabled=${inputBlocked}
+                  ?disabled=${inputBlocked || voiceActive}
                   .value=${live(composerState.draft)}
                   @input=${(e: InputEvent) => onDraftInput(e, agent)}
                   @keydown=${(e: KeyboardEvent) => onComposerKeydown(e, agent)}
@@ -610,12 +692,24 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
             <button
               class="icon-btn composer-attach"
               type="button"
-              aria-label="Attach files"
-              ${tip("Attach files")}
-              ?disabled=${attachingDisabled}
-              @click=${() => pickFiles()}
+              aria-label=${isPhone() ? "添加到对话" : "添加附件"}
+              aria-haspopup=${isPhone() ? "dialog" : nothing}
+              aria-expanded=${isPhone() ? String(attachmentsOpen) : nothing}
+              ${tip(isPhone() ? "添加到对话" : "添加附件")}
+              ?disabled=${isPhone() ? voiceActive : attachingDisabled || voiceActive}
+              @click=${() => {
+                if (isPhone()) {
+                  if (!attachmentsOpen && document.activeElement instanceof HTMLElement) document.activeElement.blur();
+                  attachmentsOpen = !attachmentsOpen;
+                  ctx.chat.drawActiveChat(agent);
+                  if (attachmentsOpen)
+                    requestAnimationFrame(() =>
+                      ctx.chat.state.host?.querySelector<HTMLElement>(".composer-add-close")?.focus(),
+                    );
+                } else pickFiles();
+              }}
             >
-              ${icon(Paperclip, 18)}
+              ${icon(isPhone() ? Plus : Paperclip, isPhone() ? 20 : 18)}
             </button>
             ${showRuntimeControls ? runtimeControls : nothing}
           </div>
@@ -624,6 +718,86 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
         ${composerNotice}
       </form>
       ${pasteViewDialog(agent)}
+    `;
+  }
+
+  function addToConversationSheet(agent: Agent, attachingDisabled: boolean): TemplateResult {
+    const close = (restoreFocus = true) => {
+      attachmentsOpen = false;
+      ctx.chat.drawActiveChat(agent);
+      if (restoreFocus)
+        requestAnimationFrame(() => ctx.chat.state.host?.querySelector<HTMLElement>(".composer-attach")?.focus());
+    };
+    const onKeydown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        close();
+      }
+      if (event.key !== "Tab") return;
+      const buttons = Array.from(
+        (event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>("button:not(:disabled)"),
+      );
+      const first = buttons[0];
+      const last = buttons.at(-1);
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    const picker = (label: string, glyph: Parameters<typeof icon>[0], accept: string, capture = false) => html`
+      <button
+        class="composer-add-tile"
+        type="button"
+        ?disabled=${attachingDisabled}
+        @click=${() => pickFiles(accept, capture)}
+      >
+        ${icon(glyph, 26)}<span>${label}</span>
+      </button>
+    `;
+    return html`
+      <div class="composer-add-overlay">
+        <div class="composer-add-backdrop" @click=${() => close()}></div>
+        <section
+          class="composer-add-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="composer-add-title"
+          @keydown=${onKeydown}
+        >
+          <div class="composer-add-handle" aria-hidden="true"></div>
+          <div class="composer-add-head">
+            <h2 id="composer-add-title">添加到对话</h2>
+            <button class="composer-add-close" type="button" aria-label="关闭" @click=${() => close()}>
+              ${icon(X, 24)}
+            </button>
+          </div>
+          <div class="composer-add-tiles">
+            ${picker("拍照", Camera, "image/*", true)} ${picker("相册", ImagePlus, "image/*")}
+            ${picker("文件", FileText, "")}
+          </div>
+          <div class="composer-add-section">此对话的工作区</div>
+          <div class="composer-add-tools">
+            ${SESSION_TOOLS.map(
+              ({ id, glyph, label }) => html`
+                <button
+                  class="composer-add-tool"
+                  type="button"
+                  @click=${() => {
+                    close(false);
+                    ctx.chat.openSessionTool(id);
+                  }}
+                >
+                  ${icon(glyph, 21)}<span>${label}</span>${icon(ChevronRight, 20)}
+                </button>
+              `,
+            )}
+          </div>
+        </section>
+      </div>
     `;
   }
 
@@ -638,14 +812,8 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
       >
         <div class="project-dialog paste-dialog" role="dialog" aria-modal="true" aria-labelledby="paste-dialog-title">
           <div class="project-dialog-head">
-            <div><h2 id="paste-dialog-title">Pasted text</h2></div>
-            <button
-              class="chip-x"
-              type="button"
-              aria-label="Close"
-              ${tip("Close")}
-              @click=${() => closePasteView(agent)}
-            >
+            <div><h2 id="paste-dialog-title">粘贴的文本</h2></div>
+            <button class="chip-x" type="button" aria-label="关闭" ${tip("关闭")} @click=${() => closePasteView(agent)}>
               ${icon(X, 16)}
             </button>
           </div>
@@ -659,9 +827,9 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
           >
   ${view.initial}</textarea>
           <div class="project-dialog-actions">
-            <button class="btn" type="button" @click=${() => removeAttachment(view.id, agent)}>Remove</button>
-            <button class="btn" type="button" @click=${() => insertPasteIntoDraft(agent)}>Insert into message</button>
-            <button class="btn primary" type="button" @click=${() => closePasteView(agent)}>Done</button>
+            <button class="btn" type="button" @click=${() => removeAttachment(view.id, agent)}>移除</button>
+            <button class="btn" type="button" @click=${() => insertPasteIntoDraft(agent)}>插入消息</button>
+            <button class="btn primary" type="button" @click=${() => closePasteView(agent)}>完成</button>
           </div>
         </div>
       </div>
@@ -710,26 +878,52 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
   }
 
   function sendControls(agent: Agent): TemplateResult {
+    if (voice.state.phase !== "idle") {
+      return html`<button
+        class="send-btn voice-stop"
+        type="button"
+        aria-label="结束录音"
+        ?disabled=${voice.state.phase !== "recording"}
+        @click=${() => voice.stop()}
+      >
+        ${icon(Square, 16)}
+      </button>`;
+    }
+    if (isPhone() && !agent.state.isStreaming && !composerState.draft.trim() && !composerState.attachments.length) {
+      return html`<button
+        class="send-btn voice-start"
+        type="button"
+        aria-label="语音输入"
+        ?disabled=${composerState.processingFiles || getRuntimeConfig(scopeKey()) === null || ctx.chat.state.resolvingApprovals.size > 0 || ctx.chat.hasUnresolvedApproval()}
+        @click=${() => {
+          attachmentsOpen = false;
+          voiceThread = ctx.chat.state.threadRef;
+          void voice.start();
+        }}
+      >
+        ${icon(Mic, 20)}
+      </button>`;
+    }
     if (!agent.state.isStreaming || ctx.chat.isStopping()) {
       return html`<button
         class="send-btn"
         type="submit"
-        aria-label="Send"
-        ${tip("Send")}
+        aria-label="发送"
+        ${tip("发送")}
         ?disabled=${!composerCanSend()}
       >
         ${icon(ArrowUp, 16)}
       </button>`;
     }
     return html`
-      <button class="stop-btn" type="button" aria-label="Stop" ${tip("Stop")} @click=${() => stopStreaming(agent)}>
+      <button class="stop-btn" type="button" aria-label="停止" ${tip("停止")} @click=${() => stopStreaming(agent)}>
         ${icon(Square, 16)}
       </button>
       <button
         class="send-btn"
         type="submit"
-        ${tip("Queue for after this turn")}
-        aria-label="Queue for after this turn"
+        ${tip("当前任务结束后发送")}
+        aria-label="当前任务结束后发送"
         ?disabled=${!composerCanSend()}
       >
         ${icon(ArrowUp, 16)}
@@ -748,17 +942,17 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
       ctx.chat.hasLiveRun() &&
       harnessSupportsSteer(currentModelOption()?.harnessId ?? "");
     const steerTip = (): string => {
-      if (steerable) return "Steer the running task with this instead of waiting";
-      return "Nothing running can take this. It will go out as its own turn";
+      if (steerable) return "立即用此消息调整正在运行的任务";
+      return "当前没有运行中的任务，将作为新一轮消息发送";
     };
     return html`
-      <div class="queued-strip" role="list" aria-label="Queued messages">
+      <div class="queued-strip" role="list" aria-label="队列中的消息">
         ${queued.map((q) =>
           queuedEdit?.runId === q.runId && queuedEdit.threadRef === ctx.chat.state.threadRef
             ? html` <div class="queued-chip queued-editing" role="listitem">
                 <textarea
                   class="queued-edit-input"
-                  aria-label="Edit queued message"
+                  aria-label="编辑队列中的消息"
                   rows="3"
                   .value=${live(queuedEdit.text)}
                   ?disabled=${queuedEdit.saving}
@@ -785,7 +979,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
                   ?disabled=${queuedEdit.saving}
                   @click=${() => void saveQueuedEdit(agent)}
                 >
-                  Save
+                  保存
                 </button>
                 <button
                   type="button"
@@ -793,13 +987,13 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
                   ?disabled=${queuedEdit.saving}
                   @click=${() => cancelQueuedEdit(agent)}
                 >
-                  Cancel
+                  取消
                 </button>
               </div>`
             : html`
                 <div class="queued-chip" role="listitem">
-                  <span class="queued-tag">Queued</span>
-                  <span class="queued-text" dir="auto" ${tip(q.text || "Files, no text")}
+                  <span class="queued-tag">已排队</span>
+                  <span class="queued-text" dir="auto" ${tip(q.text || "仅文件，无文字")}
                     >${q.text || (q.hasAttachments ? "(files)" : "")}</span
                   >
                   <button
@@ -809,12 +1003,12 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
                     ${tip(steerTip())}
                     @click=${() => void steerQueued(agent, q)}
                   >
-                    ${icon(CornerDownRight, 13)}<span>Steer</span>
+                    ${icon(CornerDownRight, 13)}<span>调整任务</span>
                   </button>
                   <button
                     type="button"
                     class="queued-steer"
-                    aria-label="Edit queued message"
+                    aria-label="编辑队列中的消息"
                     @click=${() => {
                       const edit = (queuedEdit = {
                         runId: q.runId,
@@ -837,13 +1031,13 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
                       });
                     }}
                   >
-                    Edit
+                    编辑
                   </button>
                   <button
                     type="button"
                     class="chip-x"
-                    aria-label="Remove queued message"
-                    ${tip("Remove")}
+                    aria-label="移除队列中的消息"
+                    ${tip("移除")}
                     @click=${() => void removeQueued(agent, q)}
                   >
                     ${icon(X, 13)}
@@ -859,7 +1053,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
     const decide = (decision: ApprovalDecision): void => {
       if (!ctx.chat.state.resolvingApprovals.has(decision.requestId)) ctx.chat.resolveCommandApproval(decision);
     };
-    return html`<div class="composer-approval-panel" role="group" aria-label="Command approval">
+    return html`<div class="composer-approval-panel" role="group" aria-label="命令审批">
       ${approvals.map(
         (a) =>
           html`<div class="composer-approval">
@@ -871,7 +1065,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
                 ?disabled=${ctx.chat.state.resolvingApprovals.has(a.requestId)}
                 @click=${() => decide({ requestId: a.requestId, approved: false })}
               >
-                Deny
+                拒绝
               </button>
               <button
                 class="approval-btn"
@@ -879,7 +1073,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
                 ?disabled=${ctx.chat.state.resolvingApprovals.has(a.requestId)}
                 @click=${() => decide({ requestId: a.requestId, approved: true, scope: "once" })}
               >
-                Allow once
+                仅允许一次
               </button>
               ${
                 a.grantModes?.session === false
@@ -890,7 +1084,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
                       ?disabled=${ctx.chat.state.resolvingApprovals.has(a.requestId)}
                       @click=${() => decide({ requestId: a.requestId, approved: true, scope: "session" })}
                     >
-                      Allow for session
+                      本次会话允许
                     </button>`
               }
               ${
@@ -902,7 +1096,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
                       ?disabled=${ctx.chat.state.resolvingApprovals.has(a.requestId)}
                       @click=${() => decide({ requestId: a.requestId, approved: true, scope: "always" })}
                     >
-                      Allow always
+                      始终允许
                     </button>`
               }
             </div>
@@ -1099,14 +1293,14 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
     if (!slash.open) return nothing;
     if (slash.loading && slash.matches.length === 0) {
       return html`<div class="slash-popover">
-        <div class="menu-title">Skills</div>
-        <div class="slash-empty">Loading skills…</div>
+        <div class="menu-title">技能</div>
+        <div class="slash-empty">正在加载技能…</div>
       </div>`;
     }
     const active = clampedActive(slash.matches.length);
     return html`
-      <div class="slash-popover" role="listbox" aria-label="Skills">
-        <div class="menu-title">Skills</div>
+      <div class="slash-popover" role="listbox" aria-label="技能">
+        <div class="menu-title">技能</div>
         ${slash.matches.map((m, i) => slashRow(m, i === active, agent))}
       </div>
     `;
@@ -1148,6 +1342,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
 
   function onDraftInput(e: InputEvent, agent: Agent): void {
     const wasEmpty = !composerState.draft;
+    const wasBlank = !composerState.draft.trim();
     composerState.draft = (e.currentTarget as HTMLTextAreaElement).value;
     persistDraft();
     const hadError = Boolean(composerState.error);
@@ -1161,6 +1356,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
       armed ||
       popoverShown ||
       hadError ||
+      (isPhone() && wasBlank !== !composerState.draft.trim()) ||
       (Boolean(appState.me?.suggestedActivities?.length) && wasEmpty !== !composerState.draft)
     ) {
       ctx.chat.drawActiveChat(agent);
@@ -1171,7 +1367,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
   }
 
   function composerCanSend(): boolean {
-    if (!currentModelOption()) return false;
+    if (!currentModelOption() || voice.state.phase !== "idle") return false;
     return (
       Boolean(composerState.draft.trim() || composerState.attachments.length) &&
       !composerState.processingFiles &&
@@ -1183,7 +1379,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
 
   function syncComposerControls(agent: Agent): void {
     if (!ctx.chat.state.host || agent !== ctx.chat.state.agent) return;
-    const send = ctx.chat.state.host.querySelector<HTMLButtonElement>(".send-btn");
+    const send = ctx.chat.state.host.querySelector<HTMLButtonElement>(".send-btn:not(.voice-start):not(.voice-stop)");
     if (send) send.disabled = !composerCanSend();
   }
 
@@ -1241,7 +1437,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
     composerState.error = "";
     void ctx.chat.stopLiveRun().catch(() => {
       if (agent !== ctx.chat.state.agent) return;
-      composerState.error = "Could not request stop. Try again.";
+      composerState.error = "无法请求停止，请重试。";
       ctx.chat.drawActiveChat(agent);
     });
     focusComposerEnd();
@@ -1279,7 +1475,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
     const transientIds = new Set(skipped.filter((s) => !s.permanent).flatMap((s) => (s.id ? [s.id] : [])));
     const sendable = staged.filter((a) => !droppedIds.has(a.id));
     if (!text && !uploaded.length) {
-      if (stillHere()) restoreStagedOnFailure(text, sendable, composerState.error || "Could not queue the files.");
+      if (stillHere()) restoreStagedOnFailure(text, sendable, composerState.error || "无法将文件加入队列。");
       return ctx.chat.drawActiveChat(agent);
     }
     if (!(await enqueueTurn(agent, threadRef, text, uploaded, queuedFilesKey(sendable)))) {
@@ -1317,7 +1513,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
       return true;
     } catch (err) {
       failedQueueSend = { threadRef, text, filesKey, idempotencyKey };
-      composerState.error = errMessage(err, "Could not queue the message.");
+      composerState.error = errMessage(err, "无法将消息加入队列。");
       return false;
     }
   }
@@ -1350,8 +1546,8 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
       if (ctx.chat.state.threadRef === edit.threadRef)
         composerState.error =
           error instanceof ApiError && error.status === 409
-            ? "That message changed or already started. Your edit was not saved."
-            : errMessage(error, "Could not edit the queued message.");
+            ? "该消息已更改或开始处理，你的编辑未保存。"
+            : errMessage(error, "无法编辑队列中的消息。");
     } finally {
       edit.saving = false;
       if (ctx.chat.state.threadRef === edit.threadRef) ctx.chat.drawActiveChat(agent);
@@ -1366,7 +1562,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
       await withdrawRun(queued.runId);
     } catch (err) {
       if (!(err instanceof ApiError && (err.status === 409 || err.status === 404))) {
-        composerState.error = errMessage(err, "Could not remove the queued message.");
+        composerState.error = errMessage(err, "无法移除队列中的消息。");
         return ctx.chat.drawActiveChat(agent);
       }
     }
@@ -1396,13 +1592,13 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
         }
       } else if (outcome.reason === "queued_changed") {
         if (agent === ctx.chat.state.agent && threadRef === ctx.chat.state.threadRef)
-          composerState.error = "The queued message changed. Try steering it again.";
+          composerState.error = "队列中的消息已更改，请重新发送调整指令。";
       } else if (outcome.reason === "queued_started" || outcome.reason === "not_found") {
         forgetQueuedRun(threadRef, queued.runId);
       }
     } catch (err) {
       if (agent === ctx.chat.state.agent && threadRef === ctx.chat.state.threadRef)
-        composerState.error = errMessage(err, "Could not confirm steering. Try again.");
+        composerState.error = errMessage(err, "无法确认任务调整，请重试。");
     } finally {
       pendingSteers.delete(queued.runId);
     }
@@ -1438,7 +1634,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
       ctx.chat.state.pendingSend = null;
       if (ctx.chat.state.threadRef && ctx.chat.state.sessionId === null) dropPendingSession(ctx.chat.state.threadRef);
       renderList();
-      composerState.error = errMessage(err, "Could not send message.");
+      composerState.error = errMessage(err, "无法发送消息。");
       ctx.chat.drawActiveChat(agent);
     }
   }
@@ -1460,9 +1656,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
     restoreStagedOnFailure(
       text,
       retryable,
-      retryable.length
-        ? "Couldn't attach the files, so the message wasn't sent. Try again."
-        : "Nothing could be attached, so the message wasn't sent.",
+      retryable.length ? "无法添加附件，消息未发送，请重试。" : "没有成功添加附件，消息未发送。",
     );
     persistDraft();
     ctx.chat.drawActiveChat(agent);
@@ -1549,7 +1743,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
 
   async function loadAnyAttachment(file: File): Promise<Attachment> {
     try {
-      const { loadAttachment } = await import("@earendil-works/pi-web-ui");
+      const { loadAttachment } = await loadPiWebUi();
       return await loadAttachment(file);
     } catch {
       return {
@@ -1608,7 +1802,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
     const admittedFolders = Math.min(folderCount, Math.max(0, room - admittedFiles.length));
     const overflow = [
       ...sized.slice(room).map((f) => f.name),
-      ...Array.from({ length: folderCount - admittedFolders }, () => "a folder"),
+      ...Array.from({ length: folderCount - admittedFolders }, () => "文件夹"),
     ];
     if (overflow.length) notes.push(tooManyFilesNote(overflow));
     return { files: admittedFiles, folders: admittedFolders, note: notes.length ? notes.join(" ") : null };
@@ -1622,7 +1816,7 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
     )
       return;
     if (composerState.processingFiles) {
-      composerState.error = "Still preparing the previous drop. Try again in a moment.";
+      composerState.error = "正在处理上一次拖入的内容，请稍后重试。";
       ctx.chat.drawActiveChat(agent);
       return;
     }
@@ -1639,9 +1833,8 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
     } catch (err) {
       let message: string;
       if (err instanceof FolderDropError) message = err.message;
-      else if (isFolderReadError(err))
-        message = "That drop included a folder this browser can't read. Zip it and drop the archive instead.";
-      else message = errMessage(err, "Could not attach that file.");
+      else if (isFolderReadError(err)) message = "当前浏览器无法读取拖入的文件夹，请压缩后再上传。";
+      else message = errMessage(err, "无法添加此文件。");
       composerState.error = combineNote(plan.note ?? "", message);
     } finally {
       composerState.processingFiles = false;
@@ -1680,9 +1873,19 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
     await addFiles(files, agent, folders);
   }
 
-  function pickFiles(): void {
-    if (ctx.chat.hasUnresolvedApproval() || ctx.chat.state.resolvingApprovals.size > 0) return;
-    ctx.chat.state.host?.querySelector<HTMLInputElement>(".file-input")?.click();
+  function pickFiles(accept = "", capture = false): void {
+    if (ctx.chat.hasUnresolvedApproval() || ctx.chat.state.resolvingApprovals.size > 0 || voice.state.phase !== "idle")
+      return;
+    attachmentsOpen = false;
+    ctx.chat.drawActiveChat();
+    const input = ctx.chat.state.host?.querySelector<HTMLInputElement>(".file-input");
+    if (input) {
+      input.accept = accept;
+      input.multiple = !capture;
+      if (capture) input.setAttribute("capture", "environment");
+      else input.removeAttribute("capture");
+      input.click();
+    }
   }
 
   function openImagePreview(attachment: Attachment): void {
@@ -1705,12 +1908,12 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
       html`
         <div class="attachment-preview-head">
           <span dir="auto">${attachment.fileName}</span>
-          <button type="button" class="btn compact" @click=${() => dialog.close()}>Close</button>
+          <button type="button" class="btn compact" @click=${() => dialog.close()}>关闭</button>
         </div>
         <div class="attachment-preview-body">
           <button
             type="button"
-            aria-label="Toggle actual image size"
+            aria-label="切换图片原始尺寸"
             @click=${(event: Event) => (event.currentTarget as HTMLElement).classList.toggle("actual-size")}
           >
             <img src=${src} alt=${attachment.fileName} />
@@ -1816,7 +2019,8 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
   }
 
   function closeMenus(): boolean {
-    let changed = false;
+    let changed = attachmentsOpen;
+    attachmentsOpen = false;
     if (composerState.openMenu) {
       modelPicker.resetSection();
       composerState.openMenu = null;
@@ -1830,6 +2034,10 @@ export function createComposerSurface(ctx: ConvCtx): ComposerSurface {
   }
 
   function dispose(): void {
+    voice.cancel(false);
+    unsubscribePhone();
+    document.removeEventListener("visibilitychange", cancelHiddenVoice);
+    window.removeEventListener("pagehide", cancelPageVoice);
     window.removeEventListener("model-account-changed", refreshAccount);
     modelPicker.dispose();
     unsubscribeRuntime?.();

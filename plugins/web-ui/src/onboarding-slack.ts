@@ -64,7 +64,7 @@ export class OnboardingSlack extends LitElement {
     } catch {
       if (this.isConnected) {
         this.connected = false;
-        this.error = "Could not check the Slack installation. Try again.";
+        this.error = "无法检查 Slack 安装状态，请重试。";
       }
     } finally {
       clearTimeout(timeout);
@@ -81,7 +81,7 @@ export class OnboardingSlack extends LitElement {
     if (this.busy || this.installAvailable === undefined) return;
     const popup = window.open("", "_blank");
     if (!popup) {
-      this.error = "Allow a new tab to install QM, then try again.";
+      this.error = "请允许打开新标签页以安装 QM，然后重试。";
       return;
     }
     popup.opener = null;
@@ -89,8 +89,8 @@ export class OnboardingSlack extends LitElement {
       popup.location.href = `${this.adminBase}/slack-settings?setup=slack`;
       return;
     }
-    popup.document.title = "Connecting Slack";
-    popup.document.body.textContent = "Opening Slack…";
+    popup.document.title = "正在连接 Slack";
+    popup.document.body.textContent = "正在打开 Slack…";
     this.busy = true;
     this.error = "";
     try {
@@ -115,30 +115,29 @@ export class OnboardingSlack extends LitElement {
       void this.refresh();
     } catch {
       popup.close();
-      this.error = "Could not start Slack installation. Please try again.";
+      this.error = "无法开始安装 Slack，请重试。";
     } finally {
       this.busy = false;
     }
   }
 
   protected render() {
-    let label = this.busy ? "Opening Slack…" : "Add to Slack";
-    if (this.installAvailable === undefined) label = "Checking Slack…";
+    let label = this.busy ? "正在打开 Slack…" : "添加到 Slack";
+    if (this.installAvailable === undefined) label = "正在检查 Slack…";
     return html`${
       this.connected
-        ? html`<div class="slack-connected" role="status">${icon(Check, 14)} QM added to Slack</div>`
+        ? html`<div class="slack-connected" role="status">${icon(Check, 14)} 已将 QM 添加到 Slack</div>`
         : html`<button
             class="welcome-slack"
             type="button"
             ?disabled=${this.busy || this.installAvailable === undefined}
             @click=${() => void this.install()}
           >
-            ${slackMark(24)}<span
-              ><strong>${label}</strong><small>Work with QM where your team already talks.</small></span
+            ${slackMark(24)}<span><strong>${label}</strong><small>在团队日常沟通的地方与 QM 协作。</small></span
             >${icon(ArrowUpRight, 16)}
           </button>`
     }
-    ${this.error ? html`<p role="status">${this.error} <button type="button" @click=${() => void this.refresh()}>Check again</button></p>` : nothing}`;
+    ${this.error ? html`<p role="status">${this.error} <button type="button" @click=${() => void this.refresh()}>重新检查</button></p>` : nothing}`;
   }
 }
 

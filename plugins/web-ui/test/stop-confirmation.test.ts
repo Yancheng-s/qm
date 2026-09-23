@@ -76,7 +76,7 @@ for (const status of [404, 409, 500]) {
     const stream = await fn(model, {} as Context, {});
     const final = await stream.result();
     assert.equal(final.stopReason, "stop");
-    assert.deepEqual(errors, status === 500 ? ["Could not request stop. Try again."] : []);
+    assert.deepEqual(errors, status === 500 ? ["无法请求停止，请重试。"] : []);
     await sleep(0);
     assert.equal(slot.stopGeneration, null);
   });

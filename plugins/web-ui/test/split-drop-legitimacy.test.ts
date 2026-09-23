@@ -12,7 +12,7 @@ test("a pane only offers the drops that will really happen", () => {
   assert.match(zones, /const showing = drag\.existing\(\);/, "a drag already on the canvas gets no split/tab targets");
   assert.match(
     zones,
-    /"Show here", \(\) => \{\n\s*endPaneDrag\(\);\n\s*focusPane\(paneId\);/,
+    /"在此显示", \(\) => \{\n\s*endPaneDrag\(\);\n\s*focusPane\(paneId\);/,
     "its own pane offers a target that really focuses it",
   );
   assert.match(zones, /groups\.length < MAX_TILES/, "split targets vanish at the tile cap");
@@ -67,7 +67,7 @@ test("the highlighted strip is a real drop target, not just a glow", () => {
   const strip = split.match(/^class StripDrop[\s\S]*?\n\}/m)?.[0] ?? "";
   assert.ok(strip, "StripDrop not found");
   assert.match(split, /createPrefixHeaderActionComponent: \(\) => new StripDrop\(\)/, "dockview owns its lifecycle");
-  assert.match(strip, /zoneTpl\("center", "Open as tab"/, "the strip offers an explicit join target");
+  assert.match(strip, /zoneTpl\("center", "作为标签页打开"/, "the strip offers an explicit join target");
   assert.match(strip, /tabIntoPane\(anchor\.id/, "dropping on the strip really adds a tab");
   assert.match(strip, /stripJoinable\(\)/, "and only when that drop would really add a tab");
   const end = split.match(/^export function endPaneDrag\([\s\S]*?\n\}/m)?.[0] ?? "";

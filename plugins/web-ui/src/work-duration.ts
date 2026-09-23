@@ -19,5 +19,5 @@ export function workSeconds(work: WorkBlock): number {
 }
 
 export function workedLabel(prefix: string, secs: number): string {
-  return secs > 0 ? `${prefix} for ${goalElapsedLabel(0, secs * 1000)}` : prefix;
+  return secs > 0 ? `${prefix}，耗时 ${goalElapsedLabel(0, secs * 1000)}` : prefix;
 }

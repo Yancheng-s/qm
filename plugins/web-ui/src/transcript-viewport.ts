@@ -77,7 +77,7 @@ export function createTranscriptViewport() {
     const toggle = prompt.querySelector<HTMLButtonElement>(".pin-toggle");
     if (toggle) {
       toggle.hidden = !clipped && !expanded;
-      const label = expanded ? "Show less" : "Show more";
+      const label = expanded ? "收起" : "展开更多";
       if (toggle.textContent !== label) toggle.textContent = label;
       toggle.setAttribute("aria-expanded", String(expanded));
     }

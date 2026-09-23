@@ -210,13 +210,13 @@ test("the shared picker preserves composer choices and saves context defaults", 
       [...host.querySelectorAll(".loadout-pick .loadout-name")].map((row) => row.textContent);
 
     await mount();
-    assert.match(composer!.state.error, /Could not load runtime settings/);
+    assert.match(composer!.state.error, /无法加载运行设置/);
     await composer!.refreshRuntimeSelection(null, agent);
     assert.equal(composer!.state.effortLevel, "high", "retry restores saved preset effort");
-    assert.equal(composer!.state.fastMode, true, "retry restores saved preset Fast");
+    assert.equal(composer!.state.fastMode, true, "retry restores saved preset 快速模式");
     await composer!.refreshRuntimeSelection(null, agent, true);
     assert.equal(composer!.state.effortLevel, "high", "identical refresh preserves restored effort");
-    assert.equal(composer!.state.fastMode, true, "identical refresh preserves restored Fast");
+    assert.equal(composer!.state.fastMode, true, "identical refresh preserves restored 快速模式");
     const siblingHost = document.createElement("section");
     document.body.append(siblingHost);
     const siblingAgent = { state: { isStreaming: false, messages: [] } } as unknown as Agent;
@@ -232,7 +232,7 @@ test("the shared picker preserves composer choices and saves context defaults", 
     await siblingComposer!.refreshRuntimeSelection(null, siblingAgent);
     siblingHost.querySelector<HTMLButtonElement>(".loadout-button")!.click();
     failNextPut = true;
-    siblingHost.querySelector<HTMLButtonElement>('[aria-label="Make Beta default"]')!.click();
+    siblingHost.querySelector<HTMLButtonElement>('[aria-label="将 Beta 设为默认"]')!.click();
     await tick();
     assert.match(siblingComposer!.state.error, /default save failed/);
     assert.equal(siblingComposer!.currentModelOption()?.value, "claude:alpha");
@@ -255,11 +255,11 @@ test("the shared picker preserves composer choices and saves context defaults", 
     assert.equal(pick("Gamma").querySelector('[aria-label="Codex"]'), null);
     assert.equal(pick("Alpha").querySelector(".loadout-harness")?.textContent, "Claude Code");
     assert.equal(host.querySelectorAll(".loadout-default").length, 1);
-    assert.equal(pick("Alpha").querySelector(".loadout-default")?.textContent, "my default");
+    assert.equal(pick("Alpha").querySelector(".loadout-default")?.textContent, "我的默认设置");
     pick("Beta").click();
     assert.equal(pick("Beta").getAttribute("aria-checked"), "true");
     assert.equal(pick("Beta").querySelector(".loadout-default"), null);
-    assert.equal(pick("Alpha").querySelector(".loadout-default")?.textContent, "my default");
+    assert.equal(pick("Alpha").querySelector(".loadout-default")?.textContent, "我的默认设置");
     pick("Alpha").click();
 
     button('[data-loadout-section="harness"]').click();
@@ -270,9 +270,9 @@ test("the shared picker preserves composer choices and saves context defaults", 
       ["Pi", "Claude Code", "OpenCode", "Codex"],
     );
     assert.equal(choices[3]!.getAttribute("aria-disabled"), "true");
-    assert.equal(choices[3]!.getAttribute("aria-description"), "Codex cannot run Alpha.");
+    assert.equal(choices[3]!.getAttribute("aria-description"), "Codex 无法运行 Alpha。");
     choices[3]!.dispatchEvent(new MouseEvent("mouseenter"));
-    assert.equal(document.querySelector(".qm-tooltip.visible")?.textContent, "Codex cannot run Alpha.");
+    assert.equal(document.querySelector(".qm-tooltip.visible")?.textContent, "Codex 无法运行 Alpha。");
     const beforeDisabledClick = saved();
     const beforeDisabledUpdates = updates.length;
     choices[3]!.click();
@@ -314,7 +314,7 @@ test("the shared picker preserves composer choices and saves context defaults", 
     );
     const claude = betaChoices[1]!;
     claude.focus();
-    assert.equal(document.querySelector(".qm-tooltip.visible")?.textContent, "Claude Code cannot run Beta.");
+    assert.equal(document.querySelector(".qm-tooltip.visible")?.textContent, "Claude Code 无法运行 Beta。");
     claude.click();
     assert.equal(composer!.currentModelOption()?.value, "codex:beta");
     button(".loadout-back").click();
@@ -357,7 +357,7 @@ test("the shared picker preserves composer choices and saves context defaults", 
     assert.equal(host.querySelector('[data-loadout-section="effort"]'), null);
     const unavailableFast = button('[aria-label="Fast"][role="menuitemcheckbox"]');
     assert.equal(unavailableFast.disabled, true);
-    assert.equal(unavailableFast.querySelector(".loadout-shortcut")?.textContent, "Not supported by this harness");
+    assert.equal(unavailableFast.querySelector(".loadout-shortcut")?.textContent, "此执行引擎不支持");
     assert.equal(unavailableFast.getAttribute("aria-checked"), "false");
     unavailableFast.click();
     assert.equal(composer!.state.fastMode, false);
@@ -377,7 +377,7 @@ test("the shared picker preserves composer choices and saves context defaults", 
     button(".loadout-button").click();
     assert.equal(
       button('[aria-label="Fast"][role="menuitemcheckbox"]').querySelector(".loadout-shortcut")?.textContent,
-      "Not supported by this model",
+      "此模型不支持",
     );
     assert.equal(button('[aria-label="Fast"][role="menuitemcheckbox"]').disabled, true);
     assert.equal(button('[aria-label="Fast"][role="menuitemcheckbox"]').getAttribute("aria-checked"), "false");
@@ -432,9 +432,9 @@ test("the shared picker preserves composer choices and saves context defaults", 
       "failed save did not pin an untouched sibling",
     );
     assert.equal(siblingComposer!.state.effortLevel, "xhigh", "sibling follows the new default effort");
-    assert.equal(siblingComposer!.state.fastMode, false, "sibling follows the new default Fast setting");
+    assert.equal(siblingComposer!.state.fastMode, false, "sibling follows the new default 快速模式 setting");
     assert.equal(siblingAgent.state.model.id, "beta");
-    assert.equal(pick("Beta").querySelector(".loadout-default")?.textContent, "my default");
+    assert.equal(pick("Beta").querySelector(".loadout-default")?.textContent, "我的默认设置");
     assert.equal(pick("Beta").querySelector(".loadout-default svg"), null);
     assert.ok(pick("Beta").closest(".loadout-row")!.querySelector(".loadout-default-star svg"));
     assert.equal(pick("Beta").closest(".loadout-row")!.querySelector(".loadout-make-default"), null);
@@ -522,7 +522,7 @@ test("the shared picker preserves composer choices and saves context defaults", 
       return result;
     };
     contextButton(".loadout-button").click();
-    assert.ok(contextHost.querySelector('[role="menu"][aria-label="Model settings"]'));
+    assert.ok(contextHost.querySelector('[role="menu"][aria-label="模型设置"]'));
     assert.equal(contextHost.querySelector("select"), null);
     assert.equal(contextHost.querySelector(".loadout-make-default"), null);
     const betaPreset = [...contextHost.querySelectorAll<HTMLButtonElement>(".loadout-pick")].find((item) =>
@@ -536,7 +536,7 @@ test("the shared picker preserves composer choices and saves context defaults", 
     contextButton(".loadout-button").click();
     contextButton('[data-loadout-section="effort"]').click();
     const high = [...contextHost.querySelectorAll<HTMLButtonElement>(".loadout-effort")].find(
-      (item) => item.textContent?.trim() === "High",
+      (item) => item.textContent?.trim() === "高",
     );
     assert.ok(high);
     const gate = Promise.withResolvers<void>();
@@ -544,7 +544,7 @@ test("the shared picker preserves composer choices and saves context defaults", 
     deferNextPut = true;
     high.click();
     assert.equal(contextButton(".loadout-button").disabled, true);
-    assert.match(contextButton(".loadout-button").getAttribute("aria-label") ?? "", /High effort/);
+    assert.match(contextButton(".loadout-button").getAttribute("aria-label") ?? "", /思考强度：高/);
     await tick();
     gate.resolve();
     await tick();
@@ -568,7 +568,7 @@ test("the shared picker preserves composer choices and saves context defaults", 
     contextButton(".loadout-foot-btn").click();
     await tick();
     assert.equal(context.contextModelState.config.scopeOverride, null);
-    assert.doesNotMatch(contextHost.textContent ?? "", /Following the org default/);
+    assert.doesNotMatch(contextHost.textContent ?? "", /跟随组织默认设置/);
     assert.equal(contextHost.querySelector(".loadout-foot-btn"), null);
     contextButton(".loadout-popover").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     await tick();
@@ -587,7 +587,7 @@ test("the shared picker preserves composer choices and saves context defaults", 
       assert.equal(document.activeElement, contextHost.querySelector(".loadout-search input"));
       assert.equal((document.activeElement as HTMLInputElement).value, query);
     }
-    contextButton('[aria-label="Add Delta to presets"]').click();
+    contextButton('[aria-label="将 Delta 添加到预设"]').click();
     await tick();
     assert.equal(contextHost.querySelector(".loadout-popover"), null);
     assert.equal(context.contextModelState.config.effective.modelId, "delta");
@@ -620,10 +620,10 @@ test("the shared picker preserves composer choices and saves context defaults", 
       replaceChildrenPreservingFocus(contextHost, next);
     };
     await context.loadContextModel(staleScope, drawStale);
-    assert.match(contextHost.textContent ?? "", /retired.*no longer offered/);
+    assert.match(contextHost.textContent ?? "", /retired.*已不再提供/);
     contextButton(".loadout-button").click();
     contextButton('[data-loadout-section="add"]').click();
-    contextButton('[aria-label="Add Beta to presets"]').click();
+    contextButton('[aria-label="将 Beta 添加到预设"]').click();
     await tick();
     assert.deepEqual(updates.at(-1), {
       scopeId: staleScope,

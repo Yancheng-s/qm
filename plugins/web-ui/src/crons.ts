@@ -1,3 +1,4 @@
+import { displayStatus } from "./display-labels";
 import { html, nothing, render, type TemplateResult } from "lit";
 import { Archive, Pause, Pencil, Play, Plus, RotateCcw, Trash2 } from "lucide";
 import { api, userSendMessage } from "./core-bridge";
@@ -50,20 +51,20 @@ interface CronRunView {
 }
 
 function cronRunTiming(run: CronRunView): string {
-  const fired = new Date(run.firedAt).toLocaleString();
+  const fired = new Date(run.firedAt).toLocaleString("zh-CN");
   if (run.status === "running") {
     const min = Math.max(0, Math.round((Date.now() - run.firedAt) / 60_000));
-    return `${fired} — in flight for ${min}m`;
+    return `${fired} — 已运行 ${min} 分钟`;
   }
   if (run.endedAt === undefined) return fired;
-  return `${fired} — took ${Math.max(0, Math.round((run.endedAt - run.firedAt) / 1000))}s`;
+  return `${fired} — 耗时 ${Math.max(0, Math.round((run.endedAt - run.firedAt) / 1000))} 秒`;
 }
 
 type CronTab = "yours" | "shared" | "archived";
 const CRON_TABS: Array<{ value: CronTab; label: string }> = [
-  { value: "yours", label: "Yours" },
-  { value: "shared", label: "Shared" },
-  { value: "archived", label: "Archived" },
+  { value: "yours", label: "我的" },
+  { value: "shared", label: "共享" },
+  { value: "archived", label: "已归档" },
 ];
 
 let cronList: CronView[] = [];
@@ -124,7 +125,7 @@ async function refreshCrons(opts: { showLoading?: boolean } = {}): Promise<boole
     return true;
   } catch (e) {
     if (seq !== cronRefreshSeq) return false;
-    cronsNotice = errMessage(e, "Failed to load crons.");
+    cronsNotice = errMessage(e, "加载定时任务失败。");
     return false;
   } finally {
     if (seq === cronRefreshSeq) cronsLoading = false;
@@ -154,7 +155,7 @@ function clipWords(text: string, max = 64): string {
 
 function suggestedCronTitle(text: string): string {
   const clean = cleanCronText(text);
-  if (!clean) return "(untitled cron)";
+  if (!clean) return "（未命名定时任务）";
   const candidate = clean
     .replace(/^(please\s+)?(run|generate|create|send|post|deliver|summarize|check)\s+(the\s+)?/i, "")
     .replace(/\s*[:;.!?]\s+.*$/, "")
@@ -170,9 +171,9 @@ function cronTitle(c: CronView): string {
 function cronScopeLabel(c: CronView): string {
   const sep = c.ownerScopeId.indexOf(":");
   const kind = sep === -1 ? c.ownerScopeId : c.ownerScopeId.slice(0, sep);
-  if (kind === "channel") return c.scopeName ? `#${c.scopeName}` : "a Slack channel";
-  if (kind === "org") return "org-wide";
-  if (kind === "group") return "group";
+  if (kind === "channel") return c.scopeName ? `#${c.scopeName}` : "一个 Slack 频道";
+  if (kind === "org") return "整个组织";
+  if (kind === "group") return "群组";
   return c.owner;
 }
 
@@ -209,7 +210,7 @@ export async function renderCronsPage(): Promise<void> {
     ? (cronList.find((c) => c.id === wanted) ?? visibleCronList.find((c) => c.id === wanted))
     : undefined;
   if (wanted && !cron) {
-    cronActionNotice = "That cron wasn't found, or you don't have access to it.";
+    cronActionNotice = "找不到该定时任务，或你没有访问权限。";
   }
   if (cron) openCron(cron);
   else drawCronsPage();
@@ -253,31 +254,31 @@ function drawCronsPage(): void {
   if (cronTab === "yours") {
     rows.push(...yoursEnabled.map(({ c }) => cronPageRow(c, true)));
     if (all.length && !yoursEnabled.length)
-      rows.push(cronEmptyRow(ownsAny ? "No active crons." : "None of your own crons yet."));
+      rows.push(cronEmptyRow(ownsAny ? "暂无启用的定时任务。" : "你还没有自己的定时任务。"));
     if (yoursDisabled.length) {
       rows.push(cronDisabledToggle(yoursDisabled.length));
       if (showDisabledCrons) rows.push(...yoursDisabled.map(({ c }) => cronPageRow(c, true)));
     }
   } else if (cronTab === "shared") {
     rows.push(...shared.map(({ c }) => cronPageRow(c, false)));
-    if (!shared.length) rows.push(cronEmptyRow("No crons shared with you."));
+    if (!shared.length) rows.push(cronEmptyRow("暂无与你共享的定时任务。"));
   } else {
     rows.push(...archived.map(({ c, mine }) => cronPageRow(c, mine)));
-    if (!archived.length) rows.push(cronEmptyRow("Nothing archived."));
+    if (!archived.length) rows.push(cronEmptyRow("暂无归档内容。"));
   }
-  let empty = "No crons yet.";
+  let empty = "暂无定时任务。";
   if (cronsNotice) empty = cronsNotice;
-  else if (cronsLoading && cronList.length === 0 && visibleCronList.length === 0) empty = "Loading crons…";
-  else if (cronsScope) empty = "No crons in this context.";
+  else if (cronsLoading && cronList.length === 0 && visibleCronList.length === 0) empty = "正在加载定时任务…";
+  else if (cronsScope) empty = "当前项目中没有定时任务。";
   const scoped = Boolean(scopedSession.active);
   cronsPageHost.classList.toggle("scoped-view", scoped);
   render(
     html`${scopedViewTopbar("crons", drawCronsPage)}
     ${listPageTpl({
-      title: "Crons",
+      title: "定时任务",
       search: {
         value: cronsSearch,
-        placeholder: "Search crons",
+        placeholder: "搜索定时任务",
         onInput: (value) => {
           cronsSearch = value;
           drawCronsPage();
@@ -309,7 +310,7 @@ function cronTabs(counts: Record<CronTab, number>, hasShared: boolean): Template
     (t) => t.value === "yours" || (t.value === "shared" && hasShared) || counts[t.value] > 0 || cronTab === t.value,
   );
   return html`
-    <div class="cron-list-controls" role="tablist" aria-label="Cron view">
+    <div class="cron-list-controls" role="tablist" aria-label="定时任务视图">
       ${tabs.map(
         (t) => html`
           <button
@@ -331,7 +332,7 @@ function cronTabs(counts: Record<CronTab, number>, hasShared: boolean): Template
 function cronDisabledToggle(count: number): TemplateResult {
   return html`
     <button class="archived-toggle cron-disabled-toggle" type="button" @click=${toggleDisabledCrons}>
-      <span>${showDisabledCrons ? "Hide disabled" : "Show disabled"}</span>
+      <span>${showDisabledCrons ? "隐藏已停用" : "显示已停用"}</span>
       <span class="archived-count">${count}</span>
     </button>
   `;
@@ -370,8 +371,8 @@ function cronRowActions(c: CronView): TemplateResult {
     <button
       class="icon-btn subtle compact"
       type="button"
-      ${tip("Enable")}
-      aria-label="Enable cron"
+      ${tip("启用")}
+      aria-label="启用定时任务"
       @click=${() => void setCronEnabled(c.id, true)}
     >
       ${icon(Play, 14)}
@@ -382,8 +383,8 @@ function cronRowActions(c: CronView): TemplateResult {
       <button
         class="icon-btn subtle compact"
         type="button"
-        ${tip("Unarchive")}
-        aria-label="Unarchive cron"
+        ${tip("取消归档")}
+        aria-label="取消定时任务归档"
         @click=${() => void archiveCron(c.id, false)}
       >
         ${icon(RotateCcw, 14)}
@@ -394,8 +395,8 @@ function cronRowActions(c: CronView): TemplateResult {
       <button
         class="icon-btn subtle compact"
         type="button"
-        ${tip("Disable")}
-        aria-label="Disable cron"
+        ${tip("停用")}
+        aria-label="停用定时任务"
         @click=${() => void setCronEnabled(c.id, false)}
       >
         ${icon(Pause, 14)}
@@ -403,12 +404,12 @@ function cronRowActions(c: CronView): TemplateResult {
     `;
   }
   return html`
-    <div class="cron-row-actions" aria-label="Cron actions">
+    <div class="cron-row-actions" aria-label="定时任务操作">
       <button
         class="icon-btn subtle compact"
         type="button"
-        ${tip("Edit")}
-        aria-label="Edit cron"
+        ${tip("编辑")}
+        aria-label="编辑定时任务"
         @click=${() => {
           openCron(c);
           showCronDialog("rename", c);
@@ -424,8 +425,8 @@ function cronRowActions(c: CronView): TemplateResult {
               <button
                 class="icon-btn subtle compact"
                 type="button"
-                ${tip("Archive")}
-                aria-label="Archive cron"
+                ${tip("归档")}
+                aria-label="归档定时任务"
                 @click=${() => void archiveCron(c.id, true)}
               >
                 ${icon(Archive, 14)}
@@ -447,20 +448,18 @@ function openCron(c: CronView, opts: { push?: boolean; refreshRuns?: boolean } =
   cronActionNotice = "";
   const next = cronNextFire(c);
   let stateActions = html`
-    <button class="btn" @click=${() => void setCronEnabled(c.id, true)}>${icon(Play, 15)}<span>Enable</span></button>
-    <button class="btn" @click=${() => void archiveCron(c.id, true)}>${icon(Archive, 15)}<span>Archive</span></button>
+    <button class="btn" @click=${() => void setCronEnabled(c.id, true)}>${icon(Play, 15)}<span>启用</span></button>
+    <button class="btn" @click=${() => void archiveCron(c.id, true)}>${icon(Archive, 15)}<span>归档</span></button>
   `;
   if (c.archived) {
     stateActions = html`<button class="btn" @click=${() => void archiveCron(c.id, false)}>
-      ${icon(RotateCcw, 15)}<span>Unarchive</span>
+      ${icon(RotateCcw, 15)}<span>取消归档</span>
     </button>`;
   } else if (c.enabled) {
     stateActions = html`
-      <button class="btn" @click=${() => void runCronNow(c.id)}>${icon(Play, 15)}<span>Run now</span></button>
-      <button class="btn" @click=${() => void setCronEnabled(c.id, false)}>
-        ${icon(Pause, 15)}<span>Disable</span>
-      </button>
-      <button class="btn" @click=${() => void archiveCron(c.id, true)}>${icon(Archive, 15)}<span>Archive</span></button>
+      <button class="btn" @click=${() => void runCronNow(c.id)}>${icon(Play, 15)}<span>立即运行</span></button>
+      <button class="btn" @click=${() => void setCronEnabled(c.id, false)}>${icon(Pause, 15)}<span>停用</span></button>
+      <button class="btn" @click=${() => void archiveCron(c.id, true)}>${icon(Archive, 15)}<span>归档</span></button>
     `;
   }
   const host = document.createElement("div");
@@ -468,37 +467,37 @@ function openCron(c: CronView, opts: { push?: boolean; refreshRuns?: boolean } =
   render(
     html`
       <div class="resource-detail">
-        ${listBackLink("Crons", drawCronsPage)}
+        ${listBackLink("定时任务", drawCronsPage)}
         <div class="resource-heading">
           <h2 dir="auto">${cronTitle(c)}</h2>
-          <button class="btn" @click=${showNewCron}>${icon(Plus, 15)}<span>New cron</span></button>
+          <button class="btn" @click=${showNewCron}>${icon(Plus, 15)}<span>新建定时任务</span></button>
         </div>
         ${notice ? html`<div class="hint">${notice}</div>` : ""}
         <div class="field">
-          <label>Context</label>
+          <label>上下文</label>
           <div class="value">${scopeChip(c.ownerScopeId, c.scopeName ?? null)}</div>
         </div>
         ${
           c.title
             ? html`<div class="field">
-                <label>Title</label>
+                <label>标题</label>
                 <div class="value" dir="auto">${c.title}</div>
               </div>`
             : nothing
         }
         <div class="field">
-          <label>${c.message !== undefined ? "Message" : "Task"}</label>
+          <label>${c.message !== undefined ? "消息" : "任务"}</label>
           <div class="value pre">${cronText(c)}</div>
         </div>
         <div class="field">
-          <label>Schedule</label>
+          <label>时间安排</label>
           <div class="value">${cronScheduleDetail(c)}</div>
         </div>
         ${
           mine
             ? ""
             : html`<div class="field">
-                <label>Owner</label>
+                <label>所有者</label>
                 <div class="value">${c.owner}</div>
               </div>`
         }
@@ -506,36 +505,36 @@ function openCron(c: CronView, opts: { push?: boolean; refreshRuns?: boolean } =
           mine
             ? ""
             : html`<div class="field">
-                <label>Scope</label>
+                <label>作用域</label>
                 <div class="value">${cronScopeLabel(c)}</div>
               </div>`
         }
         <div class="field">
-          <label>Status</label>
+          <label>状态</label>
           <div class="value">${cronStatusText(c)}</div>
         </div>
         ${
           c.destination
             ? html`<div class="field">
-                <label>Destination</label>
+                <label>发送目标</label>
                 <div class="value">${c.destination.type} → ${c.destination.target}</div>
               </div>`
             : ""
         }
         <div class="field">
-          <label>Next run</label>
-          <div class="value">${next != null ? new Date(next).toLocaleString() : "Never"}</div>
+          <label>下次运行</label>
+          <div class="value">${next != null ? new Date(next).toLocaleString("zh-CN") : "从未"}</div>
         </div>
         <div class="field">
-          <label>Last fired</label>
-          <div class="value">${c.lastFiredAt ? new Date(c.lastFiredAt).toLocaleString() : "Never"}</div>
+          <label>上次触发</label>
+          <div class="value">${c.lastFiredAt ? new Date(c.lastFiredAt).toLocaleString("zh-CN") : "从未"}</div>
         </div>
         ${
           c.lastFireNote
             ? html`<div class="field">
                 <label>
-                  ${c.lastFireNote.by ? `Note left by ${c.lastFireNote.by}` : "Note from last fire"}
-                  (${new Date(c.lastFireNote.at).toLocaleString()})
+                  ${c.lastFireNote.by ? `${c.lastFireNote.by} 留下的备注` : "上次触发备注"}
+                  (${new Date(c.lastFireNote.at).toLocaleString("zh-CN")})
                 </label>
                 <div class="value" dir="auto">${c.lastFireNote.text}</div>
               </div>`
@@ -547,15 +546,15 @@ function openCron(c: CronView, opts: { push?: boolean; refreshRuns?: boolean } =
             ? html`
                 <div class="actions">
                   <button class="btn" @click=${() => showCronDialog("rename", c)}>
-                    ${icon(Pencil, 15)}<span>Edit</span>
+                    ${icon(Pencil, 15)}<span>编辑</span>
                   </button>
                   ${stateActions}
                   <button class="btn danger" @click=${() => showCronDialog("delete", c)}>
-                    ${icon(Trash2, 15)}<span>Delete</span>
+                    ${icon(Trash2, 15)}<span>删除</span>
                   </button>
                 </div>
               `
-            : html`<div class="hint">Shared from ${cronScopeLabel(c)}. You can view it, but not change it.</div>`
+            : html`<div class="hint">由 ${cronScopeLabel(c)} 共享。你可以查看，但不能修改。</div>`
         }
         ${cronDialog?.cron.id === c.id ? cronDialogTpl(cronDialog) : nothing}
       </div>
@@ -569,17 +568,17 @@ function openCron(c: CronView, opts: { push?: boolean; refreshRuns?: boolean } =
 function cronRunHistory(c: CronView): TemplateResult {
   const runs = cronRuns.get(c.id);
   const heading = html`<div class="cron-run-heading">
-    <label>Recent runs</label>
+    <label>最近运行</label>
   </div>`;
   if (!runs)
     return html`<div class="field">
       ${heading}
-      <div class="hint">Loading…</div>
+      <div class="hint">加载中…</div>
     </div>`;
   if (!runs.length)
     return html`<div class="field">
       ${heading}
-      <div class="hint">No runs yet.</div>
+      <div class="hint">暂无运行记录。</div>
     </div>`;
   return html` <div class="field">
     ${heading}
@@ -587,14 +586,14 @@ function cronRunHistory(c: CronView): TemplateResult {
       ${[...runs].reverse().map((run) => {
         const detail = run.note ?? (run.reply ? clipWords(run.reply, 120) : "");
         return html` <div class="cron-run-row">
-          <span class="badge">${run.status ?? "completed"}</span>
+          <span class="badge">${displayStatus(run.status ?? "completed")}</span>
           <span class="cron-run-time">${cronRunTiming(run)}</span>
           <span class=${run.note ? "cron-run-detail cron-run-error" : "cron-run-detail"} ${tip(detail)}>
             ${detail}
           </span>
           ${
             run.sessionId
-              ? html`<a class="cron-run-link" href=${deepLinkPath(UI_BASE, "chats", run.sessionId)}>Worklog</a>`
+              ? html`<a class="cron-run-link" href=${deepLinkPath(UI_BASE, "chats", run.sessionId)}>工作日志</a>`
               : nothing
           }
         </div>`;
@@ -609,7 +608,7 @@ async function loadCronRuns(id: string): Promise<void> {
     const result = await api<{ runs: CronRunView[] }>(`/api/crons/${encodeURIComponent(id)}/runs`);
     cronRuns.set(id, result.runs ?? []);
   } catch (error) {
-    cronActionNotice = errMessage(error, "Couldn't load run history.");
+    cronActionNotice = errMessage(error, "无法加载运行历史。");
     cronRuns.set(id, []);
   } finally {
     cronRunsLoading.delete(id);
@@ -641,9 +640,9 @@ function runCronNow(id: string): Promise<void> {
   return cronMutate(async () => {
     try {
       await api(`/api/crons/${encodeURIComponent(id)}/run`, { method: "POST" });
-      cronActionNotice = "Run started. Refresh recent runs after it completes.";
+      cronActionNotice = "任务已启动，完成后可刷新查看最近运行记录。";
     } catch (e) {
-      cronActionNotice = errMessage(e, "run failed");
+      cronActionNotice = errMessage(e, "运行失败");
     }
     await reopenCron(id);
   }, undefined);
@@ -687,18 +686,13 @@ function cronDialogTpl(dialog: { kind: "rename" | "delete"; cron: CronView }): T
       <div class="project-dialog cron-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="cron-delete-title">
         <div class="project-dialog-head">
           <div>
-            <h2 id="cron-delete-title">Delete <bdi>${cronTitle(c)}</bdi>?</h2>
+            <h2 id="cron-delete-title">删除 <bdi>${cronTitle(c)}</bdi>?</h2>
           </div>
         </div>
-        <p>
-          This permanently removes the schedule and its retained run history. Archive it instead if you may need it
-          later.
-        </p>
+        <p>此操作会永久删除时间安排及保留的运行历史。如果以后可能需要，请改用归档。</p>
         <div class="project-dialog-actions">
-          <button class="btn" type="button" @click=${() => closeCronDialog(c)}>Cancel</button>
-          <button class="btn danger" type="button" @click=${() => void confirmDeleteCron(c.id)}>
-            Delete permanently
-          </button>
+          <button class="btn" type="button" @click=${() => closeCronDialog(c)}>取消</button>
+          <button class="btn danger" type="button" @click=${() => void confirmDeleteCron(c.id)}>永久删除</button>
         </div>
       </div>
     </div>`;
@@ -715,27 +709,25 @@ function cronDialogTpl(dialog: { kind: "rename" | "delete"; cron: CronView }): T
       @submit=${(event: SubmitEvent) => void saveCronEdit(event, c)}
     >
       <div class="project-dialog-head">
-        <div><h2 id="cron-edit-title">Edit cron</h2></div>
+        <div><h2 id="cron-edit-title">编辑定时任务</h2></div>
       </div>
-      <label>Title<input name="title" maxlength="80" value=${c.title ?? cronTitle(c)} required /></label>
+      <label>标题<input name="title" maxlength="80" value=${c.title ?? cronTitle(c)} required /></label>
       ${
         c.message === undefined
-          ? html`<label>Task<textarea name="task" rows="5" required>${cronText(c)}</textarea></label>`
+          ? html`<label>任务<textarea name="task" rows="5" required>${cronText(c)}</textarea></label>`
           : html`<div class="field">
-              <label>Message</label>
+              <label>消息</label>
               <div class="value pre">${c.message}</div>
             </div>`
       }
       <p class="hint">
-        To change
-        ${c.message === undefined ? "the schedule, timezone, destination, or run mode" : "the message, schedule, timezone, destination, or run mode"},
-        use the agent so it can validate the resulting behavior and permissions.
+        如需修改${c.message === undefined ? "时间安排、时区、发送目标或运行模式" : "消息、时间安排、时区、发送目标或运行模式"}，请让智能体操作，以便核对最终行为和权限。
       </p>
       <div class="form-error"></div>
       <div class="project-dialog-actions">
-        <button class="btn" type="button" @click=${() => editCronWithAgent(c)}>Edit behavior with agent</button>
-        <button class="btn" type="button" @click=${() => closeCronDialog(c)}>Cancel</button>
-        <button class="btn primary" type="submit">Save</button>
+        <button class="btn" type="button" @click=${() => editCronWithAgent(c)}>让智能体修改任务</button>
+        <button class="btn" type="button" @click=${() => closeCronDialog(c)}>取消</button>
+        <button class="btn primary" type="submit">保存</button>
       </div>
     </form>
   </div>`;
@@ -749,13 +741,13 @@ async function saveCronEdit(event: SubmitEvent, c: CronView): Promise<void> {
   const task = taskControl?.value.trim();
   const error = form.querySelector<HTMLElement>(".form-error");
   if (!title || (taskControl && !task)) {
-    if (error) error.textContent = taskControl ? "Title and task are required." : "Title is required.";
+    if (error) error.textContent = taskControl ? "请填写标题和任务内容。" : "请填写标题。";
     return;
   }
-  const ok = await patchCron(c.id, { title, ...(task ? { task } : {}) }, "edit failed");
+  const ok = await patchCron(c.id, { title, ...(task ? { task } : {}) }, "编辑失败");
   if (!ok) return;
   cronDialog = null;
-  cronActionNotice = "Cron updated.";
+  cronActionNotice = "定时任务已更新。";
   await reopenCron(c.id);
 }
 
@@ -764,13 +756,13 @@ function editCronWithAgent(c: CronView): void {
   const conv = startNewChat();
   void conv?.state.agent?.prompt(
     userSendMessage(
-      `Help me edit cron ${c.id} ("${cronTitle(c)}"). Its current schedule is ${cronScheduleSummary(c)}. Ask what I want changed, then update its task, schedule, timezone, destination, or run mode as requested.`,
+      `帮我编辑定时任务 ${c.id}（“${cronTitle(c)}”）。当前时间安排为 ${cronScheduleSummary(c)}。请先询问我想修改什么，再按要求更新任务内容、时间安排、时区、发送目标或运行模式。`,
     ),
   );
 }
 
 async function archiveCron(id: string, archived: boolean): Promise<void> {
-  const ok = await patchCron(id, { archived }, archived ? "archive failed" : "unarchive failed");
+  const ok = await patchCron(id, { archived }, archived ? "归档失败" : "取消归档失败");
   if (!ok) return;
   await refreshCrons();
   if (archived) {
@@ -790,7 +782,7 @@ function setCronEnabled(id: string, enabled: boolean): Promise<void> {
       cronTab = "yours";
       if (!enabled) showDisabledCrons = true;
     } catch (e) {
-      cronActionNotice = errMessage(e, enabled ? "enable failed" : "disable failed");
+      cronActionNotice = errMessage(e, enabled ? "启用失败" : "停用失败");
     }
     await reopenCron(id);
   }, undefined);
@@ -802,7 +794,7 @@ async function confirmDeleteCron(id: string): Promise<void> {
     try {
       await api(`/api/crons/${encodeURIComponent(id)}`, { method: "DELETE" });
     } catch (e) {
-      cronActionNotice = errMessage(e, "delete failed");
+      cronActionNotice = errMessage(e, "删除失败");
     }
     await reopenCron(id);
   }, undefined);
@@ -811,23 +803,22 @@ async function confirmDeleteCron(id: string): Promise<void> {
 function cronForm() {
   return html`
     <form class="resource-form cron-form" @submit=${onCreateCron}>
-      ${listBackLink("Crons", drawCronsPage)}
-      <h2>New cron</h2>
+      ${listBackLink("定时任务", drawCronsPage)}
+      <h2>新建定时任务</h2>
       <p class="hint">
-        Describe what you want scheduled: what to do, how often, and where the result should go. The agent sets it up
-        and confirms in chat; it will ask if anything is unclear. It should give the cron a short, distinctive title
-        naming what it is for, like <code>Gmail unread digest</code> or <code>GitLab CI watch</code>.
+        描述你想安排的任务：要做什么、执行频率和结果发送位置。智能体会在对话中完成设置和确认，并询问不清楚的部分。请为任务起一个简短、易区分的用途名称，例如
+        <code>Gmail 未读邮件摘要</code> 或 <code>GitLab CI 监控</code>.
       </p>
       <label>
         <textarea
           name="text"
           rows="4"
-          placeholder="Every weekday at 9am, summarize my unread email and DM me the highlights."
+          placeholder="每个工作日上午 9 点，总结我的未读邮件，并私信我重点内容。"
           required
         ></textarea>
       </label>
       <div class="form-error"></div>
-      <div class="actions"><button class="btn primary" type="submit">Ask the agent to set it up</button></div>
+      <div class="actions"><button class="btn primary" type="submit">让智能体设置</button></div>
     </form>
   `;
 }
@@ -847,13 +838,15 @@ function onCreateCron(e: Event): void {
   const errSlot = form.querySelector(".form-error") as HTMLElement | null;
   const text = (form.querySelector('textarea[name="text"]') as HTMLTextAreaElement | null)?.value.trim() ?? "";
   if (!text) {
-    if (errSlot) errSlot.textContent = "Describe the cron you want.";
+    if (errSlot) errSlot.textContent = "请描述你想创建的定时任务。";
     return;
   }
   const conv = startNewChat();
   void conv?.state.agent?.prompt(
     userSendMessage(
-      `Set up a cron for me: ${text}\n\n(Sent from the web UI's New-cron pane: create it now with your scheduling API, use a calendar schedule with timezone for daily/weekly/monthly timing, give it a 2-5 word title naming what the cron is for and distinctive in a list, like "Gmail unread digest" or "GitLab CI watch", not the command and not a generic word, and confirm what you created.)`,
+      `请为我设置定时任务：${text}
+
+（来自网页端“新建定时任务”面板：请立即使用调度 API 创建。每日、每周或每月任务使用包含时区的日历时间安排；起一个简短、易于区分、体现用途的标题，例如“Gmail 未读邮件摘要”或“GitLab CI 监控”，不要用命令或泛泛的名称。创建后请确认结果。）`,
     ),
   );
 }

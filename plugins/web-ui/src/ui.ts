@@ -27,7 +27,7 @@ export function waveLoader(
     viewBox=${o.viewBox ?? SWELL_VIEWBOX}
     fill="none"
     role="img"
-    aria-label=${o.label ?? "Loading"}
+    aria-label=${o.label ?? "加载中"}
     xmlns="http://www.w3.org/2000/svg"
   >
     <g class="wl-row">
@@ -41,7 +41,7 @@ export function workingWave(): TemplateResult {
     width: 13.6,
     height: 5.7,
     viewBox: "0 16 38.4 16",
-    label: "Agent is working",
+    label: "智能体正在工作",
     cls: "working-wave",
   });
 }
@@ -304,10 +304,10 @@ export function initials(s: string): string {
 
 export function relTime(ms: number): string {
   const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+  if (s < 60) return "刚刚";
+  if (s < 3600) return `${Math.floor(s / 60)} 分钟前`;
+  if (s < 86400) return `${Math.floor(s / 3600)} 小时前`;
+  return `${Math.floor(s / 86400)} 天前`;
 }
 
 export function formatBytes(bytes: number): string {
@@ -368,7 +368,7 @@ export async function copyText(text: string, btn?: HTMLButtonElement): Promise<v
 
 export function actionSnippet(action: string): string {
   const s = action.trim().replace(/\s+/g, " ");
-  return s.length > 48 ? `${s.slice(0, 47)}…` : s || "(no action)";
+  return s.length > 48 ? `${s.slice(0, 47)}…` : s || "（无操作）";
 }
 
 export function closeFormMenus(): boolean {
@@ -452,7 +452,7 @@ export function chipBadge(
   if (download) return html`<a class="file-chip" href=${href} download=${name}>${inner}</a>`;
   return html`<span class="file-chip-group"
     ><a class="file-chip" href=${href} target="_blank" rel="noreferrer">${inner}</a
-    ><a class="file-chip-download" href=${href} download=${name} title="Download ${name}" aria-label="Download ${name}"
+    ><a class="file-chip-download" href=${href} download=${name} title="下载 ${name}" aria-label="下载 ${name}"
       >${icon(Download, 14)}</a
     ></span
   >`;

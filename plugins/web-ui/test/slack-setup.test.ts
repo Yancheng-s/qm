@@ -38,22 +38,22 @@ test("one checklist updates from token to consent to connected and clears stale 
   assert.equal(card.querySelectorAll("ol li").length, 3);
   assert.equal(card.querySelectorAll("input").length, 0);
   assert.equal(card.querySelectorAll("img").length, 1);
-  assert.match(card.textContent!, /Waiting for token submission/);
+  assert.match(card.textContent!, /等待提交令牌/);
   response.setup.appReady = true;
   window.dispatchEvent(new dom.window.Event("focus"));
   await settle();
-  assert.match(card.textContent!, /Waiting for Slack approval/);
+  assert.match(card.textContent!, /等待 Slack 授权/);
   assert.equal(card.querySelectorAll("ol").length, 1);
   response = { configured: true, setup: { ...links, appReady: true, connected: true } };
   window.dispatchEvent(new dom.window.Event("focus"));
   await settle();
-  assert.match(card.textContent!, /Connected to Slack/);
+  assert.match(card.textContent!, /已连接 Slack/);
   assert.equal(card.querySelectorAll("ol").length, 0);
   fail = true;
   window.dispatchEvent(new dom.window.Event("focus"));
   await settle();
-  assert.doesNotMatch(card.textContent!, /Connected to Slack/);
-  assert.match(card.textContent!, /Could not check progress/);
+  assert.doesNotMatch(card.textContent!, /已连接 Slack/);
+  assert.match(card.textContent!, /无法检查进度/);
   card.remove();
   const count = fetch.mock.callCount();
   window.dispatchEvent(new dom.window.Event("focus"));
@@ -67,7 +67,7 @@ test("non-admins receive no setup controls and unverified configuration is not C
   document.body.append(card);
   t.after(() => card.remove());
   await settle();
-  assert.match(card.textContent!, /Only a QM administrator/);
+  assert.match(card.textContent!, /只有 QM 管理员/);
   assert.equal(card.querySelectorAll("a").length, 0);
 });
 

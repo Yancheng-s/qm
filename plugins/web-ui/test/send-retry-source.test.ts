@@ -8,7 +8,7 @@ test("failed sends render Retry on the optimistic user message", () => {
   const userBranch = source.slice(source.indexOf('if (role === "user"'), source.indexOf('if (role === "assistant"'));
   assert.match(userBranch, /sendFailure/);
   assert.match(userBranch, /retryFailedSend\(message, index\)/);
-  assert.match(userBranch, /Retry\s*<\/button>/);
+  assert.match(userBranch, /重试\s*<\/button>/);
 });
 
 test("the synthetic retryable assistant error stays out of the transcript", () => {

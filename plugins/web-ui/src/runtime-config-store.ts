@@ -29,7 +29,7 @@ export function getRuntimeConfig(scopeId: string | null = bootScope): RuntimeCon
 }
 
 function publish(scopeId: string, entry: Entry, config: RuntimeConfig): void {
-  if (config.scopeId !== scopeId) throw new Error("Runtime configuration scope mismatch");
+  if (config.scopeId !== scopeId) throw new Error("运行配置所属项目不匹配");
   entry.config = config;
   entry.fetchedAt = Date.now();
   for (const listener of entry.listeners) {

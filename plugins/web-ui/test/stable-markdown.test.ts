@@ -545,10 +545,7 @@ test("Mermaid image metadata is rejected before rendering can fetch a URL", asyn
   ]) {
     const staging = document.createElement("div");
     document.body.append(staging);
-    await assert.rejects(
-      renderMermaid(`flowchart LR\nA@{ ${metadata} }`, "image-test", staging),
-      /Images are not supported/,
-    );
+    await assert.rejects(renderMermaid(`flowchart LR\nA@{ ${metadata} }`, "image-test", staging), /不支持嵌入图片/);
     assert.equal(staging.childElementCount, 0);
     staging.remove();
   }
@@ -556,8 +553,5 @@ test("Mermaid image metadata is rejected before rendering can fetch a URL", asyn
 
 test("oversized Mermaid sources are rejected before parsing", async () => {
   const { renderMermaid } = await import("../src/mermaid-block.ts");
-  await assert.rejects(
-    renderMermaid("A".repeat(50001), "large-test", document.createElement("div")),
-    /Diagram is too large/,
-  );
+  await assert.rejects(renderMermaid("A".repeat(50001), "large-test", document.createElement("div")), /图表过大/);
 });

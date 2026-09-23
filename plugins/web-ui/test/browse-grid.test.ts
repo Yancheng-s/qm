@@ -40,7 +40,7 @@ test("the browse palette is a 2-column grid over every destination, escape-dismi
     /\.browse-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
   );
   assert.match(browse, /e\.key === "Escape"[\s\S]{0,80}closeBrowse\(\)/);
-  for (const label of ["Projects", "Files", "Crons", "Keychain", "Apps", "Memory", "Skills", "Admin"]) {
+  for (const label of ["项目", "文件", "定时任务", "密钥库", "应用", "记忆", "技能", "管理后台"]) {
     assert.match(browse, new RegExp(`"${label}"`));
   }
 });

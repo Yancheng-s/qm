@@ -121,7 +121,7 @@ test("worker transcripts allow approvals without enabling the composer", async (
     await until(() => !!host.querySelector(".approval-btn"));
     assert.equal(host.querySelector("textarea"), null);
     const button = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
-      (b) => b.textContent?.trim() === "Allow once",
+      (b) => b.textContent?.trim() === "仅允许一次",
     )!;
     button.click();
     button.click();

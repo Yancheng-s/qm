@@ -21,9 +21,9 @@ style.textContent = readFileSync(new URL("../src/shell.css", import.meta.url), "
 document.head.append(style);
 
 for (const [label, glyph] of [
-  ["Archive session", Archive],
+  ["归档会话", Archive],
   ["Share session", Link],
-  ["Close pane", X],
+  ["关闭面板", X],
 ] as const) {
   test(`${label} keeps pointer targeting on the button across icon redraws`, () => {
     const host = document.createElement("div");

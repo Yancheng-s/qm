@@ -51,7 +51,7 @@ export function activityDescription(
     return { category: "read", target: compactPath(words[3]!) };
   }
   if (words?.[0] === "rg" && words[1] === "--files" && words.length <= 3 && !words[2]?.startsWith("-")) {
-    return { category: "search", target: `files${words[2] ? ` in ${compactPath(words[2])}` : ""}` };
+    return { category: "search", target: `文件${words[2] ? `，位于 ${compactPath(words[2])}` : ""}` };
   }
   if (words && ["rg", "grep"].includes(words[0]!)) {
     const args = words.slice(1);
@@ -70,7 +70,7 @@ export function activityDescription(
     ]);
     while (args.length && flags.has(args[0]!)) args.shift();
     if (args.length >= 1 && args.length <= 2 && !args.some((arg) => arg.startsWith("-"))) {
-      return { category: "search", target: `${args[0]}${args[1] ? ` in ${compactPath(args[1])}` : ""}` };
+      return { category: "search", target: `${args[0]}${args[1] ? `，位于 ${compactPath(args[1])}` : ""}` };
     }
   }
   return { category: "execute", target: command.split("\n")[0] ?? "" };
@@ -83,17 +83,17 @@ export function activityLabel(row: ToolRowModel, status: WorkBlock["status"]): s
   const state = toolRowKind(row, status);
   if (category === "other" || state === "approval") return null;
   const verbs = {
-    read: { ok: "Read", running: "Reading", failed: "Failed to read", attempted: "Tried reading" },
+    read: { ok: "已读取", running: "正在读取", failed: "读取失败", attempted: "已尝试读取" },
     search: {
-      ok: "Searched for",
-      running: "Searching for",
-      failed: "Failed searching for",
-      attempted: "Tried searching for",
+      ok: "已搜索",
+      running: "正在搜索",
+      failed: "搜索失败",
+      attempted: "已尝试搜索",
     },
-    execute: { ok: "Ran", running: "Running", failed: "Failed running", attempted: "Tried running" },
+    execute: { ok: "已运行", running: "运行中", failed: "运行失败", attempted: "已尝试运行" },
   };
   if (state === "ok" && (category === "read" || category === "execute") && target) return target;
-  return `${verbs[category][state]} ${target || (category === "execute" ? "command" : "file")}`;
+  return `${verbs[category][state]} ${target || (category === "execute" ? "命令" : "文件")}`;
 }
 
 export function activityGroupSummary(
@@ -126,15 +126,15 @@ export function activityGroupSummary(
   }
   const active = running > 0;
   const phrases = [];
-  if (categories.has("read")) phrases.push(active ? "Reading files" : "Read files");
-  if (categories.has("search")) phrases.push(active ? "Searching files" : "Searched files");
-  if (categories.has("execute")) phrases.push(active ? "Running commands" : "Ran commands");
-  if (categories.has("other")) phrases.push(active ? "Using tools" : "Used tools");
-  const base = phrases.map((phrase, i) => (i ? phrase.toLowerCase() : phrase)).join(", ") || "Thought";
+  if (categories.has("read")) phrases.push(active ? "正在读取文件" : "已读取文件");
+  if (categories.has("search")) phrases.push(active ? "正在搜索文件" : "已搜索文件");
+  if (categories.has("execute")) phrases.push(active ? "正在运行命令" : "已运行命令");
+  if (categories.has("other")) phrases.push(active ? "正在使用工具" : "已使用工具");
+  const base = phrases.map((phrase, i) => (i ? phrase.toLowerCase() : phrase)).join("、") || "已思考";
   const notes = [
-    failed ? `${failed} failed` : "",
-    approvals ? "Approval needed" : "",
-    attempted ? `${attempted} unconfirmed` : "",
+    failed ? `${failed} 失败` : "",
+    approvals ? "需要审批" : "",
+    attempted ? `${attempted} 未确认` : "",
   ].filter(Boolean);
   return {
     label: [base, ...notes].join(" · "),
@@ -147,7 +147,7 @@ export function activityGroupSummary(
 export function thinkingPresentation(text: string): { title: string; body: string } {
   const trimmed = text.trim();
   const heading = /^(?:#{1,6} +([^\n]+)|\*\*([^\n]+?)\*\*|__([^\n]+?)__)(?:\r?\n|$)/.exec(trimmed);
-  if (!heading) return { title: "Thought process", body: trimmed };
+  if (!heading) return { title: "思考过程", body: trimmed };
   const title = (heading[1] ?? heading[2] ?? heading[3]!).replace(/ +#+$/, "").trim();
   return { title, body: trimmed.slice(heading[0].length).trim() };
 }
@@ -166,26 +166,25 @@ export function sessionPresentation(
   if (toolCategory({ ...result, ...call }) !== "session") return null;
   const action = call.interrupt === true ? "interrupt" : (call.action ?? result.action ?? "");
   const actions: Record<string, [string, string, string]> = {
-    open: ["Created", "Creating", "create"],
-    write: ["Sent message to", "Sending message to", "send message to"],
-    send_message: ["Sent message to", "Sending message to", "send message to"],
-    followup_task: ["Continued", "Continuing", "continue"],
-    read: ["Read updates from", "Reading updates from", "read updates from"],
-    wait: ["Waited", "Waiting", "wait"],
-    interrupt: ["Interrupted", "Interrupting", "interrupt"],
-    close: ["Closed", "Closing", "close"],
-    list: ["Listed", "Listing", "list"],
+    open: ["已创建", "正在创建", "创建"],
+    write: ["已发送消息给", "正在发送消息给", "发送消息给"],
+    send_message: ["已发送消息给", "正在发送消息给", "发送消息给"],
+    followup_task: ["已继续", "正在继续", "继续"],
+    read: ["已读取更新：", "正在读取更新：", "读取更新："],
+    wait: ["已等待", "等待中", "等待"],
+    interrupt: ["已中断", "正在中断", "中断"],
+    close: ["已关闭", "正在关闭", "关闭"],
+    list: ["已列出", "正在列出", "列出"],
   };
   const verbs = actions[action];
   if (!verbs) return null;
   const state = toolRowKind(row, status);
   let label = verbs[0];
   if (state === "running") label = verbs[1];
-  else if (state === "failed") label = `Failed to ${verbs[2]}`;
-  else if (state === "attempted") label = `Tried to ${verbs[2]}`;
-  else if (state === "approval") label = `${row.pending ? "Approval needed" : "Approval requested"} to ${verbs[2]}`;
-  const target =
-    result.title || call.name || call.target || result.sessionId || (action === "open" ? "subagent" : "subagents");
+  else if (state === "failed") label = `无法${verbs[2]}`;
+  else if (state === "attempted") label = `已尝试${verbs[2]}`;
+  else if (state === "approval") label = `${row.pending ? "需要审批" : "已请求审批"} → ${verbs[2]}`;
+  const target = result.title || call.name || call.target || result.sessionId || "子智能体";
   const preview = ["write", "send_message", "followup_task"].includes(action)
     ? (call.text ?? call.task ?? "").replace(/\s+/g, " ").trim()
     : "";

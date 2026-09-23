@@ -4,10 +4,8 @@ import test from "node:test";
 
 const css = readFileSync(new URL("../src/shell.css", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../src/shell.ts", import.meta.url), "utf8");
-const mobileButton = css.indexOf("\n.mobile-menu-btn {");
-assert.ok(mobileButton >= 0, "the mobile menu button has a desktop visibility rule");
-const mobileShell = css.indexOf("@media (max-width: 860px) {", mobileButton);
-assert.ok(mobileShell > mobileButton, "the phone shell media query follows the mobile menu button rule");
+const mobileShell = css.indexOf("@media (max-width: 860px) {");
+assert.ok(mobileShell >= 0);
 
 test("collapsed sidebar is an in-flow rail, not a floating button", () => {
   assert.doesNotMatch(shell, /sidebar-peek-toggle/);
@@ -60,17 +58,12 @@ test("the collapse toggle's tooltip is pushed in step with the aria-label it mir
   assert.match(shell, /btn\.setAttribute\("aria-label", collapseLabel\);\s*attachTooltip\(btn, collapseLabel\);/);
 });
 
-test("phone viewports swap the rail for a slide-over drawer with one floating menu button", () => {
+test("phone viewports omit navigation and its reserved header space", () => {
   const mobile = css.slice(mobileShell);
-
-  assert.match(mobile, /\.layout\.sidebar-closed \.sidebar \{\s*transform: translateX\(-106%\);\s*visibility: hidden;/);
-  assert.match(mobile, /\.mobile-menu-btn \{\s*display: inline-flex;\s*position: absolute;/);
-
-  assert.match(mobile, /\.chat-topbar \{[^}]*padding-left: calc\(max\(4px, env\(safe-area-inset-left\)\) \+ 48px\);/);
-
-  assert.match(shell, /class="icon-btn sidebar-toggle mobile-menu-btn"[^`]*@click=\$\{toggleSidebar\}/);
-
-  assert.match(css, /\.mobile-menu-btn \{\s*display: none;\s*\}/);
+  assert.match(mobile, /\.sidebar,\s*\.sidebar-resize-handle \{\s*display: none;/);
+  assert.doesNotMatch(shell, /mobile-menu-btn|sidebar-scrim|EDGE_PX|SWIPE_PX/);
+  assert.match(mobile, /\.chat-topbar \{[^}]*padding-left: max\(10px, env\(safe-area-inset-left\)\);/);
+  assert.doesNotMatch(mobile, /(?:padding|margin)-left: 48px/);
 });
 
 test("per-view clearance hacks for the old floating button are gone", () => {

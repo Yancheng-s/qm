@@ -46,7 +46,7 @@ test("dismiss toast undoes the correct item and failed dismissals do not offer u
     };
     assert.equal(await setItemStatus(item, "dismissed"), true);
     const toast = document.querySelector(".action-toast")!;
-    assert.match(toast.textContent!, /Dismissed from inbox/);
+    assert.match(toast.textContent!, /已从收件箱忽略/);
     const undo = toast.querySelector<HTMLButtonElement>("button")!;
     undo.click();
     await new Promise((resolve) => setTimeout(resolve, 0));

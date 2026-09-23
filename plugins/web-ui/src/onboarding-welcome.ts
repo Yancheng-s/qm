@@ -115,7 +115,7 @@ export class OnboardingWelcome extends LitElement {
         cache: "no-store",
         signal: AbortSignal.timeout(10000),
       });
-      if (!response.ok) throw Error("Slack status unavailable");
+      if (!response.ok) throw Error("Slack 状态不可用");
       this.workspaceConnected = (await response.json()).workspaceInstalled === true;
       this.workspaceError = false;
     } catch {
@@ -226,14 +226,13 @@ export class OnboardingWelcome extends LitElement {
       const seen = new Set<string>();
       let cursor = "";
       do {
-        if (seen.has(cursor) || seen.size >= 100) throw new Error("Could not finish checking connected apps.");
+        if (seen.has(cursor) || seen.size >= 100) throw new Error("未能完成应用连接检查。");
         seen.add(cursor);
         const response = await fetch(`${this.base}api/composio/connections?${new URLSearchParams({ cursor })}`, {
           signal: controller.signal,
         });
         const result = await response.json();
-        if (!response.ok || !Array.isArray(result.items))
-          throw new Error("Could not check connected apps. Please try again.");
+        if (!response.ok || !Array.isArray(result.items)) throw new Error("无法检查已连接的应用，请重试。");
         accounts.push(...result.items);
         cursor = typeof result.nextCursor === "string" ? result.nextCursor : "";
       } while (cursor);
@@ -259,7 +258,7 @@ export class OnboardingWelcome extends LitElement {
       if (controller.signal.aborted || !this.isConnected) return;
       this.connections = [];
       this.connectionOutcome = "";
-      this.connectionError = error instanceof Error ? error.message : "Could not check connected apps.";
+      this.connectionError = error instanceof Error ? error.message : "无法检查已连接的应用。";
       await this.updateComplete;
       this.drawPicker();
     }
@@ -274,25 +273,24 @@ export class OnboardingWelcome extends LitElement {
     let cursor = "";
     try {
       do {
-        if (cursors.has(cursor)) throw new Error("Could not finish loading apps. Please try again.");
+        if (cursors.has(cursor)) throw new Error("未能完成应用加载，请重试。");
         cursors.add(cursor);
         const response = await fetch(`${this.base}api/composio/toolkits?${new URLSearchParams({ cursor })}`, {
           signal: controller.signal,
         });
         const result = await response.json();
-        if (!response.ok)
-          throw new Error(result.message ?? "App connections are unavailable right now. Please try again.");
+        if (!response.ok) throw new Error(result.message ?? "应用连接暂不可用，请重试。");
         for (const item of result.items as Array<{ id: string; name: string; description: string }>) {
           if (item.id !== "slack" && !services.some((service) => service.id === item.id))
             services.push({ ...item, popularity: 100000 - services.length });
         }
         cursor = typeof result.nextCursor === "string" ? result.nextCursor : "";
-        if (cursors.size > 100) throw new Error("Could not finish loading apps. Please try again.");
+        if (cursors.size > 100) throw new Error("未能完成应用加载，请重试。");
       } while (cursor);
       this.services = services;
     } catch (error) {
       if (controller.signal.aborted) return;
-      this.error = error instanceof Error ? error.message : "Could not load apps. Please try again.";
+      this.error = error instanceof Error ? error.message : "无法加载应用，请重试。";
     }
     if (!this.isConnected || controller.signal.aborted) return;
     this.loading = false;
@@ -336,14 +334,13 @@ export class OnboardingWelcome extends LitElement {
         body: JSON.stringify({ toolkit: service.id, returnTo: location.pathname + location.search, state }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.message ?? "Could not open authorization. Please try again.");
+      if (!response.ok) throw new Error(result.message ?? "无法打开授权页面，请重试。");
       if (typeof result.accountId !== "string" || !/^ca_[a-zA-Z0-9_-]+$/.test(result.accountId))
-        throw new Error("Could not start authorization. Please try again.");
+        throw new Error("无法发起授权，请重试。");
       saveConnectionAttempt({ ...attempt, accountId: result.accountId });
       window.location.assign(result.url);
     } catch (error) {
-      this.authorizationError =
-        error instanceof Error ? error.message : "Could not open authorization. Please try again.";
+      this.authorizationError = error instanceof Error ? error.message : "无法打开授权页面，请重试。";
     } finally {
       this.authorizing = "";
     }
@@ -351,34 +348,30 @@ export class OnboardingWelcome extends LitElement {
   protected render() {
     if (this.preview && previewParameters().has("connectionConsent")) {
       return html`<section class="connection-consent-preview">
-        <span class="connection-preview-label">Provider simulation · No account access</span>
-        <h1>${this.consent ? `Connect ${this.consent.service.name}` : "This preview has expired"}</h1>
-        <p>
-          This stands in for the provider’s consent page. Choose an outcome to return to QM through the callback URL.
-        </p>
+        <span class="connection-preview-label">服务商模拟 · 不访问账户</span>
+        <h1>${this.consent ? `连接 ${this.consent.service.name}` : "此预览已过期"}</h1>
+        <p>此页面模拟服务商的授权页面。选择结果后，将通过回调地址返回 QM。</p>
         ${
           this.consent
             ? html`<div class="connection-preview-actions">
-                  <button class="btn" @click=${() => finishPreviewAttempt(this.consent!, "success")}>
-                    Approve connection
-                  </button>
-                  <button class="btn" @click=${() => finishPreviewAttempt(this.consent!, "cancelled")}>Cancel</button>
+                  <button class="btn" @click=${() => finishPreviewAttempt(this.consent!, "success")}>允许连接</button>
+                  <button class="btn" @click=${() => finishPreviewAttempt(this.consent!, "cancelled")}>取消</button>
                   <button class="btn" @click=${() => finishPreviewAttempt(this.consent!, "failed")}>
-                    Simulate provider error
+                    模拟服务商错误
                   </button>
                 </div>
                 <details>
-                  <summary>Callback URL</summary>
+                  <summary>回调地址</summary>
                   <code>${this.consent.callbackUrl}</code>
                 </details>`
             : nothing
         }
-        <a href="?connectionDemo=1">Back to QM</a>
+        <a href="?connectionDemo=1">返回 QM</a>
       </section>`;
     }
     const name = this.me?.displayName?.trim().split(/\s+/)[0];
     const cohort = this.me?.welcomeCohort;
-    const serviceName = this.retryService?.name ?? "App";
+    const serviceName = this.retryService?.name ?? "应用";
     const connected = this.preview
       ? previewConnections(this.previewUser())
       : this.connections.map((account) => account.toolkit);
@@ -388,33 +381,33 @@ export class OnboardingWelcome extends LitElement {
     const outcome = {
       "": { title: "", detail: "" },
       checking: {
-        title: `Checking ${serviceName} connection…`,
-        detail: "Confirming access before marking it connected.",
+        title: `正在检查 ${serviceName} 连接…`,
+        detail: "正在确认访问权限，确认后将标记为已连接。",
       },
       success: {
-        title: `${serviceName} connected`,
+        title: `${serviceName} 已连接`,
         detail: "",
       },
       cancelled: {
-        title: `${serviceName} wasn’t connected`,
-        detail: "You cancelled authorization. You can try again whenever you’re ready.",
+        title: `${serviceName} 未连接`,
+        detail: "你已取消授权，可随时重试。",
       },
-      expired: { title: "This connection attempt has expired", detail: "Choose an app below to start again." },
+      expired: { title: "本次连接已过期", detail: "请选择下方应用重新开始。" },
       failed: {
-        title: `Couldn’t connect ${serviceName}`,
-        detail: "We couldn’t confirm an active connection yet. Try checking again, or restart authorization.",
+        title: `无法连接 ${serviceName}`,
+        detail: "尚未确认有效连接，请再次检查或重新发起授权。",
       },
     }[this.connectionOutcome];
     return html`<section class="welcome-content">
-      ${this.preview ? html`<div class="connection-preview-label">Connection preview · No accounts are linked <button @click=${() => resetPreview(this.previewUser())}>Reset</button></div>` : nothing}
+      ${this.preview ? html`<div class="connection-preview-label">连接预览 · 不关联任何账户 <button @click=${() => resetPreview(this.previewUser())}>重置</button></div>` : nothing}
       ${
         this.setupOnly
           ? nothing
-          : html`<h1 class="welcome-beat" style="--welcome-delay:0ms">${name ? `Hi, ${name}.` : "Hi there."}</h1>
+          : html`<h1 class="welcome-beat" style="--welcome-delay:0ms">${name ? `你好，${name}。` : "你好。"}</h1>
               ${
                 cohort
                   ? html`<div class="welcome-cohort welcome-beat" style="--welcome-delay:700ms">
-                      <span class="welcome-cohort-label">Welcome to ${cohort}!</span
+                      <span class="welcome-cohort-label">欢迎来到 ${cohort}！</span
                       ><span class="welcome-champagne" aria-hidden="true">🥂</span>
                       ${Array.from({ length: 18 }, (_, i) => {
                         const side = i % 2 ? 1 : -1;
@@ -432,22 +425,20 @@ export class OnboardingWelcome extends LitElement {
               ${
                 cohort
                   ? html`<p class="welcome-beat" style="--welcome-delay:2400ms">
-                        And welcome to QM, the agent harness we use to run YC.
+                        欢迎使用 QM，我们用它来支持 YC 的日常工作。
                       </p>
                       <p class="welcome-beat" style="--welcome-delay:2600ms">
-                        Use it to research customers and investors, fundraise, and automate the everyday work of running
-                        ${this.me?.companyName?.trim() || "your company"}.
-                        ${this.onMoreIdeas ? html`<button type="button" class="welcome-more-ideas" ?disabled=${this.ideasDisabled} @click=${this.onMoreIdeas}>More ideas</button>` : nothing}
+                        你可以用它研究客户和投资者、推进融资，并自动处理 ${this.me?.companyName?.trim() || "你的公司"}
+                        的日常运营。${this.onMoreIdeas ? html`<button type="button" class="welcome-more-ideas" ?disabled=${this.ideasDisabled} @click=${this.onMoreIdeas}>更多想法</button>` : nothing}
                       </p>
                       <p class="welcome-beat" style="--welcome-delay:2800ms">
-                        Think of it as your YC partner in a box. The more you use QM, the more context we have, the more
-                        we can help.
+                        把它当作随时可用的 YC 合作伙伴。使用越多，QM 越了解你的工作，也越能提供帮助。
                       </p>`
                   : html`<p class="welcome-beat" style="--welcome-delay:400ms">
-                        Welcome to QM, your agent harness. Use it to research customers, build tools, and automate the
-                        everyday work of running ${this.me?.companyName?.trim() || "your company"}.
+                        欢迎使用 QM，你的智能体工作平台。用它研究客户、构建工具，并自动处理
+                        ${this.me?.companyName?.trim() || "你的公司"} 的日常工作。
                       </p>
-                      <p class="welcome-beat" style="--welcome-delay:700ms">The easiest way to get up and running:</p>`
+                      <p class="welcome-beat" style="--welcome-delay:700ms">从这里开始：</p>`
               }`
       }
       ${
@@ -462,8 +453,8 @@ export class OnboardingWelcome extends LitElement {
             ></qm-onboarding-slack>`
           : nothing
       }
-      ${this.widget === "slack-account" && this.workspaceError ? html`<p role="status">Could not check Slack setup. <button class="btn" @click=${() => void this.refreshWorkspace()}>Try again</button></p>` : nothing}
-      ${this.widget === "slack-account" && this.workspaceConnected === false ? html`<p role="status">QM needs to be added to your company’s Slack workspace before you can link your account. Ask an administrator to finish setup.</p>` : nothing}
+      ${this.widget === "slack-account" && this.workspaceError ? html`<p role="status">无法检查 Slack 设置。 <button class="btn" @click=${() => void this.refreshWorkspace()}>重试</button></p>` : nothing}
+      ${this.widget === "slack-account" && this.workspaceConnected === false ? html`<p role="status">请先将 QM 添加到公司的 Slack 工作区，再关联个人账户。请联系管理员完成设置。</p>` : nothing}
       <div class="welcome-beat" style=${`--welcome-delay:${cohort ? 3250 : 1100}ms`}>
         ${this.workspaceConnected && this.widget !== "apps" && (["slack", "slack-account"].includes(this.widget) || (!this.loading && !this.error)) ? html`<qm-slack-account .user=${this.previewUser()}></qm-slack-account>` : nothing}
       </div>
@@ -471,11 +462,11 @@ export class OnboardingWelcome extends LitElement {
         ["slack", "slack-account"].includes(this.widget)
           ? nothing
           : html`<div class="welcome-beat" style=${`--welcome-delay:${cohort ? 3450 : 1300}ms`}>
-              ${this.loading ? html`<div class="welcome-load" role="status">Loading your available apps…</div>` : nothing}
+              ${this.loading ? html`<div class="welcome-load" role="status">正在加载可用应用…</div>` : nothing}
               ${
                 this.error
                   ? html`<div class="welcome-load">
-                      <strong>Connect your apps</strong>
+                      <strong>连接你的应用</strong>
                       <p role="status">${this.error}</p>
                       <button
                         type="button"
@@ -486,7 +477,7 @@ export class OnboardingWelcome extends LitElement {
                           void this.refreshWorkspace();
                         }}
                       >
-                        Try again
+                        重试
                       </button>
                     </div>`
                   : nothing
@@ -501,21 +492,21 @@ export class OnboardingWelcome extends LitElement {
                     >
                       <strong>${outcome.title}</strong>
                       ${outcome.detail ? html`<p>${outcome.detail}</p>` : nothing}
-                      ${["cancelled", "failed"].includes(this.connectionOutcome) && this.retryService ? html`<button class="btn" @click=${() => this.authorize({ ...this.retryService!, description: "", popularity: 0 })}>Try again</button>` : nothing}
+                      ${["cancelled", "failed"].includes(this.connectionOutcome) && this.retryService ? html`<button class="btn" @click=${() => this.authorize({ ...this.retryService!, description: "", popularity: 0 })}>重试</button>` : nothing}
                     </div>`
                   : nothing
               }
-              ${this.connectionError && !this.error && !this.loading ? html`<div class="welcome-connection-status" role="status">${this.connectionError} <button class="btn" @click=${() => void this.loadConnections()}>Check again</button></div>` : nothing}
-              ${!this.preview && this.connectionOutcome === "failed" ? html`<button class="btn" @click=${() => void this.loadConnections()}>Check again</button>` : nothing}
+              ${this.connectionError && !this.error && !this.loading ? html`<div class="welcome-connection-status" role="status">${this.connectionError} <button class="btn" @click=${() => void this.loadConnections()}>重新检查</button></div>` : nothing}
+              ${!this.preview && this.connectionOutcome === "failed" ? html`<button class="btn" @click=${() => void this.loadConnections()}>重新检查</button>` : nothing}
               <div class="welcome-picker" ?inert=${Boolean(this.authorizing)}></div>
               ${
                 connectedServices.length
                   ? html`<div class="connection-connected" role="status" aria-live="polite">
-                      ${connectedServices.map((service) => html`<span>${icon(Check, 10)}${service.name} connected</span>`)}
+                      ${connectedServices.map((service) => html`<span>${icon(Check, 10)}${service.name} 已连接</span>`)}
                     </div>`
                   : nothing
               }
-              ${this.authorizing ? html`<p class="welcome-connection-status" role="status">Opening ${this.authorizing}…</p>` : nothing}
+              ${this.authorizing ? html`<p class="welcome-connection-status" role="status">正在打开 ${this.authorizing}…</p>` : nothing}
               ${this.authorizationError ? html`<p class="welcome-connection-status" role="alert">${this.authorizationError}</p>` : nothing}
             </div>`
       }

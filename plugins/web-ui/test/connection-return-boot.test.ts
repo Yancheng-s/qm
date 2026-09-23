@@ -15,7 +15,7 @@ test("real connection return survives router normalization and retires after ver
   });
   try {
     await h.boot();
-    await waitForText(h, /Gmail connected/);
+    await waitForText(h, /Gmail 已连接/);
     assert.equal(new URLSearchParams(location.search).has("composioReturn"), false);
     assert.equal(sessionStorage.getItem("qm-connection-return:test:tester"), null);
     assert.equal(document.querySelector("qm-onboarding-welcome.welcome-rolling"), null);
@@ -24,17 +24,17 @@ test("real connection return survives router normalization and retires after ver
     const replacement = document.createElement("qm-onboarding-welcome");
     Object.assign(replacement, { me: { org: "test", user: "tester" }, base: "/", animateWelcome: true });
     original.replaceWith(replacement);
-    await waitForText(h, /Gmail connected/);
+    await waitForText(h, /Gmail 已连接/);
     assert.equal((document.querySelector('input[type="search"]') as HTMLInputElement)?.value, "mail");
     h.setConnections([]);
     const remounted = document.createElement("qm-onboarding-welcome");
     Object.assign(remounted, { me: { org: "test", user: "tester" }, base: "/", animateWelcome: true });
     replacement.replaceWith(remounted);
     window.dispatchEvent(new Event("focus"));
-    for (let i = 0; i < 100 && /Gmail connected/.test(h.mainText()); i++)
+    for (let i = 0; i < 100 && /Gmail 已连接/.test(h.mainText()); i++)
       await new Promise((resolve) => setTimeout(resolve, 5));
     await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.doesNotMatch(h.mainText(), /Gmail connected|Couldn’t connect/);
+    assert.doesNotMatch(h.mainText(), /Gmail 已连接|无法连接/);
   } finally {
     await h.close();
   }

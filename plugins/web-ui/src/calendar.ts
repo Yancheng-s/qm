@@ -8,9 +8,9 @@ export function renderCalendar(): void {
   render(
     html`
       <div class="pane-head">
-        <h1 class="pane-title">Calendar</h1>
+        <h1 class="pane-title">日历</h1>
       </div>
-      <div class="empty compact">Coming soon.</div>
+      <div class="empty compact">即将推出。</div>
     `,
     host,
   );

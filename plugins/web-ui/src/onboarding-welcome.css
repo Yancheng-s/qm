@@ -1,15 +1,15 @@
-.custom-chat-shell.empty-chat:has(qm-onboarding-welcome) {
+.custom-chat-shell.empty-chat:has(qm-onboarding-welcome, .employee-welcome) {
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
-.custom-chat-shell.in-pane.empty-chat:has(qm-onboarding-welcome) {
+.custom-chat-shell.in-pane.empty-chat:has(qm-onboarding-welcome, .employee-welcome) {
   grid-template-rows: minmax(0, 1fr) auto;
 }
-.custom-chat-shell .chat-scroll:has(qm-onboarding-welcome) {
+.custom-chat-shell .chat-scroll:has(qm-onboarding-welcome, .employee-welcome) {
   display: block;
   padding-top: clamp(16px, 3vh, 32px);
   overflow-anchor: none;
 }
-.message-stack.empty-stack:has(qm-onboarding-welcome) {
+.message-stack.empty-stack:has(qm-onboarding-welcome, .employee-welcome) {
   justify-content: flex-start;
 }
 qm-onboarding-welcome {
@@ -283,4 +283,12 @@ qm-onboarding-welcome {
 .welcome-more-ideas:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.message-stack.empty-stack:has(.employee-welcome) {
+  padding-top: clamp(0px, calc(30cqh - 60px), 160px);
+}
+
+.employee-welcome h1 {
+  overflow-wrap: anywhere;
 }

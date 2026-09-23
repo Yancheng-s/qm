@@ -76,7 +76,7 @@ export async function loadAmbientPolicy(scopeId: string, onChange: () => void): 
     ambientPolicyState.baseUpdatedAt = r.policy.updatedAt;
   } catch (e) {
     if (seq !== loadSeq) return;
-    ambientPolicyState.notice = errMessage(e, "Couldn't load this scope's standing orders.");
+    ambientPolicyState.notice = errMessage(e, "无法加载此项目的长期指令。");
     ambientPolicyState.noticeKind = "error";
   } finally {
     if (seq === loadSeq) {
@@ -123,10 +123,10 @@ async function save(): Promise<void> {
     }));
     ambientPolicyState.baseUpdatedAt = r.policy.updatedAt;
     ambientPolicyState.dirty = false;
-    ambientPolicyState.notice = "Saved.";
+    ambientPolicyState.notice = "已保存。";
     ambientPolicyState.noticeKind = "saved";
   } catch (e) {
-    ambientPolicyState.notice = errMessage(e, "Couldn't save. Try again.");
+    ambientPolicyState.notice = errMessage(e, "保存失败，请重试。");
     ambientPolicyState.noticeKind = "error";
   } finally {
     ambientPolicyState.saving = false;
@@ -138,7 +138,7 @@ function addBot(): void {
   const name = ambientPolicyState.newBotName.trim();
   if (!name) return;
   if (ambientPolicyState.bots.some((b) => b.name.toLowerCase() === name.toLowerCase())) {
-    ambientPolicyState.notice = `“${name}” is already in the ledger.`;
+    ambientPolicyState.notice = `“${name}”已在列表中。`;
     ambientPolicyState.noticeKind = "error";
     redraw();
     return;
@@ -149,10 +149,10 @@ function addBot(): void {
 }
 
 const BOT_MODE_LABELS: Record<BotMode, string> = {
-  ignore: "Ignore",
-  rollup: "Batch updates",
-  action: "Act immediately",
-  user: "Treat like a person",
+  ignore: "忽略",
+  rollup: "汇总更新",
+  action: "立即处理",
+  user: "按普通成员处理",
 };
 
 function ambientValue(enabled: boolean | null): string {
@@ -167,7 +167,7 @@ function botRow(b: BotPolicyView, i: number): TemplateResult {
       ${fieldSelect({
         className: "ambient-bot-mode",
         compact: true,
-        ariaLabel: `Handling for ${b.name}`,
+        ariaLabel: `${b.name} 的处理方式`,
         disabled: ambientPolicyState.saving,
         value: b.mode,
         onChange: (value) => {
@@ -180,13 +180,13 @@ function botRow(b: BotPolicyView, i: number): TemplateResult {
       ${
         b.mode === "rollup"
           ? html`<label class="ambient-bot-hours"
-              >every
+              >每
               <input
                 type="number"
                 min="1"
                 step="1"
                 data-focus-key=${`ambient-hours-${i}`}
-                aria-label=${`Batch interval for ${b.name} in hours`}
+                aria-label=${`${b.name} 的批量处理间隔（小时）`}
                 .value=${String(b.rollupHours ?? 24)}
                 ?disabled=${ambientPolicyState.saving}
                 @input=${(e: InputEvent) => {
@@ -204,8 +204,8 @@ function botRow(b: BotPolicyView, i: number): TemplateResult {
       <button
         class="project-icon-button danger"
         type="button"
-        aria-label=${`Remove ${b.name} from the ledger`}
-        ${tip("Remove")}
+        aria-label=${`从列表中移除 ${b.name}`}
+        ${tip("移除")}
         ?disabled=${ambientPolicyState.saving}
         @click=${() => {
           ambientPolicyState.bots = ambientPolicyState.bots.filter((_, j) => j !== i);
@@ -223,19 +223,19 @@ export function ambientPolicySection(scopeId: string): TemplateResult | typeof n
   if (ambientPolicyState.scope !== scopeId) return nothing;
   if (ambientPolicyState.loading)
     return html`<section class="context-panel ambient-policy" aria-labelledby="ambient-policy-title">
-      <h2 class="context-panel-title" id="ambient-policy-title">Agent behavior</h2>
-      <div class="context-panel-loading">Loading…</div>
+      <h2 class="context-panel-title" id="ambient-policy-title">智能体行为</h2>
+      <div class="context-panel-loading">加载中…</div>
     </section>`;
   return html`
     <section class="context-panel ambient-policy" aria-labelledby="ambient-policy-title">
       <div class="context-panel-heading">
         <div>
-          <h2 class="context-panel-title" id="ambient-policy-title">Agent behavior</h2>
-          <p class="context-panel-copy">Choose what this project should notice and act on.</p>
+          <h2 class="context-panel-title" id="ambient-policy-title">智能体行为</h2>
+          <p class="context-panel-copy">选择智能体应在此项目中关注和处理的内容。</p>
         </div>
       </div>
       <div class="ambient-group">
-        <label class="ambient-field-label" for="ambient-enabled">Ambient behavior</label>
+        <label class="ambient-field-label" for="ambient-enabled">主动响应</label>
         ${fieldSelect({
           id: "ambient-enabled",
           className: "ambient-enabled-select",
@@ -248,25 +248,25 @@ export function ambientPolicySection(scopeId: string): TemplateResult | typeof n
             markDirty();
           },
           options: [
-            html`<option value="default">Default (on when standing orders are set)</option>`,
-            html`<option value="on">On</option>`,
-            html`<option value="off">Off</option>`,
+            html`<option value="default">默认（设置长期指令时开启）</option>`,
+            html`<option value="on">开启</option>`,
+            html`<option value="off">关闭</option>`,
           ],
         })}
         <p class="ambient-policy-hint" id="ambient-enabled-hint">
-          When off, the agent never acts on overheard messages here; it only responds to direct @mentions. Default: on
-          only when standing orders (or an action-mode bot) are set below, otherwise mention-only.
+          关闭后，智能体只回应直接
+          @提及，不会主动处理旁观到的消息。默认仅在设置了下方长期指令或主动处理模式机器人时开启，否则仅回应提及。
         </p>
       </div>
       <div class="ambient-group">
-        <label class="ambient-field-label" for="ambient-orders">Standing orders</label>
+        <label class="ambient-field-label" for="ambient-orders">长期指令</label>
         <textarea
           id="ambient-orders"
           data-focus-key="ambient-orders"
           class="ambient-orders"
           rows="4"
           aria-describedby="ambient-orders-hint"
-          placeholder="For example: Flag anything that could delay the launch."
+          placeholder="例如：标记所有可能延误发布的事项。"
           .value=${ambientPolicyState.orders}
           ?disabled=${ambientPolicyState.saving}
           @input=${(e: InputEvent) => {
@@ -275,13 +275,13 @@ export function ambientPolicySection(scopeId: string): TemplateResult | typeof n
           }}
         ></textarea>
         <p class="ambient-policy-hint" id="ambient-orders-hint">
-          Plain-language guidance for proactive work. Leave empty to respond only when addressed.
+          用自然语言说明需要主动完成的工作。留空时仅在被直接提及时回应。
         </p>
       </div>
       <div class="ambient-group">
-        <h3 class="ambient-field-label">Automated posters</h3>
-        <p class="ambient-policy-hint">Control how messages from bots and integrations wake the agent.</p>
-        ${ambientPolicyState.bots.length ? html`<div class="ambient-bot-list">${ambientPolicyState.bots.map((b, i) => botRow(b, i))}</div>` : html`<div class="empty compact">No bots added. All bot posts are treated as activity.</div>`}
+        <h3 class="ambient-field-label">自动发帖机器人</h3>
+        <p class="ambient-policy-hint">控制机器人和集成应用的消息如何触发智能体。</p>
+        ${ambientPolicyState.bots.length ? html`<div class="ambient-bot-list">${ambientPolicyState.bots.map((b, i) => botRow(b, i))}</div>` : html`<div class="empty compact">尚未添加机器人。所有机器人消息仅作为活动记录。</div>`}
         <form
           class="ambient-bot-add"
           @submit=${(e: SubmitEvent) => {
@@ -293,9 +293,9 @@ export function ambientPolicySection(scopeId: string): TemplateResult | typeof n
             data-focus-key="ambient-bot-name"
             type="text"
             maxlength="120"
-            aria-label="Bot name"
+            aria-label="机器人名称"
             required
-            placeholder="Bot name"
+            placeholder="机器人名称"
             .value=${ambientPolicyState.newBotName}
             ?disabled=${ambientPolicyState.saving}
             @input=${(e: InputEvent) => {
@@ -303,7 +303,7 @@ export function ambientPolicySection(scopeId: string): TemplateResult | typeof n
               redraw();
             }}
           />
-          <button class="btn" type="submit" ?disabled=${ambientPolicyState.saving}>Add bot</button>
+          <button class="btn" type="submit" ?disabled=${ambientPolicyState.saving}>添加机器人</button>
         </form>
       </div>
       <div class="ambient-policy-actions">
@@ -313,7 +313,7 @@ export function ambientPolicySection(scopeId: string): TemplateResult | typeof n
           ?disabled=${!ambientPolicyState.dirty || ambientPolicyState.saving}
           @click=${() => void save()}
         >
-          ${ambientPolicyState.saving ? "Saving…" : "Save"}
+          ${ambientPolicyState.saving ? "正在保存…" : "保存"}
         </button>
         ${
           ambientPolicyState.notice

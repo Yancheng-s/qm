@@ -51,12 +51,12 @@ test("an inbox drag paints drop zones on every existing pane", () => {
 });
 
 test("email items edit like an email; slack items like slack", () => {
-  assert.match(inbox, /<span>To<\/span>/);
-  assert.match(inbox, /<span>Subject<\/span>/);
-  assert.match(inbox, /Send it/, "send lives in the composer as a suggested action");
+  assert.match(inbox, /<span>收件人<\/span>/);
+  assert.match(inbox, /<span>主题<\/span>/);
+  assert.match(inbox, /发送/, "send lives in the composer as a suggested action");
   assert.match(inbox, /inbox-chat-suggest/, "suggested actions render inside the ask composer");
-  assert.match(inbox, /Send the drafted reply in Gmail/);
-  assert.match(inbox, /Send the drafted reply to Slack/);
+  assert.match(inbox, /通过 Gmail 发送回复草稿/);
+  assert.match(inbox, /将回复草稿发送到 Slack/);
   assert.match(inbox, /rows=\$\{gmail \? 7 : 3\}/, "email drafts get a taller editor than slack replies");
 });
 
@@ -94,7 +94,7 @@ test("initial inbox selection is restored after the shell resets the active view
 test("every draft links back to the session that produced it", () => {
   assert.match(inbox, /draftSessionId/);
   assert.match(inbox, /deepLinkPath\(UI_BASE, "chats", item.draftSessionId\)/);
-  assert.match(inbox, /Open agent session/);
+  assert.match(inbox, /打开智能体会话/);
 });
 
 test("drafts persist on blur and send uses the current edit", () => {
@@ -145,11 +145,11 @@ test("each item carries a follow-up chat with the agent", () => {
 });
 
 test("handled items keep their history but stay out of the way", () => {
-  assert.match(inbox, /Handled \(/);
-  assert.match(inbox, /if \(item\.status === "sent"\) return "Sent";/);
-  assert.match(inbox, /if \(item\.status === "replied"\) return "Replied";/);
-  assert.match(inbox, /return "Dismissed";/);
-  assert.match(inbox, /Reopen/);
+  assert.match(inbox, /已处理（/);
+  assert.match(inbox, /if \(item\.status === "sent"\) return "已发送";/);
+  assert.match(inbox, /if \(item\.status === "replied"\) return "已回复";/);
+  assert.match(inbox, /return "已忽略";/);
+  assert.match(inbox, /重新打开/);
 });
 
 test("an external reply in Slack or Gmail closes the loop in the UI", () => {
@@ -159,7 +159,7 @@ test("an external reply in Slack or Gmail closes the loop in the UI", () => {
     "the item type learns the replied status",
   );
   assert.match(inbox, /externalReplyText\?: string;/);
-  assert.match(inbox, /You replied in \$\{where\}/);
+  assert.match(inbox, /你已在 \$\{where\} 回复/);
   assert.match(inbox, /item\.source === "slack" \? "Slack" : "Gmail"/);
   assert.match(inbox, /item\.externalReplyText \? html`<div class="inbox-replied-text">/);
   assert.match(
@@ -240,10 +240,7 @@ test("clipped email snippets do not trigger a native hover tooltip", () => {
 test("a send refused because the agent redrafted keeps the person's edit and shows the new draft", () => {
   assert.match(inbox, /status === 409 && \/draft changed\/i\.test\(e\.message\)/);
   assert.match(inbox, /await refetchItem\(item\);/);
-  assert.match(
-    inbox,
-    /redrafted this reply while you were editing\. Your text is kept in the box\. New draft: "\$\{preview\}"/,
-  );
+  assert.match(inbox, /你编辑期间智能体已重新生成回复。输入框保留了你的内容。新草稿：“\$\{preview\}”/);
 });
 
 test("an edit remembers the draft version it started from, and both edit and send carry it", () => {

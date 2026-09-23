@@ -12,7 +12,7 @@ test("preset default actions live on the row while inheritance remains in the fo
   assert.ok(row.includes('class="loadout-make-default"'));
   assert.ok(row.includes("effortLevel: settings.effort"));
   assert.ok(row.includes("fastMode: settings.fast"));
-  assert.ok(!loadout.includes("Make default"));
+  assert.ok(!loadout.includes("设为默认"));
   assert.ok(loadout.includes("changeScopeRuntime({ inherit: true }, agent)"));
 });
 
@@ -27,7 +27,7 @@ test("compact and full composers share one left-side picker with Fast inside its
   assert.ok(composer.slice(leftStart, rightStart).includes("showRuntimeControls ? runtimeControls : nothing"));
   assert.ok(/class="composer-right">\$\{sendControls\(agent\)\}<\/div>/.test(composer));
   const loadout = picker.slice(picker.indexOf("function render"), picker.indexOf("function menuArrowKeys"));
-  assert.ok(/role="menuitemcheckbox"\s+aria-label="Fast"/.test(loadout));
+  assert.ok(/role="menuitemcheckbox"\s+aria-label="快速模式"/.test(loadout));
   assert.equal((picker.match(/@click=\$\{\(\) => toggleFastMode\(agent\)\}/g) ?? []).length, 1);
 });
 
@@ -50,7 +50,7 @@ test("switching setups preserves prior tweaks and validates effort and Fast for 
     /entry.fast && harnessSupportsFastMode\(option.harnessId\) && modelSupportsFastMode\(scopeKey\(\), option.model.id\)/.test(
       normalize,
     ),
-    "a stored Fast preference cannot enable an unsupported model",
+    "a stored 快速模式 preference cannot enable an unsupported model",
   );
   assert.ok(apply.includes("saveLoadout(loadout)"));
 });
@@ -73,7 +73,7 @@ test("attaching files is allowed while a turn is streaming", () => {
 });
 
 test("a mid-turn submit queues — attachments cannot ride a queued message and stay for the next", () => {
-  assert.match(composer, /\$\{tip\("Queue for after this turn"\)\}/);
+  assert.match(composer, /\$\{tip\("当前任务结束后发送"\)\}/);
   assert.doesNotMatch(composer, /attachments stay for your next message/);
 });
 

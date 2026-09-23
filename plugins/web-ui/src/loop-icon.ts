@@ -19,22 +19,22 @@ import {
 import { icon, slackMark } from "./ui";
 
 export const LOOP_ICONS = [
-  { id: "repeat", label: "Loop", glyph: Repeat },
-  { id: "mail", label: "Email", glyph: Mail },
+  { id: "repeat", label: "工作流", glyph: Repeat },
+  { id: "mail", label: "邮件", glyph: Mail },
   { id: "slack", label: "Slack", glyph: MessageSquare },
-  { id: "zap", label: "Lightning", glyph: Zap },
-  { id: "code", label: "Code", glyph: Code },
-  { id: "bug", label: "Bug", glyph: Bug },
-  { id: "shield", label: "Shield", glyph: Shield },
-  { id: "calendar", label: "Calendar", glyph: Calendar },
-  { id: "message", label: "Message", glyph: MessageSquare },
-  { id: "chart", label: "Chart", glyph: ChartNoAxesCombined },
-  { id: "check", label: "Check", glyph: CheckCircle2 },
-  { id: "book", label: "Book", glyph: BookOpen },
-  { id: "rocket", label: "Rocket", glyph: Rocket },
-  { id: "globe", label: "Globe", glyph: Globe },
-  { id: "heart", label: "Heart", glyph: Heart },
-  { id: "wrench", label: "Wrench", glyph: Wrench },
+  { id: "zap", label: "闪电", glyph: Zap },
+  { id: "code", label: "代码", glyph: Code },
+  { id: "bug", label: "缺陷", glyph: Bug },
+  { id: "shield", label: "盾牌", glyph: Shield },
+  { id: "calendar", label: "日历", glyph: Calendar },
+  { id: "message", label: "消息", glyph: MessageSquare },
+  { id: "chart", label: "图表", glyph: ChartNoAxesCombined },
+  { id: "check", label: "勾选", glyph: CheckCircle2 },
+  { id: "book", label: "书籍", glyph: BookOpen },
+  { id: "rocket", label: "火箭", glyph: Rocket },
+  { id: "globe", label: "地球", glyph: Globe },
+  { id: "heart", label: "爱心", glyph: Heart },
+  { id: "wrench", label: "扳手", glyph: Wrench },
 ];
 
 export function loopIcon(loop: { icon?: string; source?: string; sources?: string[] }, size = 16): TemplateResult {
@@ -54,25 +54,25 @@ export function loopIcon(loop: { icon?: string; source?: string; sources?: strin
 }
 
 export async function readLoopIcon(file: File): Promise<string> {
-  if (file.size > 2 * 1024 * 1024) throw new Error("Choose an image smaller than 2 MB.");
+  if (file.size > 2 * 1024 * 1024) throw new Error("请选择小于 2 MB 的图片。");
   if (!["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"].includes(file.type))
-    throw new Error("Choose a PNG, JPEG, WebP, GIF, or SVG image.");
+    throw new Error("请选择 PNG、JPEG、WebP、GIF 或 SVG 图片。");
   const url = URL.createObjectURL(file);
   try {
     const image = new Image();
     image.src = url;
     await image.decode();
-    if (!image.naturalWidth || !image.naturalHeight) throw new Error("This image has no visible size.");
+    if (!image.naturalWidth || !image.naturalHeight) throw new Error("无法获取此图片的有效尺寸。");
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = 96;
     const context = canvas.getContext("2d");
-    if (!context) throw new Error("Image uploads are unavailable in this browser.");
+    if (!context) throw new Error("当前浏览器不支持图片上传。");
     const scale = Math.min(96 / image.naturalWidth, 96 / image.naturalHeight);
     const width = image.naturalWidth * scale;
     const height = image.naturalHeight * scale;
     context.drawImage(image, (96 - width) / 2, (96 - height) / 2, width, height);
     const value = canvas.toDataURL("image/png");
-    if (value.length > 65_536) throw new Error("This image is too complex. Choose a simpler image.");
+    if (value.length > 65_536) throw new Error("图片过于复杂，请选择更简单的图片。");
     return value;
   } finally {
     URL.revokeObjectURL(url);

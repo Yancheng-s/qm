@@ -12,8 +12,8 @@ const shell = readFileSync(new URL("../src/shell.css", import.meta.url), "utf8")
 test("a mid-turn Enter queues the message — it no longer steers the running turn", () => {
   assert.match(composer, /if \(agent\.state\.isStreaming\) return queueDraft\(agent\);/);
   assert.doesNotMatch(composer, /isStreaming\) return sendSteer\(/);
-  assert.match(composer, /placeholder = "Queue a message for after this turn…"/);
-  assert.match(composer, /\$\{tip\("Queue for after this turn"\)\}/);
+  assert.match(composer, /placeholder = "输入消息，当前任务结束后发送…"/);
+  assert.match(composer, /\$\{tip\("当前任务结束后发送"\)\}/);
 });
 
 // The whole point of the rewrite: the queue is core's, not the browser's. A queued message is a

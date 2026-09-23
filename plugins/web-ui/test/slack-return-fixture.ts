@@ -13,10 +13,10 @@ export function slackReturnTest(outcome: "success" | "expired" | "cancelled" | "
       h.releaseSessions();
       await h.boot();
       const expected = {
-        success: /Your Slack account is linked/,
-        cancelled: /authorization was cancelled/,
-        expired: /expired or was started in another/,
-        "wrong-account": /expired or was started in another/,
+        success: /你的 Slack 账户已关联/,
+        cancelled: /授权已取消/,
+        expired: /已过期，或由另一个/,
+        "wrong-account": /已过期，或由另一个/,
       }[outcome];
       for (let i = 0; i < 100 && !expected.test(h.mainText()); i++)
         await new Promise((resolve) => setTimeout(resolve, 5));

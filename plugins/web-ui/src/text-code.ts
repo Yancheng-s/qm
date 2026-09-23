@@ -44,7 +44,7 @@ export function decorateTextCodeBlocks(root: ParentNode | null): void {
     button.className = "text-code-toggle";
     const update = (expanded: boolean) => {
       block.dataset.expanded = String(expanded);
-      button.textContent = expanded ? "Show less" : "Show more";
+      button.textContent = expanded ? "收起" : "展开更多";
       button.setAttribute("aria-expanded", String(expanded));
     };
     button.addEventListener("click", () => update(block.dataset.expanded !== "true"));

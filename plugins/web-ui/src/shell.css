@@ -157,9 +157,6 @@ body.resizing-sidebar .sidebar {
   width: 0;
   overflow: hidden;
 }
-.sidebar-scrim {
-  display: none;
-}
 
 .sidebar-resize-handle {
   position: absolute;
@@ -1249,6 +1246,42 @@ a.chat-row-open {
 .drop-overlay-card svg {
   color: var(--cta);
 }
+.composer-voice-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 48px;
+  font-size: 14px;
+}
+.composer-voice-status button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  cursor: pointer;
+}
+.voice-recording-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--destructive, #dc2626);
+}
+.voice-limit {
+  display: block;
+  margin: 4px 0 0 16px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.composer-toolbar .voice-stop {
+  background: var(--destructive, #dc2626);
+  color: #fff;
+}
+
 .custom-chat-shell.dragging .composer-wrap {
   outline: 2px dashed color-mix(in srgb, var(--cta) 60%, var(--border));
   outline-offset: 2px;
@@ -4656,7 +4689,7 @@ summary.stopped-head:focus-visible {
   display: none;
 }
 .btn.copied::after {
-  content: "Copied";
+  content: "已复制";
 }
 .btn.primary {
   background: var(--cta);
@@ -5834,41 +5867,8 @@ a.connector-widget:focus-visible {
   .layout {
     position: relative;
   }
-  .sidebar {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: min(var(--sidebar-w), calc(100vw - 48px));
-    padding-top: calc(10px + var(--surface-safe-top));
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
-    padding-left: max(8px, env(safe-area-inset-left));
-    z-index: 10;
-  }
-  .layout {
-    /* left safe-area inset + the 44px touch-size toggle + its 8px right padding */
-    --rail-w: calc(max(8px, env(safe-area-inset-left)) + 52px);
-  }
-  .sidebar {
-    /* Open is an absolute overlay, closed is a static rail — animating width across
-       that position flip would squeeze the main pane mid-transition. Snap instead. */
-    transition: none;
-  }
-  .layout.sidebar-closed .sidebar {
-    position: static;
-  }
+  .sidebar,
   .sidebar-resize-handle {
-    display: none;
-  }
-  .sidebar-scrim {
-    position: absolute;
-    inset: 0;
-    z-index: 9;
-    display: block;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: color-mix(in srgb, var(--scrim) 24%, transparent);
-  }
-  .layout.sidebar-closed .sidebar-scrim {
     display: none;
   }
   .sidebar .icon-btn,
@@ -5915,6 +5915,10 @@ a.connector-widget:focus-visible {
   .message-stack {
     gap: 6px;
   }
+  .message-meta .msg-copy-link,
+  .message-meta .msg-fork {
+    display: none;
+  }
   .chat-scroll {
     padding-right: max(var(--chat-pad), env(safe-area-inset-right));
     padding-left: max(var(--chat-pad), env(safe-area-inset-left));
@@ -5931,6 +5935,10 @@ a.connector-widget:focus-visible {
   }
   .composer-toolbar {
     align-items: flex-end;
+  }
+  .composer-toolbar .loadout-control,
+  .composer-toolbar .loadout-popover {
+    display: none;
   }
   .composer-left,
   .composer-right {
@@ -10524,9 +10532,6 @@ h3.ambient-field-label {
   cursor: zoom-in;
 }
 
-.mobile-menu-btn {
-  display: none;
-}
 .session-tools-more {
   display: none;
 }
@@ -10551,6 +10556,18 @@ h3.ambient-field-label {
 
 @media (max-width: 860px) {
   html,
+  body,
+  .layout,
+  .layout * {
+    scrollbar-width: none;
+  }
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar,
+  .layout::-webkit-scrollbar,
+  .layout *::-webkit-scrollbar {
+    display: none;
+  }
+  html,
   body {
     overscroll-behavior: none;
     -webkit-text-size-adjust: 100%;
@@ -10566,66 +10583,9 @@ h3.ambient-field-label {
     transform: translateY(var(--vv-top, 0px));
   }
 
-  .sidebar,
-  .layout.sidebar-closed .sidebar {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: min(320px, 86vw);
-    padding-right: 8px;
-    z-index: 10;
-
-    transition:
-      transform 0.26s cubic-bezier(0.2, 0.8, 0.2, 1),
-      visibility 0s linear 0.26s;
-    border-right: 1px solid var(--border);
-  }
-  .layout.sidebar-closed .sidebar {
-    transform: translateX(-106%);
-    visibility: hidden;
-  }
-  .layout:not(.sidebar-closed) .sidebar {
-    transition-delay: 0s;
-  }
-  .sidebar-scrim {
-    transition: opacity 0.26s ease;
-    opacity: 1;
-  }
-  .layout.sidebar-closed .sidebar-scrim {
-    display: block;
-    opacity: 0;
-    pointer-events: none;
-  }
-  .sidebar-collapse-toggle {
-    width: 44px;
-    height: 44px;
-  }
-  .sidebar .navrow,
-  .sidebar .session {
-    font-size: 15px;
-  }
-  .sidebar-footer .icon-btn.subtle {
-    width: 44px;
-    height: 44px;
-  }
-
-  .mobile-menu-btn {
-    display: inline-flex;
-    position: absolute;
-    z-index: 6;
-    top: calc(4px + var(--surface-safe-top));
-    left: max(4px, env(safe-area-inset-left));
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    color: var(--foreground);
-  }
-  .layout:not(.sidebar-closed) .mobile-menu-btn {
-    visibility: hidden;
-  }
-
   .chat-topbar {
     height: calc(52px + var(--surface-safe-top));
-    padding-left: calc(max(4px, env(safe-area-inset-left)) + 48px);
+    padding-left: max(10px, env(safe-area-inset-left));
     padding-right: max(6px, env(safe-area-inset-right));
     gap: 6px;
   }
@@ -10641,6 +10601,9 @@ h3.ambient-field-label {
   .session-tools-more {
     display: flex;
     flex: none;
+  }
+  .custom-chat-shell:has(.composer-attach) .session-tools-more {
+    display: none;
   }
   .session-tools-more-btn {
     width: 44px;
@@ -10661,7 +10624,6 @@ h3.ambient-field-label {
   .pane > .pane-head:first-child,
   .pane > .inbox-item-head:first-child {
     min-height: 44px;
-    padding-left: 48px;
     margin-top: -44px;
     margin-bottom: 10px;
   }
@@ -10672,11 +10634,6 @@ h3.ambient-field-label {
   .project-grid-content > .list-page-head:first-child,
   .pane:not(.scoped-view) > .kc-page-content > .list-page-head:first-child {
     margin-top: -44px;
-  }
-  .pane > .list-page-head:first-child > :first-child,
-  .project-grid-content > .list-page-head:first-child > :first-child,
-  .pane:not(.scoped-view) > .kc-page-content > .list-page-head:first-child > :first-child {
-    padding-left: 48px;
   }
   .pane-title {
     font-size: 20px;
@@ -10839,6 +10796,121 @@ h3.ambient-field-label {
   }
   .menu-control.settings-control[data-align="right"] .menu-popover {
     width: auto !important;
+  }
+  .composer-add-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+  }
+  .composer-add-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgb(0 0 0 / 0.42);
+  }
+  .composer-add-sheet {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    box-sizing: border-box;
+    max-height: min(88dvh, 720px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 8px max(16px, env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
+    border-radius: 24px 24px 0 0;
+    background: var(--background);
+    box-shadow: 0 -12px 36px rgb(0 0 0 / 0.18);
+    animation: sheet-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .composer-add-handle {
+    width: 38px;
+    height: 4px;
+    margin: 0 auto 14px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--muted-foreground) 45%, transparent);
+  }
+  .composer-add-head {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    position: relative;
+    margin-bottom: 18px;
+  }
+  .composer-add-head h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 650;
+  }
+  .composer-add-close {
+    position: absolute;
+    right: 0;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--foreground);
+  }
+  .composer-add-tiles {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .composer-add-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    min-height: 88px;
+    border: 0;
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--foreground) 6%, var(--background));
+    color: var(--foreground);
+    font: inherit;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .composer-add-tile:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .composer-add-section {
+    padding: 0 8px 6px;
+    color: var(--muted-foreground);
+    font-size: 13px;
+  }
+  .composer-add-tool {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    min-height: 54px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--foreground);
+    font: inherit;
+    font-size: 16px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .composer-add-tool svg:last-child {
+    margin-left: auto;
+    color: var(--muted-foreground);
+  }
+  .composer-add-tool:active,
+  .composer-add-tool:focus-visible,
+  .composer-add-close:focus-visible,
+  .composer-add-tile:focus-visible {
+    outline: 2px solid var(--cta);
+    outline-offset: 2px;
   }
 }
 
@@ -11034,7 +11106,6 @@ h3.ambient-field-label {
 
   .pane > .context-back:first-child,
   .pane > :first-child > .context-back:first-child {
-    margin-left: 48px;
     margin-top: -44px;
   }
   .pane button.btn,
@@ -11061,7 +11132,6 @@ h3.ambient-field-label {
       calc(32px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
   }
   .resource-pane > :first-child > .context-back:first-child {
-    margin-left: 48px;
     margin-top: -44px;
   }
   .resource-pane button.btn,
@@ -11081,7 +11151,6 @@ h3.ambient-field-label {
 
 @media (max-width: 860px) {
   .pane .context-detail > .context-back:first-child {
-    margin-left: 48px;
     margin-top: -44px;
   }
 }
@@ -11955,9 +12024,7 @@ body.app-edit-embed .layout {
   gap: 0;
 }
 body.app-edit-embed .sidebar,
-body.app-edit-embed .sidebar-scrim,
-body.app-edit-embed .sidebar-resize-handle,
-body.app-edit-embed .mobile-menu-btn {
+body.app-edit-embed .sidebar-resize-handle {
   display: none;
 }
 body.app-edit-embed .main {

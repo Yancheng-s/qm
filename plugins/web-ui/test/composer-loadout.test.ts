@@ -221,7 +221,7 @@ test("harness effort choices exclude unsupported settings and label extra high c
     ["auto", "low", "medium", "high", "xhigh"],
   );
   for (const harnessId of ["pi", "claude", "codex"])
-    assert.equal(effortLevelsForHarness(harnessId).find(({ value }) => value === "xhigh")?.label, "Extra high");
+    assert.equal(effortLevelsForHarness(harnessId).find(({ value }) => value === "xhigh")?.label, "极高");
   for (const harnessId of ["opencode", "mock", "unknown"])
-    assert.deepEqual(effortLevelsForHarness(harnessId), [{ value: "auto", label: "Auto" }]);
+    assert.deepEqual(effortLevelsForHarness(harnessId), [{ value: "auto", label: "自动" }]);
 });

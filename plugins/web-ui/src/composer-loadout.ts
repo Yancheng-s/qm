@@ -84,7 +84,7 @@ export function effortLevelsForHarness(harnessId: string): Array<{ value: Effort
     if (harnessId === "claude") return value !== "ultracode";
     if (harnessId === "codex") return value !== "max" && value !== "ultracode";
     return value === "auto";
-  }).map((option) => ({ ...option, label: option.value === "xhigh" ? "Extra high" : option.label }));
+  }).map((option) => ({ ...option, label: option.value === "xhigh" ? "极高" : option.label }));
 }
 
 export function compatibleHarnessOptions<T extends { harnessId: string; model: { id: string } }>(

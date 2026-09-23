@@ -10,14 +10,14 @@ const css = readFileSync(new URL("../src/shell.css", import.meta.url), "utf8");
 test("the pinned-header panel exists only for channel scopes and follows the org default", () => {
   assert.match(panel, /scopeId\.startsWith\("channel:"\)/);
   assert.match(panel, /\?selected=\$\{channelHeaderState\.configured === null\}/);
-  assert.match(panel, /Default \(\$\{channelHeaderState\.orgDefault \? "on" : "off"\}\)/);
+  assert.match(panel, /默认（\$\{channelHeaderState\.orgDefault \? "开启" : "关闭"\}）/);
   assert.match(panel, /save\(scopeId, v === "default" \? null : v === "on"\)/);
 });
 
 test("the panel writes through the channel-header-pin endpoint and reports both directions", () => {
   assert.match(panel, /api<HeaderPinWire>\("\/api\/channel-header-pin", \{\s*method: "PUT"/);
-  assert.match(panel, /Header pinned in the channel\./);
-  assert.match(panel, /Pinned header removed\./);
+  assert.match(panel, /已在频道中置顶。/);
+  assert.match(panel, /已移除置顶栏。/);
 });
 
 test("the server proxies the toggle with the signed-in user as principal", () => {

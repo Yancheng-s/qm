@@ -12,6 +12,7 @@ import type {
 } from "./core-bridge";
 import type { EffortLevel, ModelOption } from "./model-options";
 import type { ComposerMenu } from "./composer";
+import type { SessionTool } from "./session-scope";
 
 interface PaneState {
   threadRef: string | null;
@@ -63,6 +64,7 @@ interface ChatState {
 
 export interface ChatSurface {
   state: ChatState;
+  openSessionTool(tool: SessionTool): void;
   hasLiveRun(): boolean;
   signalLiveRun(
     kind: "abort" | "steer",

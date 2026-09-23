@@ -8,7 +8,7 @@ const css = readFileSync(new URL("../src/shell.css", import.meta.url), "utf8");
 test("live and completed work share one chronological duration fold", () => {
   assert.match(chat, /class=\$\{stopped \? "stopped-work" : `work work-fold work-\$\{work.status\}`\}/);
   assert.match(chat, /messageWorkTimeline\(work, active \? "" : text\)/);
-  assert.match(chat, /let label = stopping \? "Stop requested" : workLabel\(work\)/);
+  assert.match(chat, /let label = stopping \? "已请求停止" : workLabel\(work\)/);
   assert.match(chat, /const animating = active && !stopping;/);
   assert.match(chat, /sheenLabel\(label, animating\)/);
   assert.match(chat, /\?open=\$\{active \|\| !!work.pendingApprovals\?\.length\}/);
@@ -42,8 +42,8 @@ test("expanded tool activity uses a compact log rhythm", () => {
 test("execution shows only its command while other tools disclose input and result", () => {
   assert.match(chat, /function toolDisclosure\(/);
   assert.match(chat, /const output = execution \? "" : toolPayloadText\(result\);/);
-  assert.match(chat, /toolPayloadCard\(execution \? null : "Input", input,/);
-  assert.match(chat, /toolPayloadCard\("Result", output,/);
+  assert.match(chat, /toolPayloadCard\(execution \? null : "输入", input,/);
+  assert.match(chat, /toolPayloadCard\("结果", output,/);
   assert.match(chat, /<details\s+class="\$\{classes\} tool-expandable"/);
   assert.match(css, /\.tool-payload-body \{[\s\S]{0,300}?white-space: pre-wrap;/);
 });
@@ -65,7 +65,7 @@ test("dense activity rows let their icons carry repeated type labels", () => {
   assert.match(chat, /thinkingPresentation\(/);
   assert.match(chat, /activityLabel\(row, status\)/);
   assert.match(chat, />\$\{visible\}<\/span>/);
-  assert.doesNotMatch(chat, />Thinking\$\{preview/);
+  assert.doesNotMatch(chat, />思考中\$\{preview/);
   assert.doesNotMatch(chat, />\$\{label\}\$\{detail/);
 });
 

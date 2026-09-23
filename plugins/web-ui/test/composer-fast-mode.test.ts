@@ -15,11 +15,11 @@ test("Fast is a stateful toggle row without a trailing checkmark", () => {
   assert.match(fast, /aria-checked=\$\{fastOn \? "true" : "false"\}/);
   assert.match(fast, /@click=\$\{\(\) => toggleFastMode\(agent\)\}/);
   assert.match(fast, /class="loadout-toggle \$\{fastOn \? "on" : ""\}"/);
-  assert.doesNotMatch(fast.slice(0, fast.indexOf("</button>")), /icon\(Check/);
+  assert.doesNotMatch(fast.slice(0, fast.indexOf("</button>")), /icon\(勾选/);
 });
 
 test("the Fast toggle names itself and hides its decorative track", () => {
-  assert.match(fast, /aria-label="Fast"/);
+  assert.match(fast, /aria-label="快速模式"/);
   assert.match(fast, /aria-hidden="true"/);
   assert.match(fast, /fastAvailable \? "⌘⇧E" : fastUnsupportedReason/);
 });

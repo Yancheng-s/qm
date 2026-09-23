@@ -27,7 +27,7 @@ test("latestGoal finds the newest goal snapshot across messages", () => {
   const goal = latestGoal(messages);
   assert.equal(goal?.status, "active");
   assert.equal(goal?.objective, "work for 20 minutes");
-  assert.equal(goal?.floor, "20m");
+  assert.equal(goal?.floor, "20分钟");
   assert.equal(goal?.createdAt, 1000);
 });
 
@@ -51,10 +51,10 @@ test("latestGoal reflects closure and get_goal null", () => {
 });
 
 test("labels: elapsed, floor, objective trim", () => {
-  assert.equal(goalElapsedLabel(0, 3_000), "3s");
-  assert.equal(goalElapsedLabel(0, 90_000), "1m 30s");
-  assert.equal(goalElapsedLabel(0, 3_600_000), "1h");
-  assert.equal(goalFloorLabel({ minTurns: 5, minTokens: 2000 }), "5 turns, 2,000 tokens");
+  assert.equal(goalElapsedLabel(0, 3_000), "3秒");
+  assert.equal(goalElapsedLabel(0, 90_000), "1分钟 30秒");
+  assert.equal(goalElapsedLabel(0, 3_600_000), "1小时");
+  assert.equal(goalFloorLabel({ minTurns: 5, minTokens: 2000 }), "5 轮, 2,000 token");
   assert.equal(goalFloorLabel(null), null);
   assert.equal(goalObjectiveLabel("a\nb\tc"), "a b c");
   assert.equal(goalObjectiveLabel("x".repeat(200)).length, 120);

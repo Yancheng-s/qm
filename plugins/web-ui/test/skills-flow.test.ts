@@ -24,13 +24,13 @@ test("focused create/edit flows leave list search and filters untouched on open 
 
 test("skill rows omit redundant active, local-source, and box decorations", () => {
   const variant = bodyOf("skillVariant");
-  assert.doesNotMatch(variant, /icon\(Box|>Active<|skill-active|skill-variant-icon/);
+  assert.doesNotMatch(variant, /icon\(Box|>进行中<|skill-active|skill-variant-icon/);
   assert.doesNotMatch(source, /Created here/);
-  assert.match(variant, />Archived</);
+  assert.match(variant, />已归档</);
 });
 
 test("closing a focused flow clears an unfinished edit loading notice", () => {
-  assert.match(bodyOf("startEdit"), /skillsNotice = "Loading skill instructions…"/);
+  assert.match(bodyOf("startEdit"), /skillsNotice = "正在加载技能说明…"/);
   assert.match(bodyOf("closeFocusedFlow"), /skillsNotice = ""/);
 });
 
@@ -75,7 +75,7 @@ test("edit loading and successful saves always move focus to a surviving control
     bodyOf("restoreFocusedFlow"),
     /skillId\s*\?\s*\(?matchingEdit \?\? search \?\? create\)?\s*:\s*\(?create \?\? search\)?/,
   );
-  assert.match(bodyOf("editorPane"), /editError \? "Instructions unavailable\." : "Loading instructions…"/);
+  assert.match(bodyOf("editorPane"), /editError \? "说明不可用。" : "正在加载说明…"/);
   assert.equal(source.match(/shouldBlockRepeatedPublishClick\(reviewed, event\.detail\)/g)?.length, 2);
 });
 

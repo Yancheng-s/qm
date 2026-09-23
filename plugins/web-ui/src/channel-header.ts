@@ -58,7 +58,7 @@ export async function loadChannelHeader(scopeId: string, onChange: () => void): 
     channelHeaderState.loaded = true;
   } catch (e) {
     if (seq !== loadSeq) return;
-    channelHeaderState.notice = errMessage(e, "Couldn't load the pinned header setting.");
+    channelHeaderState.notice = errMessage(e, "无法加载频道置顶栏设置。");
     channelHeaderState.noticeKind = "error";
   } finally {
     if (seq === loadSeq) {
@@ -83,11 +83,11 @@ async function save(scope: string, on: boolean | null): Promise<void> {
     if (seq !== loadSeq) return;
     channelHeaderState.on = r.on;
     channelHeaderState.configured = r.configured ?? null;
-    channelHeaderState.notice = r.on ? "Header pinned in the channel." : "Pinned header removed.";
+    channelHeaderState.notice = r.on ? "已在频道中置顶。" : "已移除置顶栏。";
     channelHeaderState.noticeKind = "saved";
   } catch (e) {
     if (seq !== loadSeq) return;
-    channelHeaderState.notice = errMessage(e, "Couldn't update the pinned header setting.");
+    channelHeaderState.notice = errMessage(e, "无法更新频道置顶栏设置。");
     channelHeaderState.noticeKind = "error";
   } finally {
     if (seq === loadSeq) {
@@ -106,15 +106,15 @@ export function channelHeaderSection(scopeId: string): TemplateResult | typeof n
   if (!channelHeaderApplies(scopeId) || channelHeaderState.scope !== scopeId) return nothing;
   if (channelHeaderState.loading)
     return html`<section class="context-panel channel-header" aria-labelledby="channel-header-title">
-      <h2 class="context-panel-title" id="channel-header-title">Pinned header</h2>
-      <div class="context-panel-loading">Loading…</div>
+      <h2 class="context-panel-title" id="channel-header-title">置顶栏</h2>
+      <div class="context-panel-loading">加载中…</div>
     </section>`;
   return html`
     <section class="context-panel channel-header" aria-labelledby="channel-header-title">
       <div class="context-panel-heading">
         <div>
-          <h2 class="context-panel-title" id="channel-header-title">Pinned header</h2>
-          <p class="context-panel-copy">A small pinned message in the Slack channel naming the model in use.</p>
+          <h2 class="context-panel-title" id="channel-header-title">置顶栏</h2>
+          <p class="context-panel-copy">在 Slack 频道中置顶一条简短消息，显示当前使用的模型。</p>
         </div>
       </div>
       ${
@@ -124,23 +124,22 @@ export function channelHeaderSection(scopeId: string): TemplateResult | typeof n
               className: "channel-header-select",
               focusKey: "channel-header",
               describedBy: "channel-header-hint",
-              ariaLabel: "Pinned Slack header for this channel",
+              ariaLabel: "此频道的 Slack 置顶栏",
               disabled: channelHeaderState.saving,
               value: configuredSelectValue(channelHeaderState.configured),
               onChange: (v) => void save(scopeId, v === "default" ? null : v === "on"),
               options: [
                 html`<option value="default" ?selected=${channelHeaderState.configured === null}>
-                  Default (${channelHeaderState.orgDefault ? "on" : "off"})
+                  默认（${channelHeaderState.orgDefault ? "开启" : "关闭"}）
                 </option>`,
-                html`<option value="on" ?selected=${channelHeaderState.configured === true}>On</option>`,
-                html`<option value="off" ?selected=${channelHeaderState.configured === false}>Off</option>`,
+                html`<option value="on" ?selected=${channelHeaderState.configured === true}>开启</option>`,
+                html`<option value="off" ?selected=${channelHeaderState.configured === false}>关闭</option>`,
               ],
             })
           : nothing
       }
       <p class="channel-header-hint" id="channel-header-hint">
-        Turning it on posts and pins the header; turning it off unpins and removes it. Default follows the org-wide
-        setting. Model changes edit the pinned message in place.
+        开启后会发布并置顶该消息；关闭后会取消置顶并移除。默认跟随组织设置，模型变更会直接更新置顶消息。
       </p>
       ${
         channelHeaderState.notice

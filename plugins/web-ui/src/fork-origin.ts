@@ -35,7 +35,7 @@ export function createForkOriginController<T>(options: {
       try {
         await options.navigate();
       } catch {
-        options.setError("You no longer have access to the original conversation.");
+        options.setError("你已无权访问原对话。");
         options.redraw();
       }
     },
@@ -52,7 +52,7 @@ export function createForkOriginController<T>(options: {
           options.state.inheritedLoaded = true;
         } catch {
           if (generation === toggleGeneration && options.current()) {
-            options.setError("Couldn't load the original conversation's history.");
+            options.setError("无法加载原对话的历史记录。");
             options.redraw();
           }
           return;
@@ -70,9 +70,9 @@ export function forkOriginView(view: ForkOriginView | null): TemplateResult | ty
   if (!view) return nothing;
   return html`<div class="fork-origin-row">
     <button class="fork-origin-badge" type="button" @click=${view.navigate}>
-      ${view.icon ?? nothing}<span>Forked from <bdi>${view.title}</bdi></span
-      >${view.messageCount ? html`<span>· ${view.messageCount} messages</span>` : nothing}
+      ${view.icon ?? nothing}<span>分支来源 <bdi>${view.title}</bdi></span
+      >${view.messageCount ? html`<span>· ${view.messageCount} 条消息</span>` : nothing}
     </button>
-    <button class="fork-origin-toggle" type="button" @click=${view.toggle}>${view.expanded ? "hide" : "show"}</button>
+    <button class="fork-origin-toggle" type="button" @click=${view.toggle}>${view.expanded ? "收起" : "展开"}</button>
   </div>`;
 }

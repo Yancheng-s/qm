@@ -36,7 +36,7 @@ test("a failed inbox followup preserves edits made while the request was pending
         loopId: "loop-1",
         state: "held",
         source: "slack",
-        sourcePayload: { title: "Conversation", from: "Sam", snippet: "Please send the update" },
+        sourcePayload: { title: "对话", from: "Sam", snippet: "Please send the update" },
         thread: [],
       });
       let rejectRequest!: (error: Error) => void;

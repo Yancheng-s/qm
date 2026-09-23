@@ -17,11 +17,11 @@ export interface ResourceSearchResponse {
   limited?: string[];
 }
 const labels: Record<string, string> = {
-  skills: "Skills",
-  crons: "Crons",
-  deploys: "Apps",
-  webhooks: "Webhooks",
-  contexts: "Projects",
+  skills: "技能",
+  crons: "定时任务",
+  deploys: "应用",
+  webhooks: "Webhook",
+  contexts: "项目",
 };
 
 export function resourceResults(

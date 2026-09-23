@@ -123,7 +123,7 @@ test("the idle deadline DOES fire after the idle window with no progress", async
   const final = await drain(stream);
 
   assert.equal(final.stopReason, "error", "a silent run past the idle window fails");
-  assert.equal(final.errorMessage, "Timed out waiting for the agent to respond.");
+  assert.equal(final.errorMessage, "等待智能体响应超时。");
 });
 
 test("a delta just before the window resets it — no premature timeout", async () => {
@@ -248,7 +248,7 @@ test("a running snapshot WITHOUT alive still hits the idle deadline (stale run r
   const final = await drain(stream);
 
   assert.equal(final.stopReason, "error", "no liveness claim → the watchdog still protects against stale runs");
-  assert.equal(final.errorMessage, "Timed out waiting for the agent to respond.");
+  assert.equal(final.errorMessage, "等待智能体响应超时。");
 });
 
 test("resume streams can finish from an initial terminal run snapshot without polling", async () => {
@@ -285,7 +285,7 @@ test("pending approval pauses without adding approval instructions to the transc
     status: "done",
     result: {
       status: "pending_approval",
-      reason: "Approve or deny the pending command to continue.",
+      reason: "请批准或拒绝待审批的命令以继续。",
       pendingApprovals: [{ requestId: "approval-1", command: "git push --force origin main", reason: "force push" }],
     },
     partial: "",
@@ -360,7 +360,7 @@ test("approval denial is rendered as a normal status, not a stream error", async
   assert.equal(final.stopReason, "stop");
   assert.equal(final.errorMessage, undefined);
   assert.equal((final as AssistantWork & { approvalDecision?: string }).approvalDecision, "denied");
-  assert.equal(block?.type === "text" ? block.text : "", "Denied.");
+  assert.equal(block?.type === "text" ? block.text : "", "已拒绝。");
   assert.equal(work?.status, "complete");
   assert.equal(work?.activity.length, 1);
 });

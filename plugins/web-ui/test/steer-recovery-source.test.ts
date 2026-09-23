@@ -49,7 +49,7 @@ test("a failed steer keeps the durable queue and does not resubmit into a differ
   const at = composer.indexOf("async function steerQueued");
   const body = composer.slice(at, composer.indexOf("async function sendPrompt", at));
   assert.doesNotMatch(body, /enqueueTurn|withdrawRun/);
-  assert.match(body, /Could not confirm steering/);
+  assert.match(body, /无法确认任务调整/);
   assert.match(body, /if \(agent !== ctx\.chat\.state\.agent \|\| threadRef !== ctx\.chat\.state\.threadRef\) return/);
 });
 

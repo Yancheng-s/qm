@@ -17,44 +17,15 @@ test("mobile shell follows the visual viewport and device safe areas", () => {
   }
 });
 
-test("mobile sidebar is modal, dismissible, and sized for touch", () => {
-  assert.match(shell, /actionRow\(ICON\.newChat[\s\S]{0,200}startNewChatInLastScope\(\);/);
-  assert.match(sessions, /export function startNewChat\([^)]*\)[^{]*\{\s*closeSidebarOnNarrowView\(\);/);
-  assert.match(shell, /class="sidebar-scrim"[^>]+aria-label="Close sidebar"[^>]+@click=\$\{toggleSidebar\}/);
-  assert.match(shell, /main\.inert = modal/);
+test("mobile shell hides navigation without blocking the chat", () => {
+  assert.doesNotMatch(shell, /mobile-menu-btn|sidebar-scrim|main\.inert|onSidebarKeydown/);
   assert.match(
-    css,
-    /\.layout\.sidebar-closed \.sidebar > :not\(\.brand\):not\(#sidebar-top\):not\(#sidebar-footer\),\s*\.layout\.sidebar-closed \.brand-lockup \{[^}]*opacity: 0;\s*visibility: hidden;/,
-  );
-  assert.match(shell, /sidebar\.setAttribute\("role", modal \? "dialog" : "navigation"\)/);
-  assert.match(
-    shell,
-    /if \(modal\) sidebar\.setAttribute\("aria-modal", "true"\);\s*else sidebar\.removeAttribute\("aria-modal"\)/,
-  );
-  assert.match(shell, /event\.key === "Escape" && event\.defaultPrevented/);
-  assert.match(shell, /event\.key === "Escape" && closeOpenSessionMenu\(\)/);
-  assert.match(sessions, /data-menu-id=\$\{menuKey\}/);
-  assert.match(sessions, /data-menu-id=\$\{s\.id\}/);
-  assert.match(sessions, /focusSessionMenuButton\(menuKey\)/);
-  assert.match(shell, /trapDialogFocus\(event, \(\) => setSidebarOpen\(false\)\)/);
-  assert.match(css, /\.layout\.sidebar-closed \.sidebar \{\s*position: static;/);
-  assert.match(
-    shell,
-    /setSidebarOpen\(false, false\);\s*requestAnimationFrame\(\(\) => appState\.mainEl\?\.focus\(\{ preventScroll: true \}\)\)/,
+    compactCss,
+    /@media \(max-width: 860px\) \{[^}]*\}\s*\.sidebar,\s*\.sidebar-resize-handle \{\s*display: none;/,
   );
   assert.match(shell, /class="main" id="main" tabindex="-1"/);
-  assert.match(compactCss, /\.layout\.sidebar-closed \.sidebar-scrim \{\s*display: none;/);
-  assert.match(
-    compactCss,
-    /\.navrow,[\s\S]*\.browse-tile,[\s\S]*\.settings-choice-option,[\s\S]*\.session-menu-option,[\s\S]*\.archived-toggle \{\s*min-height: 44px;/,
-  );
-  assert.match(compactCss, /\.session-menu-btn,[\s\S]*\.recent-project-new-chat \{\s*width: 44px;\s*height: 44px;/);
-  assert.match(compactCss, /\.session-menu\s*\{\s*right:\s*0;\s*margin-top:\s*-22px;\s*\}/);
-  assert.match(
-    compactCss,
-    /@media \(max-width: 860px\) and \(hover: none\)[\s\S]*\.sidebar \.session-menu-btn\s*\{\s*opacity:\s*1;\s*\}/,
-  );
-  assert.match(compactCss, /\.recent-project-head \.recent-project-count \{ opacity: 0; \}/);
+  assert.match(sessions, /data-menu-id=\$\{menuKey\}/);
+  assert.match(sessions, /focusSessionMenuButton\(menuKey\)/);
 });
 
 test("the sidebar's quick actions share the navrow treatment", () => {
@@ -68,7 +39,7 @@ test("the sidebar's quick actions share the navrow treatment", () => {
 test("the sidebar resize handle stays accessible without a hover tooltip", () => {
   assert.match(
     shell,
-    /class="sidebar-resize-handle"[\s\S]{0,200}aria-label="Resize sidebar"[\s\S]{0,200}@pointerdown=\$\{startSidebarResize\}[\s\S]{0,100}@dblclick=\$\{resetSidebarWidth\}/,
+    /class="sidebar-resize-handle"[\s\S]{0,200}aria-label="调整侧边栏宽度"[\s\S]{0,200}@pointerdown=\$\{startSidebarResize\}[\s\S]{0,100}@dblclick=\$\{resetSidebarWidth\}/,
   );
   assert.doesNotMatch(shell, /Drag to resize/);
 });
@@ -76,7 +47,7 @@ test("the sidebar resize handle stays accessible without a hover tooltip", () =>
 test("the quick nav is home, search, browse; create sits under the divider", () => {
   assert.match(
     shell,
-    /<nav class="nav quick-nav"[\s\S]*?navRow\("chats", ICON\.home, "Home"\)[\s\S]*?actionRow\(Search, "Search"[\s\S]*?actionRow\(ICON\.browse, "Browse"[\s\S]*?<\/nav>/,
+    /<nav class="nav quick-nav"[\s\S]*?navRow\("chats", ICON\.home, "首页"\)[\s\S]*?actionRow\(Search, "搜索"[\s\S]*?actionRow\(ICON\.browse, "浏览"[\s\S]*?<\/nav>/,
   );
   assert.doesNotMatch(
     shell,
@@ -95,7 +66,6 @@ test("impersonation mode keeps its critical exit control below the top safe area
   assert.match(compactCss, /padding: env\(safe-area-inset-top\)/);
   assert.match(compactCss, /margin-top: calc\(38px \+ env\(safe-area-inset-top\)\)/);
   assert.match(compactCss, /\.layout\.impersonating \{\s*--surface-safe-top: 0px;/);
-  assert.match(compactCss, /padding-top: calc\(10px \+ var\(--surface-safe-top\)\)/);
 });
 
 test("shared dialogs keep their scrollable edge inside device safe areas", () => {
@@ -119,7 +89,7 @@ test("touch layouts expose row actions and preserve readable composer choices", 
   );
   assert.match(compactCss, /\.composer-right \.model-control \{\s*flex: 1 1 96px;/);
   assert.match(compactCss, /\.project-create-button \{\s*width: 44px;\s*height: 44px;/);
-  assert.match(contexts, /project-create-button"\s+type="button"\s+aria-label="New project"/);
+  assert.match(contexts, /project-create-button"\s+type="button"\s+aria-label="新建项目"/);
   assert.match(
     compactCss,
     /\.chat-scroll \{\s*padding-right: max\(var\(--chat-pad\), env\(safe-area-inset-right\)\);\s*padding-left: max\(var\(--chat-pad\), env\(safe-area-inset-left\)\)/,

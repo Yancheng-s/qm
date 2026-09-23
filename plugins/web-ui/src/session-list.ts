@@ -45,7 +45,7 @@ export function recentProjectSeeds(contexts: readonly ProjectAwareContext[]): Re
   return contexts.map((context): RecentProjectSeed => {
     if (context.project)
       return { scopeId: context.scopeId, name: context.project.name.trim() || null, kind: "project" };
-    if (context.kind === "personal") return { scopeId: context.scopeId, name: "Personal", kind: "personal" };
+    if (context.kind === "personal") return { scopeId: context.scopeId, name: "个人", kind: "personal" };
     if (context.kind === "group")
       return { scopeId: context.scopeId, name: sharedContextLabel(context.scopeId, context.name), kind: "group" };
     return { scopeId: context.scopeId, name: sharedContextLabel(context.scopeId, context.name), kind: "channel" };
@@ -91,11 +91,11 @@ export function groupProjectSessions(
 export function recencyGroup(ms: number, now = Date.now()): string {
   const d = new Date(now);
   const dayStart = (back: number): number => new Date(d.getFullYear(), d.getMonth(), d.getDate() - back).getTime();
-  if (ms >= dayStart(0)) return "Today";
-  if (ms >= dayStart(1)) return "Yesterday";
-  if (ms >= dayStart(6)) return "Previous 7 days";
-  if (ms >= dayStart(29)) return "Previous 30 days";
-  return "Older";
+  if (ms >= dayStart(0)) return "今天";
+  if (ms >= dayStart(1)) return "昨天";
+  if (ms >= dayStart(6)) return "过去 7 天";
+  if (ms >= dayStart(29)) return "过去 30 天";
+  return "更早";
 }
 
 export function withPendingSession(list: CoreSession[], pending: CoreSession): CoreSession[] {
@@ -188,14 +188,14 @@ export function backgroundLabel(
   crons: number,
 ): { jobs: number; watches: number; crons: number; label: string } | null {
   const parts: string[] = [];
-  if (jobs > 0) parts.push(`${jobs} background job${jobs === 1 ? "" : "s"} running`);
-  if (watches > 0) parts.push(`${watches} watch${watches === 1 ? "" : "es"} armed`);
-  if (crons > 0) parts.push(`${crons} cron${crons === 1 ? "" : "s"} scheduled here`);
+  if (jobs > 0) parts.push(`${jobs} 个后台任务正在运行`);
+  if (watches > 0) parts.push(`已启用 ${watches} 项监听`);
+  if (crons > 0) parts.push(`此处安排了 ${crons} 个定时任务`);
   return parts.length ? { jobs, watches, crons, label: parts.join(" · ") } : null;
 }
 
 export function watchActivityLabel(w: { lastFiredAt?: number }): string {
-  return w.lastFiredAt ? `still watching · last check ${relTime(w.lastFiredAt)}` : "still watching";
+  return w.lastFiredAt ? `持续关注中 · 上次检查 ${relTime(w.lastFiredAt)}` : "持续关注中";
 }
 
 export function rowIndicators(s: CoreSession, liveThreads: ReadonlySet<string> | string | null): RowIndicators {

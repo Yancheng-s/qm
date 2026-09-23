@@ -28,7 +28,7 @@ test("search group headers select direction from the authored session title", as
   Object.defineProperty(globalThis, "document", { configurable: true, value: dom.window.document });
   const [{ render }, { searchGroup }] = await Promise.all([import("lit"), import("../src/search-group.ts")]);
   const host = dom.window.document.querySelector<HTMLElement>("#host")!;
-  render(searchGroup("مراجعة الإطلاق", false, "Today"), host);
+  render(searchGroup("مراجعة الإطلاق", false, "今天"), host);
   const title = host.querySelector<HTMLElement>(".chat-search-group > b")!;
   assert.equal(title.textContent, "مراجعة الإطلاق");
   assert.equal(title.dir, "auto");

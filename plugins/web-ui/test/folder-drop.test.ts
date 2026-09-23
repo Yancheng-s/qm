@@ -98,7 +98,7 @@ test("file-count cap throws a composer-ready FolderDropError", async () => {
   const root = dirEntry("proj", [fileEntry("a.txt"), fileEntry("b.txt"), fileEntry("c.txt")]);
   await assert.rejects(folderToZipFile(root, { maxFiles: 2, maxBytes: Infinity }), (err: unknown) => {
     assert.ok(err instanceof FolderDropError);
-    assert.match(err.message, /proj.*too many files/);
+    assert.match(err.message, /proj.*文件过多/);
     return true;
   });
 });
@@ -107,7 +107,7 @@ test("byte cap throws a composer-ready FolderDropError", async () => {
   const root = dirEntry("proj", [fileEntry("a.txt", "x".repeat(100))]);
   await assert.rejects(folderToZipFile(root, { maxFiles: Infinity, maxBytes: 50 }), (err: unknown) => {
     assert.ok(err instanceof FolderDropError);
-    assert.match(err.message, /proj.*too big/);
+    assert.match(err.message, /proj.*过大/);
     return true;
   });
 });

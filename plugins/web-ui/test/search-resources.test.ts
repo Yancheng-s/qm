@@ -9,7 +9,7 @@ test("compact server results link to each resource without downloading lists", (
         { id: "skill/1", kind: "skills", title: "Review", snippet: "Changes" },
         { id: "cron1", kind: "crons", title: "Daily", snippet: "Digest" },
         { id: "app1", kind: "deploys", title: "Sales", snippet: "Tracker" },
-        { id: "group:team", kind: "contexts", title: "Team", snippet: "Project" },
+        { id: "group:team", kind: "contexts", title: "团队", snippet: "项目" },
         { id: "hook1", kind: "webhooks", title: "Review", snippet: "GitHub" },
       ],
       failed: ["crons"],
@@ -26,6 +26,6 @@ test("compact server results link to each resource without downloading lists", (
       "/chat/webhooks/hook1",
     ],
   );
-  assert.deepEqual(result.failed, ["Crons"]);
-  assert.equal(matchResources(result.hits, "review skills").length, 1);
+  assert.deepEqual(result.failed, ["定时任务"]);
+  assert.equal(matchResources(result.hits, "review 技能").length, 1);
 });

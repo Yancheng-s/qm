@@ -23,25 +23,25 @@ test("checked badges resolve target IDs to current session names", () => {
 test("unknown targets stay unlinked and do not display raw IDs", () => {
   const view = sessionToolView({ action: "read", target: "unknown-id" }, {}, sessions);
   assert.equal(view.sessionId, undefined);
-  assert.equal(view.chipTitle, "Subagent");
+  assert.equal(view.chipTitle, "子智能体");
 });
 
 test("reading the child list renders a count without a target badge", () => {
   assert.deepEqual(sessionToolView({ action: "read" }, { children: 3 }, sessions), {
     action: "read",
-    detail: "3 subagents",
+    detail: "3 个子智能体",
   });
 });
 
 test("historical list reads stay a plural label without a fake child badge", () => {
   assert.deepEqual(sessionToolView({ action: "read" }, { unscreened: true }, sessions), {
     action: "read",
-    detail: "subagents",
+    detail: "子智能体",
   });
 });
 
 test("wait has no phantom subagent badge", () => {
-  assert.deepEqual(sessionToolView({ action: "wait" }, {}, sessions), { action: "wait", detail: "for agent messages" });
+  assert.deepEqual(sessionToolView({ action: "wait" }, {}, sessions), { action: "wait", detail: "等待智能体消息" });
 });
 
 test("sibling messaging resolves title targets into clickable badges", () => {

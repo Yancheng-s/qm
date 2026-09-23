@@ -142,7 +142,7 @@ test("document title follows session switches, split-pane focus, and sign-out", 
     };
     assert.deepEqual(paneTitles(), ["Old title", "New title"]);
     await refreshTitles("", "New title");
-    assert.deepEqual(paneTitles(), ["Web chat", "New title"]);
+    assert.deepEqual(paneTitles(), ["网页对话", "New title"]);
     assert.equal(document.title, `New title · ${PRODUCT_TITLE}`);
     await refreshTitles("Fallback for overloaded title model", "New title");
     assert.deepEqual(paneTitles(), ["Fallback for overloaded title model", "New title"]);

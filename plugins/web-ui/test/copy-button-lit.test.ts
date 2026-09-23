@@ -63,5 +63,5 @@ test("the copied state is drawn by CSS instead of rewriting button children", ()
     /\.msg-copy\.copied > svg:first-of-type,\s*\.msg-copy:not\(\.copied\) > svg:nth-of-type\(2\) \{\s*display: none;/,
   );
   assert.match(css, /\.btn\.copied > \* \{\s*display: none;/);
-  assert.match(css, /\.btn\.copied::after \{\s*content: "Copied";/);
+  assert.match(css, /\.btn\.copied::after \{\s*content: "已复制";/);
 });

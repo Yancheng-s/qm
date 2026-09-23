@@ -29,28 +29,28 @@ type WebhookScheme = "hmac-sha256" | "github" | "slack" | "stripe" | "linear";
 const WEBHOOK_SCHEMES: Array<{ value: WebhookScheme; label: string; guidance: string }> = [
   {
     value: "hmac-sha256",
-    label: "Generic HMAC-SHA256",
+    label: "通用 HMAC-SHA256",
     guidance: "Send the digest in X-Signature as hex or sha256=<hex>.",
   },
   {
     value: "github",
     label: "GitHub",
-    guidance: "Use this URL as the payload URL and the signing secret as GitHub's webhook secret.",
+    guidance: "将此地址用作 GitHub Webhook 的载荷地址，并将签名密钥填入 secret。",
   },
   {
     value: "slack",
     label: "Slack",
-    guidance: "Use the Slack app signing secret. Requests older than five minutes are rejected.",
+    guidance: "使用 Slack 应用签名密钥，超过五分钟的请求将被拒绝。",
   },
   {
     value: "stripe",
     label: "Stripe",
-    guidance: "Use the endpoint signing secret shown by Stripe for this destination.",
+    guidance: "使用 Stripe 为此目标提供的接口签名密钥。",
   },
   {
     value: "linear",
     label: "Linear",
-    guidance: "Use the webhook signing secret shown by Linear. Payloads older than one minute are rejected.",
+    guidance: "使用 Linear 提供的 Webhook 签名密钥，超过一分钟的载荷将被拒绝。",
   },
 ];
 
@@ -101,7 +101,7 @@ async function refreshWebhooks(opts: { showLoading?: boolean } = {}): Promise<bo
     return true;
   } catch (e) {
     if (seq !== webhookRefreshSeq) return false;
-    webhooksNotice = errMessage(e, "Failed to load webhooks.");
+    webhooksNotice = errMessage(e, "加载 Webhook 失败。");
     return false;
   } finally {
     if (seq === webhookRefreshSeq) webhooksLoading = false;
@@ -119,7 +119,7 @@ export async function renderWebhooksPage(): Promise<void> {
   if (!loaded) return drawWebhooksPage();
   const webhook = wanted ? webhookList.find((w) => w.id === wanted) : undefined;
   if (wanted && !webhook) {
-    webhooksNoticeSticky = "That webhook wasn't found, or you don't have access to it.";
+    webhooksNoticeSticky = "找不到该 Webhook，或你没有访问权限。";
   }
   if (webhook) openWebhook(webhook);
   else drawWebhooksPage();
@@ -142,24 +142,24 @@ function drawWebhooksPage(): void {
     )
     .sort((a, b) => b.createdAt - a.createdAt)
     .map((w) => webhookPageRow(w));
-  let empty = "No webhooks yet.";
+  let empty = "暂无 Webhook。";
   if (webhooksNotice) empty = webhooksNotice;
-  else if (webhooksLoading && webhookList.length === 0) empty = "Loading webhooks…";
-  else if (webhooksScope) empty = "No webhooks in this context.";
+  else if (webhooksLoading && webhookList.length === 0) empty = "正在加载 Webhook…";
+  else if (webhooksScope) empty = "当前项目中没有 Webhook。";
   const noticeRow = webhooksNoticeSticky ? [html`<div class="action-notice">${webhooksNoticeSticky}</div>`] : [];
   webhooksNoticeSticky = "";
   render(
     listPageTpl({
-      title: "Webhooks",
+      title: "Webhook",
       scope: webhooksScope,
       onScope: (s) => {
         webhooksScope = s;
         drawWebhooksPage();
       },
-      action: { label: "New webhook", onClick: showNewWebhook },
+      action: { label: "新建 Webhook", onClick: showNewWebhook },
       search: {
         value: webhooksSearch,
-        placeholder: "Search webhooks",
+        placeholder: "搜索 Webhook",
         onInput: (value) => {
           webhooksSearch = value;
           drawWebhooksPage();
@@ -173,7 +173,7 @@ function drawWebhooksPage(): void {
 }
 
 function webhookPageRow(w: WebhookView): TemplateResult {
-  let lastRun = "never fired";
+  let lastRun = "从未触发";
   if (w.lastError) lastRun = "error";
   else if (w.lastFiredAt) lastRun = relTime(w.lastFiredAt);
   return html`
@@ -190,7 +190,7 @@ function webhookPageRow(w: WebhookView): TemplateResult {
       <span class="list-row-meta">
         ${scopeChip(w.ownerScopeId)}
         <span class="badge">${w.verification.scheme}</span>
-        <span class="badge">${w.enabled ? "enabled" : "disabled"}</span>
+        <span class="badge">${w.enabled ? "已启用" : "已停用"}</span>
         <span class="list-row-date">${lastRun}</span>
       </span>
     </a>
@@ -202,7 +202,7 @@ function copyRow(text: string) {
     <div class="copyrow">
       <code class="mono">${text}</code>
       <button class="btn" @click=${(e: Event) => void copyText(text, e.currentTarget as HTMLButtonElement)}>
-        <span>Copy</span>
+        <span>复制</span>
       </button>
     </div>
   `;
@@ -220,37 +220,37 @@ function openWebhook(w: WebhookView, opts: { push?: boolean } = {}): void {
   render(
     html`
       <div class="resource-detail">
-        ${listBackLink("Webhooks", drawWebhooksPage)}
+        ${listBackLink("Webhook", drawWebhooksPage)}
         <div class="resource-heading">
           <h2>Webhook</h2>
-          <button class="btn" @click=${showNewWebhook}>${icon(Plus, 15)}<span>New webhook</span></button>
+          <button class="btn" @click=${showNewWebhook}>${icon(Plus, 15)}<span>新建 Webhook</span></button>
         </div>
         ${notice ? html`<div class="action-notice">${notice}</div>` : nothing}
         <div class="field">
-          <label>Context</label>
+          <label>上下文</label>
           <div class="value">${scopeChip(w.ownerScopeId)}</div>
         </div>
         <div class="field">
-          <label>Action</label>
+          <label>执行操作</label>
           <div class="value pre">${w.action}</div>
         </div>
         <div class="field">
-          <label>Verification</label>
+          <label>验证方式</label>
           <div class="value">${w.verification.scheme}</div>
         </div>
         <div class="field">
-          <label>Status</label>
-          <div class="value">${w.enabled ? "Enabled" : "Disabled"}</div>
+          <label>状态</label>
+          <div class="value">${w.enabled ? "已启用" : "已停用"}</div>
         </div>
         <div class="field">
-          <label>Inbound URL</label>
+          <label>接收地址</label>
           ${copyRow(w.url)}
-          <div class="hint">Configure your sender (GitHub / Stripe / Slack / …) to POST events here.</div>
+          <div class="hint">将事件发送方（GitHub / Stripe / Slack 等）配置为向此地址 POST 事件。</div>
         </div>
         ${
           w.filters?.length
             ? html`<div class="field">
-                <label>Filters</label>
+                <label>筛选条件</label>
                 <div class="value pre">${w.filters.map((f) => `${f.path} ∈ [${f.in.join(", ")}]`).join("\n")}</div>
               </div>`
             : ""
@@ -258,19 +258,19 @@ function openWebhook(w: WebhookView, opts: { push?: boolean } = {}): void {
         ${
           w.destination
             ? html`<div class="field">
-                <label>Destination</label>
+                <label>发送目标</label>
                 <div class="value">${w.destination.type} → ${w.destination.target}</div>
               </div>`
             : ""
         }
         <div class="field">
-          <label>Last fired</label>
-          <div class="value">${w.lastFiredAt ? new Date(w.lastFiredAt).toLocaleString() : "Never"}</div>
+          <label>上次触发</label>
+          <div class="value">${w.lastFiredAt ? new Date(w.lastFiredAt).toLocaleString("zh-CN") : "从未"}</div>
         </div>
         ${
           w.lastDeliveryId
             ? html`<div class="field">
-                <label>Last delivery ID</label>
+                <label>最近投递 ID</label>
                 <div class="value mono">${w.lastDeliveryId}</div>
               </div>`
             : nothing
@@ -278,7 +278,7 @@ function openWebhook(w: WebhookView, opts: { push?: boolean } = {}): void {
         ${
           w.lastError
             ? html`<div class="field">
-                <label>Last error</label>
+                <label>最近错误</label>
                 <div class="value" style="color:var(--destructive,#c00)">${w.lastError}</div>
               </div>`
             : ""
@@ -287,8 +287,8 @@ function openWebhook(w: WebhookView, opts: { push?: boolean } = {}): void {
         <div class="actions">
           ${
             w.enabled
-              ? html`<button class="btn danger" @click=${() => void setWebhookEnabled(w.id, false)}>Disable</button>`
-              : html`<button class="btn" @click=${() => void setWebhookEnabled(w.id, true)}>Re-enable</button>`
+              ? html`<button class="btn danger" @click=${() => void setWebhookEnabled(w.id, false)}>停用</button>`
+              : html`<button class="btn" @click=${() => void setWebhookEnabled(w.id, true)}>重新启用</button>`
           }
         </div>
       </div>
@@ -307,8 +307,8 @@ interface WebhookEventView {
 
 async function loadWebhookEvents(id: string, host: HTMLElement): Promise<void> {
   render(
-    html`<h3>Message history</h3>
-      <p class="hint" role="status">Loading messages…</p>`,
+    html`<h3>消息历史</h3>
+      <p class="hint" role="status">正在加载消息…</p>`,
     host,
   );
   try {
@@ -316,11 +316,8 @@ async function loadWebhookEvents(id: string, host: HTMLElement): Promise<void> {
     if (!host.isConnected) return;
     render(
       html`
-        <h3>Message history</h3>
-        <p class="hint">
-          Latest 50 accepted events. Payloads show what was passed to the agent, capped at 16,000 characters. Earlier
-          events are not backfilled.
-        </p>
+        <h3>消息历史</h3>
+        <p class="hint">显示最近 50 条已接收事件，载荷为传递给智能体的内容，最多 16,000 个字符。更早的事件不会补录。</p>
         ${
           events.length
             ? events.map(
@@ -328,17 +325,17 @@ async function loadWebhookEvents(id: string, host: HTMLElement): Promise<void> {
                   <details class="code-card">
                     <summary class="tool-payload-label">
                       <time datetime=${new Date(event.receivedAt).toISOString()}
-                        >${new Date(event.receivedAt).toLocaleString()}</time
+                        >${new Date(event.receivedAt).toLocaleString("zh-CN")}</time
                       >
                     </summary>
                     <pre class="tool-payload-body">${event.payload}</pre>
                     <div class="code-card-foot">
-                      ${event.sessionId ? html`<a class="btn" href=${deepLinkPath(UI_BASE, "chats", event.sessionId)}>Open session</a>` : html`<span class="hint">No session available.</span>`}
+                      ${event.sessionId ? html`<a class="btn" href=${deepLinkPath(UI_BASE, "chats", event.sessionId)}>打开会话</a>` : html`<span class="hint">暂无可用会话。</span>`}
                     </div>
                   </details>
                 `,
               )
-            : html`<p class="hint">No messages recorded yet.</p>`
+            : html`<p class="hint">暂无消息记录。</p>`
         }
       `,
       host,
@@ -346,9 +343,9 @@ async function loadWebhookEvents(id: string, host: HTMLElement): Promise<void> {
   } catch (error) {
     if (!host.isConnected) return;
     render(
-      html`<h3>Message history</h3>
-        <p role="alert">${errMessage(error, "Couldn't load messages.")}</p>
-        <button class="btn" @click=${() => void loadWebhookEvents(id, host)}>Retry</button>`,
+      html`<h3>消息历史</h3>
+        <p role="alert">${errMessage(error, "无法加载消息。")}</p>
+        <button class="btn" @click=${() => void loadWebhookEvents(id, host)}>重试</button>`,
       host,
     );
   }
@@ -358,9 +355,9 @@ async function setWebhookEnabled(id: string, enabled: boolean): Promise<void> {
   let notice: string;
   try {
     await api(`/api/webhooks/${encodeURIComponent(id)}/${enabled ? "enable" : "disable"}`, { method: "POST" });
-    notice = enabled ? "Webhook re-enabled." : "Webhook disabled.";
+    notice = enabled ? "Webhook 已重新启用。" : "Webhook 已停用。";
   } catch (e) {
-    notice = errMessage(e, enabled ? "Couldn't re-enable webhook." : "Couldn't disable webhook.");
+    notice = errMessage(e, enabled ? "无法重新启用 Webhook。" : "无法停用 Webhook。");
   }
   await refreshWebhooks();
   webhooksNotice = notice;
@@ -378,19 +375,19 @@ function randomHex(bytes: number): string {
 function webhookForm() {
   return html`
     <form class="resource-form" @submit=${onCreateWebhook}>
-      ${listBackLink("Webhooks", drawWebhooksPage)}
-      <h2>New webhook</h2>
+      ${listBackLink("Webhook", drawWebhooksPage)}
+      <h2>新建 Webhook</h2>
       <label
-        >Action <span class="hint">(what the agent should do for each event)</span>
+        >执行操作 <span class="hint">（每次收到事件后，智能体需要执行的操作）</span>
         <textarea
           name="action"
           rows="4"
-          placeholder="When a GitHub issue is opened, triage it and post a one-paragraph summary."
+          placeholder="当 GitHub 创建新 issue 时，对其分类并发送一段摘要。"
           required
         ></textarea>
       </label>
       <label>
-        Verification scheme
+        验证方案
         <div class="menu-control form-menu-control scheme-control">
           <input type="hidden" name="scheme" value="hmac-sha256" />
           <button class="menu-button" type="button" aria-haspopup="menu" aria-expanded="false" @click=${toggleFormMenu}>
@@ -398,7 +395,7 @@ function webhookForm() {
             ${icon(ChevronDown, 14)}
           </button>
           <div class="menu-popover" role="menu" hidden>
-            <div class="menu-title">Verification</div>
+            <div class="menu-title">验证方式</div>
             ${WEBHOOK_SCHEMES.map(
               (scheme) => html`
                 <button
@@ -419,22 +416,19 @@ function webhookForm() {
         <span class="hint webhook-scheme-guidance">${WEBHOOK_SCHEMES[0]!.guidance}</span>
       </label>
       <label
-        >Signing secret <span class="hint">(leave blank to auto-generate)</span>
+        >签名密钥 <span class="hint">（留空则自动生成）</span>
         <div class="copyrow">
-          <input type="text" name="secret" placeholder="auto-generated if blank" />
-          <button type="button" class="btn" @click=${fillGeneratedSecret}>Generate</button>
+          <input type="text" name="secret" placeholder="留空自动生成" />
+          <button type="button" class="btn" @click=${fillGeneratedSecret}>生成</button>
         </div>
       </label>
       <label
-        >Filters <span class="hint">(optional; one per line as <code>path: value1, value2</code>)</span>
+        >筛选条件 <span class="hint">（可选，每行一条，格式为 <code>路径: 值1, 值2</code>)</span>
         <textarea name="filters" rows="2" placeholder="action: opened, reopened"></textarea>
       </label>
-      <p class="hint">
-        The event runs in your personal context. After creation, ask the agent to route notable results to a teammate or
-        channel by name.
-      </p>
+      <p class="hint">事件在你的个人上下文中执行。创建后，可以让智能体将重要结果发送给指定成员或频道。</p>
       <div class="form-error"></div>
-      <div class="actions"><button class="btn primary" type="submit">Create webhook</button></div>
+      <div class="actions"><button class="btn primary" type="submit">创建 Webhook</button></div>
     </form>
   `;
 }
@@ -472,14 +466,14 @@ function parseWebhookFilters(text: string): Array<{ path: string; in: string[] }
   for (const line of text.split("\n")) {
     const idx = line.indexOf(":");
     if (!line.trim()) continue;
-    if (idx < 1) throw new Error(`Invalid filter: "${line}". Use path: value1, value2.`);
+    if (idx < 1) throw new Error(`筛选条件“${line}”无效，请使用“路径: 值1, 值2”格式。`);
     const path = line.slice(0, idx).trim();
     const values = line
       .slice(idx + 1)
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
-    if (!path || values.length === 0) throw new Error(`Invalid filter: "${line}". Both path and value are required.`);
+    if (!path || values.length === 0) throw new Error(`筛选条件“${line}”无效，路径和值均为必填项。`);
     out.push({ path, in: values });
   }
   return out;
@@ -498,13 +492,13 @@ async function onCreateWebhook(e: Event): Promise<void> {
   let filters: Array<{ path: string; in: string[] }>;
   if (errSlot) errSlot.textContent = "";
   if (!action) {
-    if (errSlot) errSlot.textContent = "An action is required.";
+    if (errSlot) errSlot.textContent = "请填写执行操作。";
     return;
   }
   try {
     filters = parseWebhookFilters(field("filters"));
   } catch (err) {
-    if (errSlot) errSlot.textContent = errMessage(err, "Invalid filters.");
+    if (errSlot) errSlot.textContent = errMessage(err, "筛选条件无效。");
     return;
   }
   const payload: Record<string, unknown> = {
@@ -520,7 +514,7 @@ async function onCreateWebhook(e: Event): Promise<void> {
     await refreshWebhooks();
     showWebhookCreated(r.webhook, r.url);
   } catch (err) {
-    if (errSlot) errSlot.textContent = errMessage(err, "create failed");
+    if (errSlot) errSlot.textContent = errMessage(err, "创建失败");
   }
 }
 
@@ -532,29 +526,27 @@ function showWebhookCreated(w: WebhookView, url: string): void {
   render(
     html`
       <div class="resource-detail">
-        ${listBackLink("Webhooks", drawWebhooksPage)}
-        <h2>Webhook created ✓</h2>
-        <div class="warn">Copy the secret now. It won't be shown again.</div>
+        ${listBackLink("Webhook", drawWebhooksPage)}
+        <h2>Webhook 已创建 ✓</h2>
+        <div class="warn">请立即复制密钥，此后将不再显示。</div>
         <div class="field">
-          <label>Inbound URL</label>
+          <label>接收地址</label>
           ${copyRow(url)}
-          <div class="hint">Point your sender at this URL.</div>
+          <div class="hint">将事件发送方指向此地址。</div>
         </div>
         ${
           secret && secret !== "***"
             ? html`<div class="field">
-                <label>Signing secret</label>
+                <label>签名密钥</label>
                 ${copyRow(secret)}
-                <div class="hint">
-                  Configure your sender to sign requests with this secret (scheme: ${w.verification.scheme}).
-                </div>
+                <div class="hint">请将发送方配置为使用此密钥签名请求（方案：${w.verification.scheme}）。</div>
               </div>`
             : html`<div class="field">
-                <div class="hint">No signing secret for scheme <code>${w.verification.scheme}</code>.</div>
+                <div class="hint">此方案不使用签名密钥： <code>${w.verification.scheme}</code>.</div>
               </div>`
         }
         <div class="actions">
-          <button class="btn" @click=${() => openWebhook(webhookList.find((x) => x.id === w.id) ?? w)}>Done</button>
+          <button class="btn" @click=${() => openWebhook(webhookList.find((x) => x.id === w.id) ?? w)}>完成</button>
         </div>
       </div>
     `,

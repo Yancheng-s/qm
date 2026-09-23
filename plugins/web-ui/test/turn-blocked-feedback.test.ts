@@ -72,13 +72,13 @@ test("api() prefers a human message over reason, and reason over a machine error
 test("a pending_approval turn is not an empty success — the stream errors with the reason and a marker", async () => {
   stubTurnResponse(200, {
     status: "pending_approval",
-    reason: "Approve or deny the pending command to continue.",
+    reason: "请批准或拒绝待审批的命令以继续。",
     pendingApprovals: [{ requestId: "a-1", command: "rm -rf /tmp/x" }],
   });
   const outcome = await driveOutcome();
   assert.equal(outcome.stopReason, "error");
   assert.equal(outcome.sendBlocked, "pending_approval");
-  assert.equal(outcome.errorMessage, "Approve or deny the pending command to continue.");
+  assert.equal(outcome.errorMessage, "请批准或拒绝待审批的命令以继续。");
 });
 
 test("a pending_approval turn without a reason still explains itself", async () => {

@@ -74,14 +74,14 @@ async function collectFolder(root: DropEntryLike, caps: FolderCaps): Promise<{ p
       if (!entry.isFile || !entry.file || JUNK_FILES.has(entry.name)) continue;
       if (out.length >= caps.maxFiles) {
         throw new FolderDropError(
-          `"${root.name}" has too many files (over ${caps.maxFiles.toLocaleString()}). Zip it yourself or drop a subfolder.`,
+          `“${root.name}”的文件过多（超过 ${caps.maxFiles.toLocaleString("zh-CN")} 个），请先压缩或仅拖入子文件夹。`,
         );
       }
       const file = await new Promise<File>((resolve, reject) => entry.file!(resolve, reject));
       bytes += file.size;
       if (bytes > caps.maxBytes) {
         throw new FolderDropError(
-          `"${root.name}" is too big (over ${Math.round(caps.maxBytes / (1024 * 1024))} MB). Zip it yourself or drop a subfolder.`,
+          `“${root.name}”过大（超过 ${Math.round(caps.maxBytes / (1024 * 1024))} MB），请先压缩或仅拖入子文件夹。`,
         );
       }
       out.push({ path: `${prefix}${entry.name}`, file });
@@ -93,7 +93,7 @@ async function collectFolder(root: DropEntryLike, caps: FolderCaps): Promise<{ p
 
 export async function folderToZipFile(root: DropEntryLike, caps: FolderCaps = DEFAULT_CAPS): Promise<File> {
   const files = await collectFolder(root, caps);
-  if (!files.length) throw new FolderDropError(`"${root.name}" has no files in it.`);
+  if (!files.length) throw new FolderDropError(`“${root.name}”中没有文件。`);
   const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
   for (const { path, file } of files) zip.file(path, await file.arrayBuffer());

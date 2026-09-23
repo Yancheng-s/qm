@@ -37,7 +37,7 @@ test("session lists open sharing inline beside archive", () => {
     sessions.indexOf("export function addPendingSession"),
   );
   assert.match(row, /openSessionShare\(s.id\)[\s\S]*?tip\(s.archived/);
-  assert.doesNotMatch(row, /Copy link/);
+  assert.doesNotMatch(row, /复制链接/);
   assert.match(css, /\.sidebar \.session-share-btn,\s*\.sidebar \.session-archive-btn\s*\{\s*display: none/);
 });
 

@@ -9,10 +9,10 @@ test("Files keeps the clickable drop target without a separate upload button", (
   assert.doesNotMatch(source, /Files created, uploaded, or shared with you|scopeFilterControl/);
   assert.equal(source.match(/@click=\$\{pickFiles\}/g)?.length, 1);
   assert.match(source, /class="file-drop/);
-  assert.match(source, /Drop files here or choose files/);
+  assert.match(source, /将文件拖到此处，或选择文件/);
   assert.doesNotMatch(source, /class="btn primary"[\s\S]{0,200}@click=\$\{pickFiles\}/);
-  assert.match(source, /"Ownership"/);
-  assert.match(source, /"Type"/);
+  assert.match(source, /"归属"/);
+  assert.match(source, /"类型"/);
   assert.doesNotMatch(source, /"Sort",\s*filesSort/);
 });
 
@@ -21,7 +21,7 @@ test("Files uses compact rows that open directly", () => {
   const end = source.indexOf("\nfunction rowsFromPage", start);
   const row = source.slice(start, end);
   assert.match(row, /<a class="list-row file-row" href=\$\{contentUrl\} target="_blank"/);
-  assert.doesNotMatch(row, /file-row-type|\$\{f\.mimetype\}|class="badge"|\$\{f\.kind\}|>Open</);
+  assert.doesNotMatch(row, /file-row-type|\$\{f\.mimetype\}|class="badge"|\$\{f\.kind\}|>打开</);
   assert.doesNotMatch(row, /scopeChip|fileScope\(f\)/);
   assert.match(row, /formatBytes\(f\.sizeBytes\)/);
   assert.match(row, /relTime\(f\.createdAt\)/);

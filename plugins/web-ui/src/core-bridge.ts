@@ -60,16 +60,16 @@ export const MAX_ATTACHMENT_BYTES = 1_000_000_000;
 export const MAX_FILES_PER_MESSAGE = 10;
 
 export function oversizeAttachmentNote(name: string): string {
-  return `"${name}" is too large — files up to ~1 GB can be sent. It was left out.`;
+  return `“${name}”过大，支持发送约 1 GB 以内的文件，已跳过。`;
 }
 
 export function emptyAttachmentNote(name: string): string {
-  return `"${name}" is empty. It was left out.`;
+  return `“${name}”为空，已跳过。`;
 }
 
 export function tooManyFilesNote(names: string[]): string {
   const skipped = names.map((n) => `"${n}"`).join(", ");
-  return `Skipped ${skipped} — too many files in one message (max ${MAX_FILES_PER_MESSAGE}).`;
+  return `已跳过 ${skipped}：单条消息文件过多（最多 ${MAX_FILES_PER_MESSAGE} 个）。`;
 }
 
 export interface SkippedAttachment {
@@ -103,7 +103,7 @@ export async function uploadAttachments(attachments: readonly PiAttachment[]): P
       uploaded.push(await toCoreAttachment(a));
     } catch (err) {
       if (err instanceof ApiError && err.status === 413) skip(oversizeAttachmentNote(a.fileName), true);
-      else skip(`"${a.fileName}" couldn't be uploaded (${errMessage(err)}). Try again.`, false);
+      else skip(`“${a.fileName}”上传失败（${errMessage(err)}），请重试。`, false);
     }
   }
   return { uploaded, skipped };
@@ -176,7 +176,7 @@ export function forkOriginDetails(
   if (!session.forkedFrom || session.forkBoundarySeq === undefined) return null;
   return {
     sessionId: session.forkedFrom.sessionId,
-    title: session.forkedFrom.title?.trim() || "another conversation",
+    title: session.forkedFrom.title?.trim() || "其他对话",
     ...(inheritedCount > 0 ? { messageCount: inheritedCount } : {}),
   };
 }
@@ -262,8 +262,8 @@ export function slackThreadUrl(workspaceUrl: string | null, threadRef: string): 
 
 export function sharedContextLabel(scopeId: string | null, name: string | null): string | null {
   if (!scopeId) return null;
-  if (scopeId.startsWith("channel:")) return name ? `#${name.replace(/^#/, "")}` : "Shared channel";
-  if (scopeId.startsWith("group:")) return groupDmText(name) ?? name ?? "Group";
+  if (scopeId.startsWith("channel:")) return name ? `#${name.replace(/^#/, "")}` : "共享频道";
+  if (scopeId.startsWith("group:")) return groupDmText(name) ?? name ?? "群组";
   return null;
 }
 
@@ -643,7 +643,7 @@ async function toCoreAttachment(a: PiAttachment): Promise<CoreAttachment> {
     headers: { "content-type": "application/octet-stream" },
     body: bytes as unknown as BodyInit,
   });
-  if (!r.ok) throw new ApiError(`attachment upload failed: HTTP ${r.status}`, r.status);
+  if (!r.ok) throw new ApiError(`附件上传失败：HTTP ${r.status}`, r.status);
   const { blobId, sizeBytes } = (await r.json()) as { blobId: string; sizeBytes: number };
   return { name: a.fileName, mimetype: a.mimeType, sizeBytes: sizeBytes ?? a.size, blobId };
 }
@@ -829,7 +829,7 @@ export async function signalLiveRun(
   queuedRunId?: string,
 ): Promise<SignalOutcome> {
   const run = slot.runId !== null ? { runId: slot.runId } : null;
-  if (!run) throw new Error("No active run to signal.");
+  if (!run) throw new Error("没有正在运行的任务可接收指令。");
   const steerContext =
     kind === "steer" && context.threadRef
       ? {
@@ -895,7 +895,7 @@ export async function activeRunForThread(threadRef: string): Promise<ActiveRun> 
   return { ...live, queued: r.queued ?? [] };
 }
 
-export const PENDING_APPROVAL_REASON = "Approve or deny the pending command to continue.";
+export const PENDING_APPROVAL_REASON = "请批准或拒绝待审批的命令以继续。";
 
 export async function queueTurn(
   threadRef: string,
@@ -912,7 +912,7 @@ export async function queueTurn(
     ),
   });
   if (submit.status === "pending_approval") throw new Error(submit.reason ?? PENDING_APPROVAL_REASON);
-  if (!submit.runId) throw new Error("Could not queue the message.");
+  if (!submit.runId) throw new Error("无法将消息加入队列。");
   return { runId: submit.runId, text, ...(attachments.length ? { hasAttachments: true } : {}) };
 }
 
@@ -949,7 +949,7 @@ export async function resolveApproval(decision: ApprovalDecision): Promise<strin
     method: "POST",
     body: JSON.stringify({ approved: decision.approved, ...(decision.scope ? { scope: decision.scope } : {}) }),
   });
-  if (!submit.runId) throw new Error("Could not continue after the approval.");
+  if (!submit.runId) throw new Error("审批后无法继续执行。");
   return submit.runId;
 }
 
@@ -962,12 +962,11 @@ export async function runApprovalTurn(
   const stream = createAssistantMessageEventStream();
   await driveApproval(stream, agent.state.model, decision, onWork, slot);
   const outcome = await stream.result();
-  if (outcome.stopReason === "error") throw new Error(outcome.errorMessage || "Could not send the approval.");
+  if (outcome.stopReason === "error") throw new Error(outcome.errorMessage || "无法提交审批结果。");
 }
 
-const APPROVAL_GONE_MESSAGE = "This approval is no longer available — it may have expired or already been handled.";
-const APPROVAL_NOT_APPLIED_MESSAGE =
-  "This approval couldn't be applied right now — the conversation is waiting on a different approval.";
+const APPROVAL_GONE_MESSAGE = "此审批已失效，可能已过期或被处理。";
+const APPROVAL_NOT_APPLIED_MESSAGE = "目前无法应用此审批，对话正在等待另一项审批。";
 
 async function driveApproval(
   stream: AssistantMessageEventStream,
@@ -1135,7 +1134,7 @@ async function drive(
         (partial as AssistantWork).sendFailed = "attachments";
         (partial as AssistantWork).droppedAttachmentIds = droppedIds;
       }
-      fail(stream, partial, issues.join(" ") || "Nothing to send.");
+      fail(stream, partial, issues.join(" ") || "没有可发送的内容。");
       return;
     }
     if (issues.length) onSendIssues?.(issues, retryable);
@@ -1181,7 +1180,7 @@ async function drive(
     work.finishedAt = Date.now();
     notify();
     if (e instanceof TypeError) {
-      const errorMessage = "Message wasn’t sent. Check your connection and try again.";
+      const errorMessage = "消息未发送，请检查网络后重试。";
       const message = latestUserMessage(agent);
       if (message) message.sendFailure = errorMessage;
       fail(stream, partial, errorMessage, true);
@@ -1249,7 +1248,7 @@ async function followRun(
       void signalLiveRun(slot, "abort", undefined, { threadRef: null }).catch(() => {
         if (slot.generation !== gen || slot.stopGeneration !== gen) return;
         slot.stopGeneration = null;
-        slot.onStopError?.("Could not request stop. Try again.");
+        slot.onStopError?.("无法请求停止，请重试。");
         notify?.();
       });
     }
@@ -1404,8 +1403,7 @@ export async function pollRun(
       if (signal?.aborted) return abortStream(stream, partial);
       if (e instanceof ApiError && e.status >= 400 && e.status < 500) return fail(stream, partial, e.message);
       consecutiveFailures++;
-      if (now() - st.lastProgressAt > RUN_IDLE_MS)
-        return fail(stream, partial, "Timed out waiting for the agent to respond.");
+      if (now() - st.lastProgressAt > RUN_IDLE_MS) return fail(stream, partial, "等待智能体响应超时。");
       await sleep(Math.min(POLL_MS * 2 ** Math.min(consecutiveFailures, 4), POLL_RETRY_MAX_MS));
       continue;
     }
@@ -1414,8 +1412,7 @@ export async function pollRun(
     else st.staleSince = undefined;
     if (run.alive === true || (st.staleSince !== undefined && now() - st.staleSince < STALE_GRACE_MS))
       st.lastProgressAt = now();
-    if (now() - st.lastProgressAt > RUN_IDLE_MS)
-      return fail(stream, partial, "Timed out waiting for the agent to respond.");
+    if (now() - st.lastProgressAt > RUN_IDLE_MS) return fail(stream, partial, "等待智能体响应超时。");
     await sleep(POLL_MS);
   }
 }
@@ -1620,8 +1617,8 @@ function deliveredFilesFromAttachments(
 function approvalDeniedMessage(reason?: string): string | null {
   const trimmed = reason?.trim();
   if (!trimmed) return null;
-  if (trimmed === "approval denied") return "Denied.";
-  return trimmed.startsWith("approval denied for ") ? "Denied." : null;
+  if (trimmed === "approval denied") return "已拒绝。";
+  return trimmed.startsWith("approval denied for ") ? "已拒绝。" : null;
 }
 
 function sleep(ms: number): Promise<void> {

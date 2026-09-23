@@ -15,7 +15,7 @@ test("the scope's model panel writes through the same endpoint the composer's de
 
 test("the panel offers inheriting the org default and names what is serving now", () => {
   assert.match(panel, /changeDefault: \(\) => choose\(scopeId, INHERIT\)/);
-  assert.match(panel, /no longer offered/);
+  assert.match(panel, /已不再提供/);
 });
 
 test("context settings reuse the composer picker and disable it while saving", () => {
@@ -57,6 +57,6 @@ test("no effort is ever sent for a harness that doesn't support it", () => {
 test("the model card omits explanatory and success prose", () => {
   assert.doesNotMatch(
     panel,
-    /The model every conversation|Following the org default|Pinned for this project|Saved\. New conversations/,
+    /The model every conversation|Following the org default|已置顶 for this project|Saved\. New conversations/,
   );
 });

@@ -162,7 +162,7 @@ test("approval handoff unlocks queue and steer without losing pending decisions"
     await until(() => !!chat.composer.currentModelOption() && !!host.querySelector(".approval-btn"));
 
     await t.test("submission and handoff suppress duplicate clicks and stale cards", async () => {
-      click("Allow once");
+      click("仅允许一次");
       chat.resolveCommandApproval({ requestId: "a1", approved: true });
       assert.equal(requests.filter((r) => r.path === "/api/approvals/a1").length, 1);
       assert.equal(host.querySelector<HTMLTextAreaElement>("textarea")?.disabled, true);
@@ -177,7 +177,7 @@ test("approval handoff unlocks queue and steer without losing pending decisions"
     await t.test("running continuation allows queueing and steering", async () => {
       await until(() => host.querySelector<HTMLTextAreaElement>("textarea")?.disabled === false);
       assert.equal(chat.state.resolvingApprovals.size, 0);
-      assert.equal(host.querySelector<HTMLButtonElement>('[aria-label="Attach files"]')?.disabled, false);
+      assert.equal(host.querySelector<HTMLButtonElement>('[aria-label="添加附件"]')?.disabled, false);
       const input = host.querySelector<HTMLTextAreaElement>("textarea")!;
       input.value = "use the smaller change";
       input.dispatchEvent(new InputEvent("input", { bubbles: true }));
@@ -224,11 +224,11 @@ test("approval handoff unlocks queue and steer without losing pending decisions"
       host.querySelector<HTMLButtonElement>('[aria-label="Stop"]')!.click();
       assert.equal(host.querySelector('[aria-label="Stop"]'), null);
       assert.equal(host.querySelector<HTMLButtonElement>('[aria-label="Send"]')?.disabled, false);
-      assert.match(host.querySelector('[role="status"]')?.textContent ?? "", /Stop requested/);
+      assert.match(host.querySelector('[role="status"]')?.textContent ?? "", /已请求停止/);
       assert.equal(host.querySelector(".live-work-status"), null);
       assert.equal(host.querySelector(".thinking-sheen"), null);
       assert.equal(host.querySelector(".live-stream"), null);
-      assert.match(host.querySelector(".work-head")?.textContent ?? "", /Stop requested/);
+      assert.match(host.querySelector(".work-head")?.textContent ?? "", /已请求停止/);
       streaming.work.activity.push({
         seq: 2,
         parentSeq: null,
@@ -262,7 +262,7 @@ test("approval handoff unlocks queue and steer without losing pending decisions"
       assert.equal(chat.isStopping(), true);
       stopAck.resolve(Response.json({ error: "unavailable" }, { status: 503 }));
       await until(() => !!host.querySelector('[aria-label="Stop"]'));
-      assert.match(chat.composer.state.error, /Could not request stop/);
+      assert.match(chat.composer.state.error, /无法请求停止/);
       assert.equal(host.querySelector<HTMLButtonElement>('[aria-label="Stop"]')?.disabled, false);
       stopAck = deferred<Response>();
       host.querySelector<HTMLButtonElement>('[aria-label="Stop"]')!.click();
@@ -302,7 +302,7 @@ test("approval handoff unlocks queue and steer without losing pending decisions"
       pending = [approval];
       decision = deferred<Response>();
       mount();
-      click("Allow once");
+      click("仅允许一次");
       decision.resolve(Response.json({ error: "unavailable" }, { status: 503 }));
       await until(() => chat.state.resolvingApprovals.size === 0 && !!host.querySelector(".approval-btn"));
       assert.match(chat.composer.state.error, /unavailable/i);
@@ -313,7 +313,7 @@ test("approval handoff unlocks queue and steer without losing pending decisions"
       decision = deferred<Response>();
       continuation = deferredRun();
       mount();
-      click("Allow once");
+      click("仅允许一次");
       decision.resolve(Response.json({ runId: "r1" }));
       await until(() => chat.state.agent!.state.isStreaming && chat.hasLiveRun());
       pending = [];
@@ -329,7 +329,7 @@ test("approval handoff unlocks queue and steer without losing pending decisions"
       decision = deferred<Response>();
       continuation = deferredRun();
       mount();
-      click("Allow once");
+      click("仅允许一次");
       decision.resolve(Response.json({ runId: "r1" }));
       await until(() => chat.state.agent!.state.isStreaming && chat.hasLiveRun());
       refreshGate = deferred<void>();
@@ -338,7 +338,7 @@ test("approval handoff unlocks queue and steer without losing pending decisions"
       );
       await until(() => !chat.state.agent!.state.isStreaming && !!host.querySelector(".approval-btn"));
       decision = deferred<Response>();
-      click("Allow once");
+      click("仅允许一次");
       assert.equal(chat.state.resolvingApprovals.size, 1);
       refreshGate.resolve();
       refreshGate = undefined;
@@ -357,11 +357,11 @@ test("approval handoff unlocks queue and steer without losing pending decisions"
       pending = [approval];
       decision = deferred<Response>();
       mount();
-      click("Allow once");
+      click("仅允许一次");
       const oldDecision = decision;
       decision = deferred<Response>();
       mount();
-      click("Allow once");
+      click("仅允许一次");
       oldDecision.resolve(Response.json({ error: "old request failed" }, { status: 503 }));
       await new Promise((resolve) => setTimeout(resolve, 50));
       assert.equal(chat.state.resolvingApprovals.size, 1);
@@ -377,13 +377,13 @@ test("approval handoff unlocks queue and steer without losing pending decisions"
       modelDeleted = true;
       mount();
       await chat.composer.refreshRuntimeSelection(row.scopeId, chat.state.agent!, true);
-      await until(() => !!host.querySelector('select[aria-label="Replacement model"]'));
+      await until(() => !!host.querySelector('select[aria-label="替代模型"]'));
       assert.equal(chat.composer.currentModelOption(), undefined);
       assert.match(host.textContent ?? "", /deleted-overlay/);
       assert.match(host.textContent ?? "", /run the command/);
       assert.equal(host.querySelector("textarea"), null);
       assert.equal(host.querySelector("button.send-btn"), null);
-      const replacement = host.querySelector<HTMLSelectElement>('select[aria-label="Replacement model"]')!;
+      const replacement = host.querySelector<HTMLSelectElement>('select[aria-label="替代模型"]')!;
       assert.ok([...replacement.options].some((option) => option.value === "pi:replacement-api"));
       const writes = requests.filter((request) => request.path === "/api/turn").length;
       replacement.value = "pi:replacement-api";

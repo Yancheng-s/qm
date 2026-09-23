@@ -19,9 +19,9 @@ const THEME_FILE_ACCEPT = ".itermcolors,.plist,.json,.jsonc,application/json,tex
 const QM_ABOUT_URL = "https://github.com/yc-software/qm";
 
 const THEME_OPTIONS: Array<{ value: ThemeChoice; label: string; glyph: IconNode }> = [
-  { value: "light", label: "Light", glyph: Sun },
-  { value: "dark", label: "Dark", glyph: Moon },
-  { value: "system", label: "System", glyph: Monitor },
+  { value: "light", label: "浅色", glyph: Sun },
+  { value: "dark", label: "深色", glyph: Moon },
+  { value: "system", label: "跟随系统", glyph: Monitor },
 ];
 
 let settingsHost: HTMLElement | null = null;
@@ -125,7 +125,7 @@ async function onThemeFileChosen(e: Event): Promise<void> {
   try {
     installCustomTheme(importTheme(file.name, await file.text()));
   } catch (err) {
-    themeImportError = errMessage(err, "Couldn't read that theme file.");
+    themeImportError = errMessage(err, "无法读取主题文件。");
     drawSettings();
   }
 }
@@ -179,15 +179,15 @@ function themeRow(): TemplateResult {
   const custom = storedCustomTheme();
   const note = themeImportError
     ? html`<span class="settings-row-error">${themeImportError}</span>`
-    : "System follows your device's light or dark setting. Import an iTerm2 .itermcolors or a VS Code color theme .json to paint the app with its palette.";
+    : "“跟随系统”会使用设备的浅色或深色设置。也可导入 iTerm2 .itermcolors 或 VS Code 颜色主题 .json 文件。";
   return html`
     <div class="settings-row">
       <div class="settings-row-copy">
-        <div class="settings-row-title">Theme</div>
+        <div class="settings-row-title">主题</div>
         <div class="settings-row-note">${note}</div>
       </div>
       <div class="settings-theme-controls">
-        <div class="settings-choice" role="radiogroup" aria-label="Theme">
+        <div class="settings-choice" role="radiogroup" aria-label="主题">
           ${THEME_OPTIONS.map((option) => themeOption(option.value, current, option.label, icon(option.glyph, 15)))}
           ${custom ? themeOption("custom", current, custom.name, themeSwatches(custom)) : nothing}
         </div>
@@ -207,7 +207,7 @@ function themeRow(): TemplateResult {
                 ?.querySelector<HTMLInputElement>(".theme-file-input")
                 ?.click()}
           >
-            ${custom ? "Replace theme file" : "Import theme file"}
+            ${custom ? "替换主题文件" : "导入主题文件"}
           </button>
           ${
             custom
@@ -215,10 +215,10 @@ function themeRow(): TemplateResult {
                   <button
                     class="settings-theme-link"
                     type="button"
-                    aria-label="Remove imported theme"
+                    aria-label="移除导入的主题"
                     @click=${() => removeCustomTheme()}
                   >
-                    Remove
+                    移除
                   </button>
                 `
               : nothing
@@ -230,18 +230,18 @@ function themeRow(): TemplateResult {
 }
 
 const SURFACE_OPTIONS: Array<{ webOnly: boolean; label: string }> = [
-  { webOnly: false, label: "All conversations" },
-  { webOnly: true, label: "Web only" },
+  { webOnly: false, label: "所有对话" },
+  { webOnly: true, label: "仅网页" },
 ];
 
 function sidebarSurfaceRow(): TemplateResult {
   return html`
     <div class="settings-row">
       <div class="settings-row-copy">
-        <div class="settings-row-title">Sidebar conversations</div>
-        <div class="settings-row-note">Web only hides the Slack channels and DMs the agent also works in.</div>
+        <div class="settings-row-title">侧边栏对话</div>
+        <div class="settings-row-note">“仅网页”会隐藏智能体参与的 Slack 频道和私聊。</div>
       </div>
-      <div class="settings-choice" role="radiogroup" aria-label="Sidebar conversations">
+      <div class="settings-choice" role="radiogroup" aria-label="侧边栏对话">
         ${SURFACE_OPTIONS.map(
           (option) => html`
             <button
@@ -341,15 +341,15 @@ function aiAccountsRow(): TemplateResult {
   return html`
     <div class="settings-row">
       <div class="settings-row-copy">
-        <div class="settings-row-title">AI access</div>
-        <div class="settings-row-note">Use company access or your own subscription.</div>
-        ${aiError ? html`<div class="settings-row-error" role="alert">${aiError} <button class="settings-theme-link" ?disabled=${aiSaving} @click=${loadAiStatus}>Retry</button></div>` : nothing}
+        <div class="settings-row-title">AI 服务</div>
+        <div class="settings-row-note">使用组织提供的服务或个人订阅。</div>
+        ${aiError ? html`<div class="settings-row-error" role="alert">${aiError} <button class="settings-theme-link" ?disabled=${aiSaving} @click=${loadAiStatus}>重试</button></div>` : nothing}
       </div>
       <div class="settings-ai-controls">
-        <div class="settings-choice" role="group" aria-label="AI access">
+        <div class="settings-choice" role="group" aria-label="AI 服务">
           ${(
             [
-              ["company", "Company"],
+              ["company", "组织"],
               ["anthropic", "Claude"],
               ["openai", "ChatGPT / Codex"],
             ] as const
@@ -367,7 +367,7 @@ function aiAccountsRow(): TemplateResult {
             `,
           )}
         </div>
-        ${aiStatus?.account === "anthropic" || aiStatus?.account === "openai" ? html`<button class="settings-theme-link" ?disabled=${aiBusy || aiSaving} @click=${() => openModelConnectManager(aiStatus!.account as "anthropic" | "openai")}>Connection settings</button>` : nothing}
+        ${aiStatus?.account === "anthropic" || aiStatus?.account === "openai" ? html`<button class="settings-theme-link" ?disabled=${aiBusy || aiSaving} @click=${() => openModelConnectManager(aiStatus!.account as "anthropic" | "openai")}>连接设置</button>` : nothing}
       </div>
     </div>
   `;
@@ -377,11 +377,11 @@ function adminRow(): TemplateResult {
   return html`
     <div class="settings-row">
       <div class="settings-row-copy">
-        <div class="settings-row-title">Admin</div>
-        <div class="settings-row-note">Org settings, people, and policy.</div>
+        <div class="settings-row-title">管理后台</div>
+        <div class="settings-row-note">组织设置、成员和策略。</div>
       </div>
       <a class="btn settings-row-action" href=${ADMIN_HOME_URL}>
-        ${icon(ShieldUser, 15)}<span>Open admin</span>${icon(ExternalLink, 14)}
+        ${icon(ShieldUser, 15)}<span>打开管理后台</span>${icon(ExternalLink, 14)}
       </a>
     </div>
   `;
@@ -391,13 +391,11 @@ function aboutRow(): TemplateResult {
   return html`
     <div class="settings-row">
       <div class="settings-row-copy">
-        <div class="settings-row-title">Learn more about QM</div>
-        <div class="settings-row-note">
-          Why Y Combinator built this open-source agent harness, and how to run your own.
-        </div>
+        <div class="settings-row-title">了解 QM</div>
+        <div class="settings-row-note">了解 Y Combinator 为什么创建此开源智能体框架，以及如何自行部署。</div>
       </div>
       <a class="btn settings-row-action" href=${QM_ABOUT_URL} target="_blank" rel="noreferrer noopener">
-        ${icon(BookOpen, 15)}<span>Read the announcement</span>${icon(ExternalLink, 14)}
+        ${icon(BookOpen, 15)}<span>阅读发布说明</span>${icon(ExternalLink, 14)}
       </a>
     </div>
   `;
@@ -408,13 +406,13 @@ function accountRow(): TemplateResult {
   return html`
     <div class="settings-row">
       <div class="settings-row-copy">
-        <div class="settings-row-title">Account</div>
+        <div class="settings-row-title">账户</div>
         <div class="settings-row-note">
-          ${me?.displayName?.trim() || me?.user || "Not signed in"}${me?.org ? ` · ${me.org}` : ""}
+          ${me?.displayName?.trim() || me?.user || "未登录"}${me?.org ? ` · ${me.org}` : ""}
         </div>
       </div>
       <button class="btn settings-row-action" type="button" @click=${() => void signOut()}>
-        ${icon(LogOut, 15)}<span>Sign out</span>
+        ${icon(LogOut, 15)}<span>退出登录</span>
       </button>
     </div>
   `;
@@ -423,7 +421,7 @@ function accountRow(): TemplateResult {
 function settingsPane(): TemplateResult {
   return html`
     <div class="list-page-head">
-      <h1 class="pane-title">Settings</h1>
+      <h1 class="pane-title">设置</h1>
     </div>
     <div class="settings-group">
       ${aiAccountsRow()} ${themeRow()} ${sidebarSurfaceRow()} ${can("admin") ? adminRow() : nothing} ${aboutRow()}

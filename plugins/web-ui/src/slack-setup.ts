@@ -48,16 +48,16 @@ class SlackSetup extends LitElement {
         redirect: "error",
       });
       this.forbidden = response.status === 401 || response.status === 403;
-      if (!response.ok) throw new Error("Status unavailable");
+      if (!response.ok) throw new Error("状态不可用");
       const data = await response.json();
-      if (!data.setup || data.setupUnavailable) throw new Error("Status unavailable");
+      if (!data.setup || data.setupUnavailable) throw new Error("状态不可用");
       const { tokenUrl, submitUrl, installUrl } = data.setup;
       if (
         tokenUrl !== "https://api.slack.com/apps" ||
         submitUrl !== `${location.origin}/admin?slack=setup` ||
         installUrl !== `${location.origin}/admin?slack=install`
       )
-        throw new Error("Invalid setup links");
+        throw new Error("设置链接无效");
       this.links = { tokenUrl, submitUrl, installUrl };
       this.appReady = data.setup.appReady === true;
       this.connected = data.configured === true && data.setup.connected === true;
@@ -81,57 +81,53 @@ class SlackSetup extends LitElement {
   }
 
   protected render() {
-    if (this.forbidden) return html`<p>Only a QM administrator can set up the Slack bot.</p>`;
+    if (this.forbidden) return html`<p>只有 QM 管理员可以设置 Slack 机器人。</p>`;
     if (this.connected)
       return html`<div class="connector-widget connected" role="status">
         <span class="connector-widget-text"
-          ><strong>Connected to Slack</strong><small>The bot is installed. You can return to onboarding.</small></span
+          ><strong>已连接 Slack</strong><small>机器人已安装，你可以返回入门引导。</small></span
         >
       </div>`;
     if (!this.links)
       return html`<p role="status">
-        ${this.unavailable ? "Slack setup status is unavailable." : "Checking Slack setup…"}
-        <button type="button" @click=${() => void this.refresh()}>Retry</button>
+        ${this.unavailable ? "暂时无法获取 Slack 设置状态。" : "正在检查 Slack 设置…"}
+        <button type="button" @click=${() => void this.refresh()}>重试</button>
       </p>`;
-    let progress = this.appReady ? "Waiting for Slack approval." : "Waiting for token submission.";
-    if (this.unavailable) progress = "Could not check progress. Your setup has not been reset.";
-    return html`<section class="slack-setup-checklist" aria-label="Add QM to Slack">
-      <strong>Add QM to Slack</strong>
+    let progress = this.appReady ? "等待 Slack 授权。" : "等待提交令牌。";
+    if (this.unavailable) progress = "无法检查进度，设置仍已保留。";
+    return html`<section class="slack-setup-checklist" aria-label="将 QM 添加到 Slack">
+      <strong>将 QM 添加到 Slack</strong>
       <ol>
         <li>
-          <a href=${this.links.tokenUrl} target="_blank" rel="noreferrer">Create token</a><br /><small
-            >Under App Configuration Tokens, choose Generate Token, select your workspace, and copy the access token
-            (not the refresh token).</small
+          <a href=${this.links.tokenUrl} target="_blank" rel="noreferrer">创建令牌</a><br /><small
+            >在 App Configuration Tokens 中选择 Generate Token，选定工作区，然后复制访问令牌（不是刷新令牌）。</small
           >
           <details>
-            <summary>Show me how</summary>
+            <summary>查看操作方法</summary>
             <img
               src=${new URL("../../../docs/images/slack-app-config-token-setup.gif", import.meta.url).href}
-              alt="Generate a Slack app configuration token and copy its access token"
+              alt="生成 Slack 应用配置令牌，并复制其中的访问令牌"
               loading="lazy"
             />
           </details>
         </li>
         <li>
-          <a href=${this.links.submitUrl} target="_blank" rel="noopener">Submit token securely</a><br /><small
-            >${this.appReady ? "App created. No more token copying needed." : "Paste it only in the secure form, never in this conversation. QM uses it to create its app, then discards it."}</small
+          <a href=${this.links.submitUrl} target="_blank" rel="noopener">安全提交令牌</a><br /><small
+            >${this.appReady ? "应用已创建，无需再复制令牌。" : "请仅在安全表单中粘贴，不要发送到对话中。QM 用它创建应用后便会丢弃。"}</small
           >
         </li>
         <li>
           <a class="connector-widget" href=${this.links.installUrl} target="_blank" rel="noopener"
             ><span class="connector-widget-text"
-              ><strong>Add to Slack</strong
+              ><strong>添加到 Slack</strong
               ><small
-                >${this.appReady ? "Review the workspace and choose Allow." : "Submit the token first, then choose Allow in Slack."}</small
+                >${this.appReady ? "核对工作区，然后选择“允许”。" : "先提交令牌，再在 Slack 中选择“允许”。"}</small
               ></span
             ></a
           >
         </li>
       </ol>
-      <small
-        >This token can manage other apps you own in the selected workspace. Your company owns the app QM
-        creates.</small
-      >
+      <small>此令牌可管理你在所选工作区拥有的其他应用。QM 创建的应用归你的公司所有。</small>
       <p role="status">${progress}</p>
       <button
         type="button"
@@ -140,9 +136,9 @@ class SlackSetup extends LitElement {
           void this.refresh();
         }}
       >
-        Check progress
+        检查进度
       </button>
-      ${this.unavailable ? html`<small> You can retry the existing links.</small>` : nothing}
+      ${this.unavailable ? html`<small> 可以使用现有链接重试。</small>` : nothing}
     </section>`;
   }
 }

@@ -34,7 +34,7 @@ test("a recalled app picker owns its return even when welcome and Slack widgets 
     assert.equal(sessionStorage.getItem("qm-connection-return:test:tester"), null);
     assert.equal((apps.querySelector('input[type="search"]') as HTMLInputElement)?.value, "mail");
     assert.equal((welcome.querySelector('input[type="search"]') as HTMLInputElement)?.value, "");
-    assert.match(apps.textContent ?? "", /Gmail connected/);
+    assert.match(apps.textContent ?? "", /Gmail 已连接/);
   } finally {
     await h.close();
   }

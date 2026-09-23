@@ -81,7 +81,9 @@ document.addEventListener(
   "touchstart",
   (e) => {
     if (!isPhone() || e.touches.length !== 1) return;
-    const el = (e.target as Element | null)?.closest<HTMLElement>(".menu-popover, .session-menu-popover") ?? null;
+    const el =
+      (e.target as Element | null)?.closest<HTMLElement>(".menu-popover, .session-menu-popover, .composer-add-sheet") ??
+      null;
     if (!el || el.scrollTop > 0) return;
     sheetSwipe = { y: e.touches[0]!.clientY, el };
   },

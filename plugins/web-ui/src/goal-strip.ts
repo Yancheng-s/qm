@@ -60,9 +60,9 @@ export function goalFloorLabel(floor: Record<string, unknown> | null): string | 
   const ms = num(floor.minMs);
   if (ms !== null) parts.push(goalElapsedLabel(0, ms));
   const turns = num(floor.minTurns);
-  if (turns !== null) parts.push(`${turns} turns`);
+  if (turns !== null) parts.push(`${turns} 轮`);
   const tokens = num(floor.minTokens);
-  if (tokens !== null) parts.push(`${tokens.toLocaleString()} tokens`);
+  if (tokens !== null) parts.push(`${tokens.toLocaleString("zh-CN")} token`);
   const usd = num(floor.minUsd);
   if (usd !== null) parts.push(`$${usd}`);
   return parts.length ? parts.join(", ") : null;
@@ -70,11 +70,11 @@ export function goalFloorLabel(floor: Record<string, unknown> | null): string | 
 
 export function goalElapsedLabel(startedAt: number, now: number): string {
   const s = Math.max(0, Math.round((now - startedAt) / 1000));
-  if (s < 60) return `${s}s`;
+  if (s < 60) return `${s}秒`;
   const m = Math.floor(s / 60);
-  if (m < 60) return s % 60 ? `${m}m ${s % 60}s` : `${m}m`;
+  if (m < 60) return s % 60 ? `${m}分钟 ${s % 60}秒` : `${m}分钟`;
   const h = Math.floor(m / 60);
-  return m % 60 ? `${h}h ${m % 60}m` : `${h}h`;
+  return m % 60 ? `${h}小时 ${m % 60}分钟` : `${h}小时`;
 }
 
 export function goalObjectiveLabel(objective: string, max = 120): string {

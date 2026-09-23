@@ -1,3 +1,4 @@
+import { loadPiWebUi } from "./component-language";
 import { loadMessageTranscript, messageLinkSeq } from "./message-link.ts";
 import { initializeBrowserErrors, stopBrowserErrors } from "./browser-errors";
 import { initializeAnalytics, capturePageview, stopAnalytics } from "./product-analytics";
@@ -17,7 +18,6 @@ import {
   KeyRound,
   LayoutGrid,
   LogOut,
-  Menu,
   MessageSquare,
   PanelLeft,
   Plus,
@@ -44,7 +44,7 @@ import {
 import { seedRuntimeConfig } from "./runtime-config-store";
 import { errMessage, swallow } from "../../chassis/src/errors";
 import { brandMark, brandName, icon } from "./ui";
-import { PHONE_MAX_WIDTH, trackVisualViewport } from "./viewport";
+import { trackVisualViewport } from "./viewport";
 import { markConnectorConnected } from "./chat";
 import { clearSkillsCache, resyncModelSelection } from "./composer";
 import { allConversations, ensureDeliveryStream, mainConversation, onExitCanvas } from "./conversations";
@@ -68,7 +68,6 @@ import { activityOf } from "./session-list";
 import { replaceChildrenPreservingFocus } from "./pane-focus";
 import {
   openSession,
-  closeOpenSessionMenu,
   refreshSessions,
   renderChatsPage,
   renderList,
@@ -104,7 +103,6 @@ import { openSkillById, renderSkills, resetActiveSkill, routeSkillsHistory } fro
 import { applyTheme, renderSettings, watchSystemTheme } from "./settings";
 import { contextsState, ensureContexts, renderContexts, resetContextsState, resolveProjectScope } from "./contexts";
 import { appState, can, canView, isView, type AuthMode, type Me, type View } from "./shell-state";
-import { trapDialogFocus } from "./dialog-focus";
 import { activeSessionForDocumentTitle, updateDocumentTitle } from "./document-title";
 export { appState, can, type Me, type View } from "./shell-state";
 
@@ -154,17 +152,31 @@ export function syncUrlFromState(sessionOverride?: string | null): void {
     sessionOverride !== undefined ? sessionOverride : (chatState.sessionId ?? chatState.rememberedSessionId);
   const sessionId = splitState.active ? singlePaneSessionId() : fromState;
   let next = deepLinkPath(UI_BASE, appState.currentView, sessionId, contextsState.selected);
+  const threadPrefix = `web:${appState.me?.user}:`;
+  if (
+    appState.currentView === "chats" &&
+    !splitState.active &&
+    !sessionId &&
+    chatState.scopeId?.startsWith("group:") &&
+    chatState.threadRef?.startsWith(threadPrefix)
+  ) {
+    const params = new URLSearchParams({
+      scopeId: chatState.scopeId,
+      conversationId: chatState.threadRef.slice(threadPrefix.length),
+    });
+    next += `?${params}`;
+  }
   const linked = parseDeepLink(UI_BASE, location.pathname, location.search);
   const seq = messageLinkSeq(location.search);
-  if (appState.currentView === "chats" && linked.session === sessionId && seq !== null) next += `?seq=${seq}`;
+  if (appState.currentView === "chats" && sessionId && linked.session === sessionId && seq !== null)
+    next += `?seq=${seq}`;
   if (`${location.pathname}${location.search}` !== next) history.replaceState(null, "", next);
 }
 
 const appEl = document.getElementById("app");
 if (!appEl) throw new Error("missing #app");
 
-const narrowViewport = window.matchMedia(`(max-width: ${PHONE_MAX_WIDTH}px)`);
-let sidebarOpen = !narrowViewport.matches;
+let sidebarOpen = true;
 trackVisualViewport();
 
 const SIDEBAR_MIN_W = 200;
@@ -284,9 +296,9 @@ function impersonationBanner(by: string) {
   return html`
     <div class="impersonation-banner" role="status">
       <span class="impersonation-banner-text"
-        >Viewing the assistant as <b>${appState.me?.user ?? ""}</b>. You are <b>${by}</b></span
+        >正在以此身份查看助手： <b>${appState.me?.user ?? ""}</b>。你的身份是 <b>${by}</b></span
       >
-      <button class="impersonation-banner-exit" type="button" @click=${exitImpersonation}>Exit impersonation</button>
+      <button class="impersonation-banner-exit" type="button" @click=${exitImpersonation}>退出身份模拟</button>
     </div>
   `;
 }
@@ -294,8 +306,8 @@ function impersonationBanner(by: string) {
 function devBanner(user: string) {
   return html`
     <div class="top-banner dev" role="status">
-      <span><b>Dev mode</b> — no identity provider, signed in as ${user}</span>
-      <button class="top-banner-action" type="button" @click=${signOut}>Sign out</button>
+      <span><b>开发模式</b> — 未配置身份提供方，当前登录身份：${user}</span>
+      <button class="top-banner-action" type="button" @click=${signOut}>退出登录</button>
     </div>
   `;
 }
@@ -306,7 +318,7 @@ function gateShell(body: unknown) {
       <div class="signin-panel">
         <div class="signin-brand">
           ${brandMark()}<span>${brandName()}</span>
-          ${authMode === "dev" ? html`<span class="dev-chip">DEV</span>` : nothing}
+          ${authMode === "dev" ? html`<span class="dev-chip">开发</span>` : nothing}
         </div>
         ${body}
       </div>
@@ -347,34 +359,23 @@ function clearPortalAttempt(): void {
 function portalGate() {
   if (portalAttemptedRecently())
     return gateShell(html`
-      <h1>Sign in through the portal</h1>
-      <p class="signin-body">
-        This surface is reached through the portal, and signing in there didn't produce a session for it. Open the
-        portal address directly rather than this one.
-      </p>
-      <div class="hint">
-        If you opened this surface's own address, that's the cause — it can't authenticate anyone on its own.
-      </div>
+      <h1>通过门户登录</h1>
+      <p class="signin-body">此页面通过门户访问，但门户登录尚未为它创建会话。请直接打开门户地址。</p>
+      <div class="hint">如果你打开的是此服务自身的地址，就会出现此问题：该服务无法独立完成身份验证。</div>
     `);
   return gateShell(html`
-    <h1>Your session ended</h1>
-    <p class="signin-body">You've been signed out. Sign in again and you'll come back to this page.</p>
-    <button class="btn primary" type="button" @click=${signInWithPortal}>Sign in</button>
+    <h1>登录会话已结束</h1>
+    <p class="signin-body">你已退出登录。重新登录后将返回此页面。</p>
+    <button class="btn primary" type="button" @click=${signInWithPortal}>登录</button>
   `);
 }
 
 function deniedGate() {
   return gateShell(html`
-    <h1>You don't have access</h1>
-    <p class="signin-body">
-      Your account is signed in and verified — it just isn't allowed on this instance. Ask an administrator to add you.
-    </p>
-    <button class="btn" type="button" @click=${signOut}>Sign out</button>
-    ${
-      authMode === "dev"
-        ? html`<div class="hint">This instance lists its principals in <b>WEB_UI_PRINCIPALS</b>.</div>`
-        : nothing
-    }
+    <h1>你没有访问权限</h1>
+    <p class="signin-body">你的账户已登录并通过验证，但尚未获准访问此实例，请联系管理员添加权限。</p>
+    <button class="btn" type="button" @click=${signOut}>退出登录</button>
+    ${authMode === "dev" ? html`<div class="hint">此实例的允许访问账户配置在 <b>WEB_UI_PRINCIPALS</b>.</div>` : nothing}
   `);
 }
 
@@ -384,10 +385,10 @@ function retryBoot(): void {
 
 function unreachableGate() {
   return gateShell(html`
-    <h1>We couldn't reach the assistant</h1>
-    <p class="signin-body">The service didn't respond. This is usually temporary.</p>
-    <button class="btn primary" type="button" @click=${retryBoot}>Try again</button>
-    <div class="hint">If this keeps happening, the core service may be down.</div>
+    <h1>无法连接助手</h1>
+    <p class="signin-body">服务未响应，通常是暂时性问题。</p>
+    <button class="btn primary" type="button" @click=${retryBoot}>重试</button>
+    <div class="hint">如果问题持续出现，核心服务可能已停止运行。</div>
   `);
 }
 
@@ -396,7 +397,7 @@ async function submitDevSignin(user: string): Promise<void> {
   try {
     await api("/signin", { method: "POST", body: JSON.stringify({ user }) });
   } catch (err) {
-    renderAuthGate({ kind: "dev", value: user, error: errMessage(err, "Sign-in failed.") });
+    renderAuthGate({ kind: "dev", value: user, error: errMessage(err, "登录失败。") });
     return;
   }
   await bootSafely();
@@ -413,12 +414,12 @@ function devGate(gate: { value?: string; error?: string; pending?: boolean }) {
         if (user) void submitDevSignin(user);
       }}
     >
-      <h1>Dev sign-in</h1>
+      <h1>开发登录</h1>
       <p class="signin-body">
-        No identity provider is configured, so this instance trusts a local cookie. Set
-        <b>CORE_SIGNING_SECRET</b> and run the portal to use real sign-in.
+        当前未配置身份提供方，因此此实例信任本地 Cookie。设置
+        <b>CORE_SIGNING_SECRET</b> 并启动门户即可使用正式登录。
       </p>
-      <label for="dev-principal">Principal</label>
+      <label for="dev-principal">账户标识</label>
       <input
         id="dev-principal"
         name="principal"
@@ -433,7 +434,7 @@ function devGate(gate: { value?: string; error?: string; pending?: boolean }) {
         ?disabled=${gate.pending === true}
       />
       <button class="btn primary" type="submit" ?disabled=${gate.pending === true}>
-        ${gate.pending ? "Signing in…" : "Continue"}
+        ${gate.pending ? "正在登录…" : "继续"}
       </button>
       ${gate.error ? html`<div class="hint error" role="alert">${gate.error}</div>` : nothing}
     </form>
@@ -480,12 +481,7 @@ export function mountShell(): void {
     html`
       ${banner}
       <div class="layout ${sidebarOpen ? "" : "sidebar-closed"} ${banner !== nothing ? "bannered" : ""}">
-        <aside
-          class="sidebar"
-          aria-label="Navigation"
-          data-tip-placement=${sidebarOpen ? "top" : "right"}
-          @keydown=${onSidebarKeydown}
-        >
+        <aside class="sidebar" role="navigation" aria-label="导航" data-tip-placement=${sidebarOpen ? "top" : "right"}>
           <div class="brand">
             <div class="brand-lockup">${brandMark()}<span class="brand-name">${brandName()}</span></div>
             <button
@@ -502,25 +498,16 @@ export function mountShell(): void {
           <div class="list" id="sidebar-body"></div>
           <div class="sidebar-footer" id="sidebar-footer"></div>
         </aside>
-        <button class="sidebar-scrim" type="button" aria-label="Close sidebar" @click=${toggleSidebar}></button>
         <div
           class="sidebar-resize-handle"
           role="separator"
           aria-orientation="vertical"
-          aria-label="Resize sidebar"
+          aria-label="调整侧边栏宽度"
           @pointerdown=${startSidebarResize}
           @dblclick=${resetSidebarWidth}
         ></div>
-        <button
-          class="icon-btn sidebar-toggle mobile-menu-btn"
-          type="button"
-          aria-label=${sidebarToggleLabel()}
-          @click=${toggleSidebar}
-        >
-          ${icon(Menu, 20)}
-        </button>
         <section class="main" id="main" tabindex="-1">
-          <div class="empty">Pick a conversation, or start a new chat.</div>
+          <div class="empty">选择一个对话，或开始新对话。</div>
         </section>
       </div>
     `,
@@ -533,7 +520,6 @@ export function mountShell(): void {
   renderSidebarFooter();
   renderSidebarTop();
   updateSidebarToggleLabels();
-  syncSidebarAccessibility(false);
 }
 
 function inboxNavRow(): TemplateResult {
@@ -550,7 +536,7 @@ function inboxNavRow(): TemplateResult {
     }}
     @dragend=${() => endPaneDrag()}
   >
-    ${icon(ICON.inbox, 17)}<span>Inbox</span>${count > 0 ? html`<span class="nav-badge" aria-label=${`${count} waiting on you`}>${count > 99 ? "99+" : count}</span>` : nothing}
+    ${icon(ICON.inbox, 17)}<span>收件箱</span>${count > 0 ? html`<span class="nav-badge" aria-label=${`${count} 项等待你处理`}>${count > 99 ? "99+" : count}</span>` : nothing}
   </a>`;
 }
 
@@ -572,7 +558,7 @@ export function renderSidebarFooter(): void {
           userMenuOpen
             ? html`<div class="session-menu-popover user-menu-popover" role="menu">
                 <button class="session-menu-option" type="button" role="menuitem" @click=${signOutFromMenu}>
-                  ${icon(LogOut, 15)}<span>Sign out</span>
+                  ${icon(LogOut, 15)}<span>退出登录</span>
                 </button>
               </div>`
             : nothing
@@ -580,12 +566,12 @@ export function renderSidebarFooter(): void {
       </div>
       ${
         can("admin")
-          ? html`<a class="icon-btn subtle" href=${ADMIN_HOME_URL} aria-label="Admin" ${tip("Admin")}>
+          ? html`<a class="icon-btn subtle" href=${ADMIN_HOME_URL} aria-label="管理后台" ${tip("管理后台")}>
               ${icon(ShieldUser, 17)}
             </a>`
           : nothing
       }
-      <button class="icon-btn subtle" aria-label="Settings" ${tip("Settings")} @click=${() => switchView("settings")}>
+      <button class="icon-btn subtle" aria-label="设置" ${tip("设置")} @click=${() => switchView("settings")}>
         ${icon(Settings, 17)}
       </button>
     `,
@@ -608,29 +594,20 @@ export function renderSidebarTop(): void {
       ${icon(glyph, 17)}<span>${label}</span>
     </a>`;
   const actionRow = (glyph: IconNode, label: string, run: () => void) =>
-    html`<button
-      class="navrow"
-      type="button"
-      aria-label=${label}
-      ${tip(sidebarOpen ? "" : label)}
-      @click=${() => {
-        closeSidebarOnNarrowView();
-        run();
-      }}
-    >
+    html`<button class="navrow" type="button" aria-label=${label} ${tip(sidebarOpen ? "" : label)} @click=${run}>
       ${icon(glyph, 17)}<span>${label}</span>
     </button>`;
-  const newChatLabel = splitState.active ? "New session" : "Create New Chat";
+  const newChatLabel = splitState.active ? "新会话" : "新建对话";
   render(
     html`
       <nav class="nav quick-nav" @click=${onNavClick}>
-        ${navRow("chats", ICON.home, "Home")}
-        ${can("inbox") ? html`${inboxNavRow()} ${navRow("calendar", ICON.calendar, "Calendar")}` : nothing}
-        ${actionRow(Search, "Search", () => {
+        ${navRow("chats", ICON.home, "首页")}
+        ${can("inbox") ? html`${inboxNavRow()} ${navRow("calendar", ICON.calendar, "日历")}` : nothing}
+        ${actionRow(Search, "搜索", () => {
           hideTooltip();
           openChatSearch();
         })}
-        ${actionRow(ICON.browse, "Browse", () => {
+        ${actionRow(ICON.browse, "浏览", () => {
           hideTooltip();
           openBrowse();
         })}
@@ -676,12 +653,10 @@ function onNavClick(e: Event): void {
   e.preventDefault();
   setScopedSession(null);
   switchView(view);
-  closeSidebarOnNarrowView();
 }
 
 export function switchView(v: View): void {
   if (!canView(v)) v = "chats";
-  closeSidebarOnNarrowView();
   if (appState.currentView === v) {
     refreshActiveView(v);
     return;
@@ -826,16 +801,12 @@ function showConversationError(unavailable: boolean): void {
   render(
     html`
       <section class="conversation-error" aria-labelledby="conversation-error-title">
-        <span class="conversation-error-code">${unavailable ? "Connection problem" : "404"}</span>
-        <h1 id="conversation-error-title" tabindex="-1">
-          ${unavailable ? "Couldn't load conversation" : "Conversation not found"}
-        </h1>
-        <p>
-          ${unavailable ? "Something went wrong loading this conversation. Please try again." : "This conversation may have been deleted, or you may be signed into an account that doesn’t have access."}
-        </p>
+        <span class="conversation-error-code">${unavailable ? "连接异常" : "404"}</span>
+        <h1 id="conversation-error-title" tabindex="-1">${unavailable ? "无法加载对话" : "找不到对话"}</h1>
+        <p>${unavailable ? "加载对话时出错，请重试。" : "对话可能已删除，或当前登录账户没有访问权限。"}</p>
         <div class="conversation-error-actions">
-          <a class="btn" href=${withBase("/")}>Back to chats</a>
-          ${unavailable ? html`<button class="btn" @click=${() => location.reload()}>Try again</button>` : nothing}
+          <a class="btn" href=${withBase("/")}>返回对话列表</a>
+          ${unavailable ? html`<button class="btn" @click=${() => location.reload()}>重试</button>` : nothing}
         </div>
       </section>
     `,
@@ -843,101 +814,23 @@ function showConversationError(unavailable: boolean): void {
   );
   appState.mainEl.querySelector<HTMLElement>("h1")?.focus();
   renderList();
-  document.title = `${unavailable ? "Couldn't load conversation" : "Conversation not found"} · ${brandName()}`;
+  document.title = `${unavailable ? "无法加载对话" : "找不到对话"} · ${brandName()}`;
 }
 
 function toggleSidebar(): void {
   setSidebarOpen(!sidebarOpen);
 }
 
-export function closeSidebarOnNarrowView(): void {
-  if (!narrowViewport.matches || !sidebarOpen) return;
-  setSidebarOpen(false, false);
-  requestAnimationFrame(() => appState.mainEl?.focus({ preventScroll: true }));
-}
-
-const EDGE_PX = 28;
-const SWIPE_PX = 56;
-let swipe: { x: number; y: number; fromEdge: boolean; onDrawer: boolean } | null = null;
-appEl.addEventListener(
-  "touchstart",
-  (e) => {
-    if (!narrowViewport.matches || e.touches.length !== 1) return;
-    const t = e.touches[0]!;
-    const target = e.target as Element | null;
-    const onDrawer = Boolean(target?.closest(".sidebar, .sidebar-scrim"));
-    const fromEdge = !sidebarOpen && t.clientX <= EDGE_PX;
-    if (!fromEdge && !(sidebarOpen && onDrawer)) return;
-    swipe = { x: t.clientX, y: t.clientY, fromEdge, onDrawer };
-  },
-  { passive: true },
-);
-appEl.addEventListener(
-  "touchend",
-  (e) => {
-    if (!swipe) return;
-    const t = e.changedTouches[0];
-    const s = swipe;
-    swipe = null;
-    if (!t) return;
-    const dx = t.clientX - s.x;
-    const dy = Math.abs(t.clientY - s.y);
-    if (Math.abs(dx) < SWIPE_PX || dy > Math.abs(dx) * 0.8) return;
-    if (s.fromEdge && dx > 0 && !sidebarOpen) setSidebarOpen(true);
-    else if (s.onDrawer && dx < 0 && sidebarOpen) setSidebarOpen(false, false);
-  },
-  { passive: true },
-);
-appEl.addEventListener("touchcancel", () => (swipe = null), { passive: true });
-
-narrowViewport.addEventListener("change", (event) => {
-  if (event.matches && sidebarOpen) setSidebarOpen(false, false);
-  else syncSidebarAccessibility(false);
-});
-
-function setSidebarOpen(open: boolean, moveFocus = true): void {
-  if (open && narrowViewport.matches) document.dispatchEvent(new CustomEvent("qm:close-overlays"));
+function setSidebarOpen(open: boolean): void {
   sidebarOpen = open;
   (appEl as HTMLElement).querySelector(".layout")?.classList.toggle("sidebar-closed", !sidebarOpen);
   (appEl as HTMLElement).querySelector(".sidebar")?.setAttribute("data-tip-placement", open ? "top" : "right");
   updateSidebarToggleLabels();
   renderSidebarTop();
-  syncSidebarAccessibility(moveFocus);
-}
-
-function syncSidebarAccessibility(moveFocus: boolean): void {
-  const root = appEl as HTMLElement;
-  const sidebar = root.querySelector<HTMLElement>(".sidebar");
-  const main = root.querySelector<HTMLElement>(".main");
-  const scrim = root.querySelector<HTMLButtonElement>(".sidebar-scrim");
-  const modal = narrowViewport.matches && sidebarOpen;
-  if (!sidebar || !main || !scrim) return;
-  main.inert = modal;
-  sidebar.setAttribute("role", modal ? "dialog" : "navigation");
-  if (modal) sidebar.setAttribute("aria-modal", "true");
-  else sidebar.removeAttribute("aria-modal");
-  scrim.hidden = !modal;
-  if (!moveFocus || !narrowViewport.matches) return;
-
-  const next = sidebarOpen
-    ? sidebar.querySelector<HTMLElement>(".sidebar-collapse-toggle")
-    : root.querySelector<HTMLElement>(".mobile-menu-btn");
-  requestAnimationFrame(() => next?.focus());
-}
-
-function onSidebarKeydown(event: KeyboardEvent): void {
-  if (!narrowViewport.matches || !sidebarOpen) return;
-  if (event.key === "Escape" && event.defaultPrevented) return;
-  if (event.key === "Escape" && closeOpenSessionMenu()) {
-    event.preventDefault();
-    event.stopPropagation();
-    return;
-  }
-  trapDialogFocus(event, () => setSidebarOpen(false));
 }
 
 function sidebarToggleLabel(): string {
-  return sidebarOpen ? "Hide sidebar" : "Show sidebar";
+  return sidebarOpen ? "收起侧边栏" : "展开侧边栏";
 }
 
 function updateSidebarToggleLabels(): void {
@@ -972,7 +865,7 @@ window.addEventListener("focus", () => {
 });
 
 function warmDeferredChunks(): void {
-  const warm = (): void => void import("@earendil-works/pi-web-ui").catch(() => {});
+  const warm = (): void => void loadPiWebUi().catch(() => {});
   const ric = (window as unknown as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback;
   if (ric) ric(warm);
   else setTimeout(warm, 1500);
@@ -981,7 +874,7 @@ function warmDeferredChunks(): void {
 function openAppEditChat(slug: string): void {
   const user = appState.me?.user ?? "anon";
   const threadRef = `web:${user}:app-edit:${slug}`;
-  if (storedDraft(threadRef) === `Update my deployed app "${slug}": `) saveDraft(threadRef, "");
+  if (storedDraft(threadRef) === `更新我已部署的应用“${slug}”：`) saveDraft(threadRef, "");
   const existing = sessionsState.list.find((s) => s.threadRef === threadRef);
   if (existing) {
     void openSession(existing);
@@ -1012,6 +905,9 @@ export async function boot(): Promise<void> {
   } = parseDeepLink(UI_BASE, location.pathname, location.search);
   document.body.classList.toggle("app-edit-embed", wanted === "app-edit" && params.get("embed") === "1");
   const chatsLink = wanted === null || wanted === "chats";
+  const projectEntry = chatsLink && params.has("scopeId");
+  const wantedScope = projectEntry ? params.get("scopeId")!.trim() : null;
+  const wantedConversation = projectEntry ? params.get("conversationId")?.trim() || null : null;
   const linkedId = wantedSession && chatsLink ? wantedSession : null;
   let transcriptUnavailable = false;
   const wantedSeq = messageLinkSeq(location.search);
@@ -1023,7 +919,7 @@ export async function boot(): Promise<void> {
   const entriesPrefetch = linkedId ? loadLinkedTranscript(linkedId) : null;
   const approvalsPrefetch = linkedId ? fetchSessionApprovals(linkedId) : null;
   const runtimeConfigFetch = fetchRuntimeConfig();
-  const remoteSplitFetch = fetchRemoteSplit();
+  const remoteSplitFetch = projectEntry ? null : fetchRemoteSplit();
 
   let r: Response;
   try {
@@ -1066,14 +962,25 @@ export async function boot(): Promise<void> {
   ensureDeliveryStream();
   warmDeferredChunks();
   void refreshInbox({ silent: true });
-  loadPersistedSplit();
-  await adoptRemoteSplit(remoteSplitFetch);
+  if (remoteSplitFetch) {
+    loadPersistedSplit();
+    await adoptRemoteSplit(remoteSplitFetch);
+  }
+  if (
+    projectEntry &&
+    (!wantedScope?.startsWith("group:") ||
+      !wantedScope.slice("group:".length).trim() ||
+      (wantedConversation !== null && !/^[A-Za-z0-9._-]{1,120}$/.test(wantedConversation)))
+  ) {
+    showMainEmpty("此对话链接缺少有效的项目或对话信息。");
+    return;
+  }
 
   const connectedProvider = params.get("status") === "connected" ? params.get("connector") : null;
   if (connectedProvider) markConnectorConnected(connectedProvider);
   const viewIntent = isView(wanted) && canView(wanted) && wanted !== "chats";
 
-  const bareEntry = !viewIntent && !wantedSession && wanted !== "app-edit" && !connectedProvider;
+  const bareEntry = !viewIntent && !wantedSession && !projectEntry && wanted !== "app-edit" && !connectedProvider;
   if (bareEntry && !restoredCanvasNeedsSessionList()) mountRestoredCanvas(true);
 
   const sessions = refreshSessions({ showLoading: true });
@@ -1082,6 +989,14 @@ export async function boot(): Promise<void> {
     const transcript = entriesPrefetch ?? loadLinkedTranscript(wantedSession);
     const linked = (await transcript)?.session;
     if (linked) {
+      if (
+        projectEntry &&
+        (linked.scopeId !== wantedScope ||
+          (wantedConversation && linked.threadRef !== `web:${appState.me.user}:${wantedConversation}`))
+      ) {
+        showConversationError(false);
+        return;
+      }
       exitSplitIfActive();
       if (!sessionsState.list.some((s) => s.id === linked.id)) sessionsState.list = [linked, ...sessionsState.list];
       revealSessionSurface(linked);
@@ -1095,7 +1010,12 @@ export async function boot(): Promise<void> {
     }
     await sessions;
     const match = sessionsState.list.find((s) => s.id === wantedSession);
-    if (match) {
+    if (
+      match &&
+      (!projectEntry ||
+        (match.scopeId === wantedScope &&
+          (!wantedConversation || match.threadRef === `web:${appState.me.user}:${wantedConversation}`)))
+    ) {
       exitSplitIfActive();
       revealSessionSurface(match);
       await openSession(match);
@@ -1105,7 +1025,33 @@ export async function boot(): Promise<void> {
     return;
   }
 
-  await sessions;
+  const sessionsLoaded = await sessions;
+
+  if (projectEntry && wantedScope) {
+    if (!sessionsLoaded) {
+      showConversationError(true);
+      return;
+    }
+    const threadRef = `web:${appState.me.user}:${wantedConversation ?? crypto.randomUUID()}`;
+    const existing = sessionsState.list.find((session) => session.threadRef === threadRef);
+    if (existing) {
+      if (existing.scopeId !== wantedScope) {
+        showConversationError(false);
+        return;
+      }
+      revealSessionSurface(existing);
+      await openSession(existing);
+      return;
+    }
+    const context = (await ensureContexts()).find((context) => context.scopeId === wantedScope);
+    if (!context) {
+      showMainEmpty("该项目不可用，请检查访问权限或重试。");
+      return;
+    }
+    mainConversation().mountContinuable(threadRef, null, wantedScope, [], context.project?.name ?? context.name);
+    renderList();
+    return;
+  }
 
   if (wanted === "app-edit") {
     const slug = (params.get("slug") ?? "").toLowerCase();
@@ -1113,7 +1059,7 @@ export async function boot(): Promise<void> {
       openAppEditChat(slug);
       return;
     }
-    showMainEmpty("This edit link is missing a valid app name.");
+    showMainEmpty("此编辑链接缺少有效的应用名称。");
     return;
   }
 

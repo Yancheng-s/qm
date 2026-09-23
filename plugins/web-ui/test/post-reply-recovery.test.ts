@@ -341,7 +341,7 @@ test("post replies remain visible in new and continuing conversations", async (t
       delivery.emit("delivery", { threadRef: row.threadRef });
       await settle();
       const inherited = JSON.stringify(conv!.state.inheritedMessages);
-      assert.match(inherited, /Current inherited text/);
+      assert.match(inherited, /当前版本 inherited text/);
       pending.release();
       await settle();
       assert.equal(JSON.stringify(conv!.state.inheritedMessages), inherited);

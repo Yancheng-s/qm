@@ -140,10 +140,10 @@ export interface InboxSyncCron {
 }
 
 const DEFAULT_VIEWS: InboxView[] = [
-  { id: "all", name: "All", sources: ["gmail", "slack"] },
-  { id: "gmail", name: "Email", sources: ["gmail"] },
+  { id: "all", name: "全部", sources: ["gmail", "slack"] },
+  { id: "gmail", name: "邮件", sources: ["gmail"] },
   { id: "slack", name: "Slack", sources: ["slack"] },
-  { id: "sent", name: "Sent", sources: [] },
+  { id: "sent", name: "已发送", sources: [] },
 ];
 
 function isInboxViewId(value: string | null): value is string {
@@ -198,7 +198,7 @@ export const inboxState = {
   syncBusy: false,
 };
 
-const DRAFT_SUGGESTIONS = ["Make it shorter", "Make it more friendly", "Remove the salutations"];
+const DRAFT_SUGGESTIONS = ["精简内容", "语气更友好", "移除称呼和落款"];
 const ASIDE_MIN_HEIGHT = 320;
 const ASIDE_MAX_HEIGHT = 1100;
 const CHAT_INPUT_MAX_HEIGHT = 200;
@@ -242,7 +242,7 @@ function showArchiveToast(item: InboxItem): void {
         @focusout=${() => queueMicrotask(schedule)}
       >
         ${icon(Archive, 16)}
-        <span>Dismissed from inbox</span>
+        <span>已从收件箱忽略</span>
         <button
           type="button"
           ?disabled=${busy}
@@ -260,11 +260,9 @@ function showArchiveToast(item: InboxItem): void {
             }
           }}
         >
-          ${busy ? "Undoing…" : "Undo"}
+          ${busy ? "正在撤销…" : "撤销"}
         </button>
-        <button class="icon-btn" type="button" aria-label="Dismiss notification" @click=${closeArchiveToast}>
-          ${icon(X, 14)}
-        </button>
+        <button class="icon-btn" type="button" aria-label="关闭通知" @click=${closeArchiveToast}>${icon(X, 14)}</button>
       </div>`,
       host,
     );
@@ -319,13 +317,13 @@ export function resetInboxState(): void {
 
 export function inboxViews(): InboxView[] {
   return [
-    { id: "all", name: "All", sources: ["gmail", "slack", "generic"] },
+    { id: "all", name: "全部", sources: ["gmail", "slack", "generic"] },
     ...inboxState.selected.map((loop) => ({ id: loop.id, name: loop.name, sources: [] as InboxSource[] })),
   ];
 }
 
 export function inboxViewName(viewId: string): string {
-  return inboxViews().find((v) => v.id === viewId)?.name ?? DEFAULT_VIEWS.find((v) => v.id === viewId)?.name ?? "All";
+  return inboxViews().find((v) => v.id === viewId)?.name ?? DEFAULT_VIEWS.find((v) => v.id === viewId)?.name ?? "全部";
 }
 
 export function itemsFor(viewId: string, status: "open" | "handled"): InboxItem[] {
@@ -376,10 +374,10 @@ export function toInboxItem(entry: LedgerItem): InboxItem {
     status: resolved,
     sentChat: payload.sentChat === true,
     ...(payload.sentChat === true ? { detailLoaded: true } : {}),
-    title: str(payload.title) ?? entry.summary ?? "Review item",
+    title: str(payload.title) ?? entry.summary ?? "审核事项",
     reviewState: entry.parkedReason
-      ? "Needs input"
-      : (({ held: "Needs review" } as Record<string, string>)[entry.state] ?? "Work in progress"),
+      ? "需要补充信息"
+      : (({ held: "待审核" } as Record<string, string>)[entry.state] ?? "处理中"),
     attention: entry.state === "held" || (entry.state === "failed" && Boolean(entry.parkedReason)),
     proposalData: entry.proposal?.data,
     from: str(payload.from) ?? "",
@@ -526,7 +524,7 @@ async function loadDetail(itemId: string, loopId: string): Promise<void> {
     drawAll();
   } catch (error) {
     inboxState.items = inboxState.items.filter((item) => item.id !== itemId);
-    notify(error instanceof Error ? error.message : "Could not load item");
+    notify(error instanceof Error ? error.message : "无法加载事项");
   }
 }
 
@@ -543,7 +541,7 @@ async function toggleSelection(id: string): Promise<void> {
     if (fullViewId === id) fullViewId = "all";
     await refreshInbox();
   } catch (error) {
-    notify(error instanceof Error ? error.message : "Could not update Inbox");
+    notify(error instanceof Error ? error.message : "无法更新收件箱");
   } finally {
     inboxState.selectionBusy = false;
     drawAll();
@@ -558,7 +556,7 @@ async function decideReview(
 ): Promise<void> {
   if (acting.has(item.id)) return;
   if (decision === "return" && !note.trim()) {
-    notify("Add a note describing what should change.");
+    notify("请添加说明，描述需要修改的内容。");
     return;
   }
   acting.add(item.id);
@@ -568,12 +566,12 @@ async function decideReview(
       `/api/loops/${encodeURIComponent(item.loopId)}/outputs/${encodeURIComponent(output.id)}/decide`,
       { method: "POST", body: JSON.stringify({ decision, note }) },
     );
-    const messages: Record<string, string> = { shipped: "Action completed", returned: "Changes requested" };
-    notify(messages[result.output.state] ?? "Awaiting confirmation. Check the Loop before retrying.");
+    const messages: Record<string, string> = { shipped: "操作已完成", returned: "已要求修改" };
+    notify(messages[result.output.state] ?? "等待确认中，请检查工作流状态后再重试。");
     await loadDetail(item.id, item.loopId);
     await refreshInbox({ silent: true });
   } catch (error) {
-    notify(error instanceof Error ? error.message : "Could not confirm action");
+    notify(error instanceof Error ? error.message : "无法确认操作");
   } finally {
     acting.delete(item.id);
     drawAll();
@@ -581,16 +579,16 @@ async function decideReview(
 }
 
 function reviewActionLabel(action: string): string {
-  const labels: Record<string, string> = { open_draft_pr: "Open draft PR", open_pr: "Open PR", send: "Send reply" };
-  return labels[action] ?? `Approve ${action.replaceAll("_", " ")}`;
+  const labels: Record<string, string> = { open_draft_pr: "打开草稿 PR", open_pr: "打开 PR", send: "发送回复" };
+  return labels[action] ?? `批准 ${action.replaceAll("_", " ")}`;
 }
 
 function reviewStateLabel(state: string): string {
   const labels: Record<string, string> = {
-    unconfirmed: "Awaiting confirmation",
-    shipping: "Action in progress",
-    returned: "Changes requested",
-    superseded: "Superseded",
+    unconfirmed: "等待确认",
+    shipping: "操作进行中",
+    returned: "已要求修改",
+    superseded: "已被替代",
   };
   return labels[state] ?? state;
 }
@@ -603,7 +601,7 @@ function usesOutputReview(item: InboxItem): boolean {
 }
 
 function reviewTpl(item: InboxItem): TemplateResult {
-  if (!item.detailLoaded) return html`<div class="empty compact">Loading review…</div>`;
+  if (!item.detailLoaded) return html`<div class="empty compact">正在加载审核内容…</div>`;
   const outputs = item.outputs ?? [];
   return html`<div class="inbox-generic-review">
     <div class="inbox-draft-head"><span>${inboxViewName(item.loopId)}</span><span>${item.reviewState}</span></div>
@@ -614,15 +612,15 @@ function reviewTpl(item: InboxItem): TemplateResult {
         html`<section class="loop-output">
           <h2>${output.title}</h2>
           <p>${output.summary ?? ""}</p>
-          ${output.decisionNote ? html`<p class="inbox-review-note">Requested changes: ${output.decisionNote}</p>` : nothing}
-          <span class="loop-output-action">Effect: ${output.shipAction.replaceAll("_", " ")}</span>
-          ${output.externalRef && /^https?:\/\//i.test(output.externalRef) ? html`<a href=${output.externalRef} target="_blank" rel="noopener noreferrer">Open artifact</a>` : nothing}
+          ${output.decisionNote ? html`<p class="inbox-review-note">修改要求：${output.decisionNote}</p>` : nothing}
+          <span class="loop-output-action">执行效果：${output.shipAction.replaceAll("_", " ")}</span>
+          ${output.externalRef && /^https?:\/\//i.test(output.externalRef) ? html`<a href=${output.externalRef} target="_blank" rel="noopener noreferrer">打开产物</a>` : nothing}
           ${
             output.state === "ready"
               ? html`<div class="loop-output-decide">
                   <input
-                    aria-label="Requested changes"
-                    placeholder="What should change?"
+                    aria-label="修改要求"
+                    placeholder="需要修改什么？"
                     .value=${chatDrafts.get(output.id) ?? ""}
                     @input=${(event: Event) => chatDrafts.set(output.id, (event.target as HTMLInputElement).value)}
                   />
@@ -631,7 +629,7 @@ function reviewTpl(item: InboxItem): TemplateResult {
                     ?disabled=${acting.has(item.id)}
                     @click=${() => void decideReview(item, output, "return", chatDrafts.get(output.id) ?? "")}
                   >
-                    Request changes
+                    要求修改
                   </button>
                   <button
                     class="btn primary"
@@ -718,7 +716,7 @@ async function continueSentReply(item: InboxItem): Promise<void> {
     replaceItem(await postAction(item, "reply"));
     drawAll();
   } catch (error) {
-    notify(`Couldn't start a reply: ${error instanceof Error ? error.message : error}`);
+    notify(`无法开始回复：${error instanceof Error ? error.message : error}`);
   }
 }
 
@@ -747,7 +745,7 @@ function draftSubject(item: InboxItem, draft: InboxDraft): string {
 function headerPeek(item: InboxItem, draft: InboxDraft): string {
   const to = (draft.to ?? []).join(", ");
   const subject = draftSubject(item, draft);
-  return [to, subject].filter(Boolean).join(" · ") || "Recipients and subject";
+  return [to, subject].filter(Boolean).join(" · ") || "收件人和主题";
 }
 
 function effectiveDraft(item: InboxItem): InboxDraft {
@@ -782,8 +780,8 @@ async function explainDraftConflict(item: InboxItem, edited: boolean): Promise<v
   const preview = (fresh?.draft?.body ?? "").trim().slice(0, 140);
   notify(
     edited
-      ? `The agent redrafted this reply while you were editing. Your text is kept in the box. New draft: "${preview}". Send again to use yours.`
-      : "The draft changed while you were looking. Review the new draft, then send again.",
+      ? `你编辑期间智能体已重新生成回复。输入框保留了你的内容。新草稿：“${preview}”。再次发送将使用你的版本。`
+      : "你查看期间草稿已发生变化，请审核新草稿后再发送。",
   );
 }
 
@@ -866,14 +864,14 @@ async function persistDraftNow(itemId: string): Promise<void> {
     replaceItem(next);
   } catch (e) {
     if (isDraftConflict(e)) return explainDraftConflict(item, true);
-    notify(`Couldn't save the draft: ${e instanceof Error ? e.message : e}`);
+    notify(`无法保存草稿：${e instanceof Error ? e.message : e}`);
   }
 }
 
 async function sendItem(item: InboxItem): Promise<void> {
   if (item.source === "generic" || !item.detailLoaded || sending.has(item.id)) return;
   if (!effectiveDraft(item).body.trim()) {
-    notify("Nothing to send. The draft is empty.");
+    notify("草稿为空，没有可发送的内容。");
     return;
   }
   sending.add(item.id);
@@ -892,7 +890,7 @@ async function sendItemNow(itemId: string): Promise<void> {
   const edited = draftEdits.get(item.id);
   const draft = effectiveDraft(item);
   if (!draft.body.trim()) {
-    notify("Nothing to send. The draft is empty.");
+    notify("草稿为空，没有可发送的内容。");
     return;
   }
   try {
@@ -903,12 +901,12 @@ async function sendItemNow(itemId: string): Promise<void> {
     });
     if (draftEdits.get(item.id) === edited) draftEdits.delete(item.id);
     replaceItem(next);
-    notify(item.source === "gmail" ? "Reply sent by email." : "Reply posted to Slack.");
+    notify(item.source === "gmail" ? "回复已通过邮件发送。" : "回复已发送到 Slack。");
   } catch (e) {
     if (isDraftConflict(e)) return explainDraftConflict(item, Boolean(edited));
     const hint =
-      e instanceof ApiError && e.status === 409 && /connect/i.test(e.message) ? ". Reconnect it under Keychain" : "";
-    notify(`Send failed: ${e instanceof Error ? e.message : e}${hint}`);
+      e instanceof ApiError && e.status === 409 && /connect/i.test(e.message) ? "。请在密钥库中重新连接" : "";
+    notify(`发送失败：${e instanceof Error ? e.message : e}${hint}`);
   }
 }
 
@@ -921,7 +919,7 @@ export async function setItemStatus(item: InboxItem, status: "open" | "dismissed
     if (status === "dismissed") showArchiveToast(item);
     return true;
   } catch (e) {
-    notify(`Couldn't update the item: ${e instanceof Error ? e.message : e}`);
+    notify(`无法更新事项：${e instanceof Error ? e.message : e}`);
     return false;
   } finally {
     acting.delete(item.id);
@@ -945,7 +943,7 @@ export async function askAgent(item: InboxItem, message: string): Promise<void> 
     draftEdits.delete(item.id);
     replaceItem(mapped);
   } catch (e) {
-    notify(`The agent couldn't answer: ${e instanceof Error ? e.message : e}`);
+    notify(`智能体无法回答：${e instanceof Error ? e.message : e}`);
     if (!chatDrafts.has(item.id)) chatDrafts.set(item.id, text);
   } finally {
     chatting.delete(item.id);
@@ -964,10 +962,10 @@ async function setUpSync(loopId?: string): Promise<void> {
     });
     inboxState.syncCron = out.syncCron;
     inboxState.loopId = out.loop?.id ?? inboxState.loopId;
-    notify("Sync is on. First pass runs within 15 minutes.");
+    notify("同步已开启，首次同步将在 15 分钟内执行。");
     await refreshInbox({ silent: true });
   } catch (e) {
-    notify(`Couldn't set up sync: ${e instanceof Error ? e.message : e}`);
+    notify(`无法设置同步：${e instanceof Error ? e.message : e}`);
   } finally {
     inboxState.syncBusy = false;
     drawAll();
@@ -982,9 +980,9 @@ async function syncNow(viewId: string): Promise<void> {
   try {
     for (const cron of crons)
       await api(`/api/crons/${encodeURIComponent(cron.id)}/run`, { method: "POST", body: "{}" });
-    notify("Sync kicked off. New items appear as the agent finishes drafting.");
+    notify("同步已开始，智能体完成草稿后会显示新事项。");
   } catch (e) {
-    notify(`Couldn't start a sync: ${e instanceof Error ? e.message : e}`);
+    notify(`无法开始同步：${e instanceof Error ? e.message : e}`);
   } finally {
     inboxState.syncBusy = false;
     drawAll();
@@ -1003,7 +1001,7 @@ function sourceGlyph(item: InboxItem): TemplateResult {
 }
 
 function fmtClock(ms: number): string {
-  return new Date(ms).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return new Date(ms).toLocaleString("zh-CN", { dateStyle: "medium", timeStyle: "short" });
 }
 
 interface Participant {
@@ -1043,7 +1041,7 @@ export function participantsTpl(item: InboxItem): TemplateResult | typeof nothin
   if (!people.length) return nothing;
   const shown = people.length > AVATARS_SHOWN ? people.slice(0, AVATARS_SHOWN - 1) : people;
   const rest = people.slice(shown.length);
-  return html`<span class="inbox-avatars" aria-label=${`In this conversation: ${people.map((p) => p.name).join(", ")}`}>
+  return html`<span class="inbox-avatars" aria-label=${`在此对话中：${people.map((p) => p.name).join(", ")}`}>
     ${shown.map(
       (p) =>
         html`<span class="inbox-avatar" style=${`--avatar-hue:${avatarHue(p.key)}`} ${tip(p.name)} aria-hidden="true"
@@ -1091,7 +1089,7 @@ function itemImagesTpl(item: InboxItem, urls: string[] | undefined, ctxIndex: nu
     ${urls.map((_u, j) => {
       const src = `${base}?ctx=${ctxIndex}&i=${j}`;
       return html`<a href=${src} target="_blank" rel="noreferrer noopener"
-        ><img class="inbox-image" src=${src} loading="lazy" alt="attached image"
+        ><img class="inbox-image" src=${src} loading="lazy" alt="附件图片"
       /></a>`;
     })}
   </div>`;
@@ -1127,8 +1125,8 @@ export function contextTpl(item: InboxItem): TemplateResult | typeof nothing {
 export function chatTpl(item: InboxItem): TemplateResult {
   const busy = chatting.has(item.id);
   let suggestions = DRAFT_SUGGESTIONS;
-  if (item.sentChat) suggestions = ["Summarize this email", "What should I follow up on?"];
-  else if (item.source === "generic") suggestions = ["Explain the proposal", "What needs my input?"];
+  if (item.sentChat) suggestions = ["总结这封邮件", "我需要跟进哪些事项？"];
+  else if (item.source === "generic") suggestions = ["解释这个方案", "哪些事情需要我处理？"];
   const pending = chatDrafts.get(item.id) ?? "";
   const submit = (el: HTMLTextAreaElement): void => {
     if (busy) return;
@@ -1143,7 +1141,7 @@ export function chatTpl(item: InboxItem): TemplateResult {
       ${
         empty
           ? html`<div class="inbox-chat-empty">
-              <h2 class="inbox-chat-cta">${item.sentChat ? "Ask about this email" : "What should I change?"}</h2>
+              <h2 class="inbox-chat-cta">${item.sentChat ? "询问这封邮件的内容" : "我该修改什么？"}</h2>
               <div class="inbox-chat-suggestions">
                 ${suggestions.map(
                   (prompt) =>
@@ -1167,12 +1165,12 @@ export function chatTpl(item: InboxItem): TemplateResult {
               )}
             </div>`
       }
-      ${busy ? html`<div class="inbox-chat-working">${workingWave()}<span>Thinking…</span></div>` : nothing}
+      ${busy ? html`<div class="inbox-chat-working">${workingWave()}<span>正在思考…</span></div>` : nothing}
       <div class="inbox-chat-composer ${pending.trim() ? "has-text" : ""}">
         <textarea
           class="inbox-chat-input"
           rows="1"
-          placeholder=${`Ask ${brandName()} for something`}
+          placeholder=${`向 ${brandName()} 提问`}
           .value=${pending}
           @input=${(e: Event) => {
             const box = e.currentTarget as HTMLTextAreaElement;
@@ -1197,17 +1195,17 @@ export function chatTpl(item: InboxItem): TemplateResult {
                       class="inbox-suggest-chip primary"
                       type="button"
                       ?disabled=${sending.has(item.id)}
-                      ${tip(item.source === "gmail" ? "Send the drafted reply in Gmail" : "Send the drafted reply to Slack")}
+                      ${tip(item.source === "gmail" ? "通过 Gmail 发送回复草稿" : "将回复草稿发送到 Slack")}
                       @click=${() => void sendItem(item)}
                     >
-                      ${icon(Send, 12)}<span>${sending.has(item.id) ? "Sending…" : "Send it"}</span>
+                      ${icon(Send, 12)}<span>${sending.has(item.id) ? "正在发送…" : "发送"}</span>
                     </button>
                     <button
                       class="inbox-suggest-chip"
                       type="button"
                       @click=${() => void setItemStatus(item, "dismissed")}
                     >
-                      ${icon(X, 12)}<span>Dismiss</span>
+                      ${icon(X, 12)}<span>关闭</span>
                     </button>
                   `
                 : nothing
@@ -1216,8 +1214,8 @@ export function chatTpl(item: InboxItem): TemplateResult {
           <button
             class="btn inbox-chat-send"
             type="button"
-            aria-label="Ask"
-            ${tip("Ask. Enter to send, Shift+Enter for a new line")}
+            aria-label="提问"
+            ${tip("输入问题。按 Enter 发送，Shift+Enter 换行")}
             ?disabled=${busy || !pending.trim()}
             @click=${(e: MouseEvent) => {
               const box = (e.currentTarget as HTMLElement)
@@ -1241,23 +1239,23 @@ export function draftEditorTpl(item: InboxItem, opts: { chat?: boolean } = {}): 
   return html`
     <div class="inbox-draft ${gmail ? "email" : "slack"}">
       <div class="inbox-draft-head">
-        <span class="inbox-draft-label">Draft reply</span>
+        <span class="inbox-draft-label">回复草稿</span>
         ${
           item.draftSessionId
             ? html`<a
                 class="inbox-session-link"
                 href=${deepLinkPath(UI_BASE, "chats", item.draftSessionId)}
-                title="See how the agent arrived at this draft"
+                title="查看智能体如何生成此草稿"
                 @click=${(e: MouseEvent) => openDraftSession(e, item.draftSessionId!)}
               >
-                ${icon(ArrowUpRight, 12)}<span>Open agent session</span>
+                ${icon(ArrowUpRight, 12)}<span>打开智能体会话</span>
               </a>`
             : nothing
         }
         ${
           item.externalUrl
             ? html`<a class="inbox-external-link" href=${item.externalUrl} target="_blank" rel="noreferrer noopener">
-                ${icon(ArrowUpRight, 12)}<span>Open in ${gmail ? "Gmail" : "Slack"}</span>
+                ${icon(ArrowUpRight, 12)}<span>在 ${gmail ? "Gmail" : "Slack"} 中打开</span>
               </a>`
             : nothing
         }
@@ -1269,7 +1267,7 @@ export function draftEditorTpl(item: InboxItem, opts: { chat?: boolean } = {}): 
                 <summary><span class="inbox-draft-headers-peek">${headerPeek(item, draft)}</span></summary>
                 <div class="inbox-draft-headers-fields">
                   <label class="inbox-field">
-                    <span>To</span>
+                    <span>收件人</span>
                     <input
                       type="text"
                       .value=${(draft.to ?? []).join(", ")}
@@ -1281,7 +1279,7 @@ export function draftEditorTpl(item: InboxItem, opts: { chat?: boolean } = {}): 
                   ${
                     showCc
                       ? html`<label class="inbox-field">
-                          <span>Cc</span>
+                          <span>抄送</span>
                           <input
                             type="text"
                             .value=${(draft.cc ?? []).join(", ")}
@@ -1292,7 +1290,7 @@ export function draftEditorTpl(item: InboxItem, opts: { chat?: boolean } = {}): 
                       : nothing
                   }
                   <label class="inbox-field">
-                    <span>Subject</span>
+                    <span>主题</span>
                     <input
                       type="text"
                       .value=${draftSubject(item, draft)}
@@ -1309,7 +1307,7 @@ export function draftEditorTpl(item: InboxItem, opts: { chat?: boolean } = {}): 
         <textarea
           class="inbox-draft-body"
           rows=${gmail ? 7 : 3}
-          placeholder=${item.draft ? "Write a reply…" : "No draft yet. The next sync writes one, or write your own."}
+          placeholder=${item.draft ? "撰写回复…" : "暂无草稿。下次同步将生成草稿，你也可以自行撰写。"}
           .value=${draft.body}
           @input=${(e: Event) => editDraft(item, { body: (e.currentTarget as HTMLTextAreaElement).value })}
           @blur=${() => void persistDraft(item)}
@@ -1332,42 +1330,41 @@ function reactionChipTpl(name: string): TemplateResult {
 }
 
 function handledStateLabel(item: InboxItem): string {
-  if (item.status === "sent") return "Sent";
-  if (item.status === "replied") return "Replied";
-  return "Dismissed";
+  if (item.status === "sent") return "已发送";
+  if (item.status === "replied") return "已回复";
+  return "已忽略";
 }
 
 function itemSideMark(item: InboxItem, handled: boolean): TemplateResult | typeof nothing {
   if (handled) return html`<span class="inbox-item-state">${handledStateLabel(item)}</span>`;
-  if (item.draft)
-    return html`<span class="inbox-item-drafted" title="A reply is drafted and ready">${icon(CheckCheck, 12)}</span>`;
+  if (item.draft) return html`<span class="inbox-item-drafted" title="回复草稿已就绪">${icon(CheckCheck, 12)}</span>`;
   return nothing;
 }
 
 function reopenButtonTpl(item: InboxItem): TemplateResult {
   return html`<button class="btn inbox-reopen" type="button" @click=${() => void setItemStatus(item, "open")}>
-    ${icon(Undo2, 13)}<span>Reopen</span>
+    ${icon(Undo2, 13)}<span>重新打开</span>
   </button>`;
 }
 
 export function handledNoteTpl(item: InboxItem): TemplateResult {
   if (item.status === "sent") {
     return html`<div class="inbox-handled-note">
-      ${icon(CheckCheck, 13)}<span>Reply sent ${item.sentAt ? relTime(item.sentAt) : ""}</span>
+      ${icon(CheckCheck, 13)}<span>回复已发送 ${item.sentAt ? relTime(item.sentAt) : ""}</span>
     </div>`;
   }
   if (item.status === "replied") {
     const where = item.source === "slack" ? "Slack" : "Gmail";
     return html`<div class="inbox-handled-note inbox-replied-note">
       <div class="inbox-handled-line">
-        ${icon(CheckCheck, 13)}<span>You replied in ${where} ${item.repliedAt ? relTime(item.repliedAt) : ""}</span>
+        ${icon(CheckCheck, 13)}<span>你已在 ${where} 回复 ${item.repliedAt ? relTime(item.repliedAt) : ""}</span>
         ${reopenButtonTpl(item)}
       </div>
       ${item.externalReplyText ? html`<div class="inbox-replied-text">${slackTextTpl(item, item.externalReplyText)}</div>` : nothing}
     </div>`;
   }
   return html`<div class="inbox-handled-note">
-    ${icon(X, 13)}<span>Dismissed ${item.dismissedAt ? relTime(item.dismissedAt) : ""}</span>
+    ${icon(X, 13)}<span>已忽略 ${item.dismissedAt ? relTime(item.dismissedAt) : ""}</span>
     ${reopenButtonTpl(item)}
   </div>`;
 }
@@ -1419,8 +1416,8 @@ function itemRowTpl(surface: InboxSurface, item: InboxItem): TemplateResult {
             ? html`<button
                 class="session-menu-btn inbox-item-dismiss"
                 type="button"
-                aria-label=${`Archive ${item.title || heading}`}
-                ${tip("Archive")}
+                aria-label=${`归档 ${item.title || heading}`}
+                ${tip("归档")}
                 ?disabled=${acting.has(item.id)}
                 @click=${() => void setItemStatus(item, "dismissed")}
               >
@@ -1441,8 +1438,8 @@ function itemRowTpl(surface: InboxSurface, item: InboxItem): TemplateResult {
 }
 
 function syncStatusLabel(cron: InboxSyncCron): string {
-  if (!cron.enabled) return "Sync paused";
-  return cron.lastFiredAt ? `Synced ${relTime(cron.lastFiredAt)}` : "First sync pending";
+  if (!cron.enabled) return "同步已暂停";
+  return cron.lastFiredAt ? `已同步 ${relTime(cron.lastFiredAt)}` : "等待首次同步";
 }
 
 function syncActionTpl(opts: {
@@ -1473,10 +1470,10 @@ function syncLineTpl(surface: InboxSurface): TemplateResult | typeof nothing {
   if (surface.viewId === "sent") {
     const busy = isSentMailLoading();
     return syncActionTpl({
-      label: "Refresh",
-      busyLabel: "Refreshing…",
+      label: "刷新",
+      busyLabel: "正在刷新…",
       busy,
-      tooltip: "Refresh sent mail",
+      tooltip: "刷新已发送邮件",
       action: () => void loadSentMail(drawAll),
     });
   }
@@ -1485,14 +1482,14 @@ function syncLineTpl(surface: InboxSurface): TemplateResult | typeof nothing {
   if (!crons.length) return nothing;
   return html`<span class="inbox-sync-line">
     ${syncActionTpl({
-      label: "Sync",
-      busyLabel: "Syncing…",
+      label: "同步",
+      busyLabel: "正在同步…",
       busy: inboxState.syncBusy,
-      tooltip: "Sync now",
+      tooltip: "立即同步",
       action: () => void syncNow(surface.viewId),
     })}
     <span class="inbox-sync-status"
-      >${crons.length === 1 ? syncStatusLabel(crons[0]!) : `${crons.filter((cron) => cron.enabled).length} syncs on`}</span
+      >${crons.length === 1 ? syncStatusLabel(crons[0]!) : `${crons.filter((cron) => cron.enabled).length} 同步已开启`}</span
     >
   </span>`;
 }
@@ -1509,7 +1506,7 @@ function surfaceTpl(surface: InboxSurface): TemplateResult {
       loop.source && !loop.cronId && !loop.ingestionActive && (surface.viewId === loop.id || surface.viewId === "all"),
   );
   const chips = html`
-    <div class="inbox-chips" role="tablist" aria-label="Inbox views">
+    <div class="inbox-chips" role="tablist" aria-label="收件箱视图">
       ${inboxViews().map((v) => {
         const count = inboxOpenCount(v.id);
         return html`<button
@@ -1531,7 +1528,7 @@ function surfaceTpl(surface: InboxSurface): TemplateResult {
         surface.viewId !== "all" && surface.viewId !== "sent"
           ? html`<button
               class="icon-btn subtle compact"
-              aria-label=${`Options for ${inboxViewName(surface.viewId)}`}
+              aria-label=${`${inboxViewName(surface.viewId)} 的选项`}
               @click=${() => {
                 inboxState.menuId = inboxState.menuId === surface.viewId ? null : surface.viewId;
                 drawAll();
@@ -1544,7 +1541,7 @@ function surfaceTpl(surface: InboxSurface): TemplateResult {
       <button
         class="inbox-chip inbox-add-loop"
         type="button"
-        aria-label="Add Loop"
+        aria-label="添加工作流"
         aria-expanded=${inboxState.picker}
         @click=${() => {
           inboxState.picker = !inboxState.picker;
@@ -1566,15 +1563,15 @@ function surfaceTpl(surface: InboxSurface): TemplateResult {
           drawAll();
         }}
       >
-        Sent
+        已发送
       </button>
     </div>
   `;
   const list = html`
-    ${!inboxState.loaded && inboxState.loading ? html`<div class="empty compact">Reading your inbox…</div>` : nothing}
+    ${!inboxState.loaded && inboxState.loading ? html`<div class="empty compact">正在读取收件箱…</div>` : nothing}
     ${
       inboxState.error && !inboxState.loaded
-        ? html`<div class="empty compact">Couldn't load the inbox: ${inboxState.error}</div>`
+        ? html`<div class="empty compact">无法加载收件箱：${inboxState.error}</div>`
         : nothing
     }
     ${
@@ -1582,8 +1579,8 @@ function surfaceTpl(surface: InboxSurface): TemplateResult {
         ? html`<div class="empty compact inbox-zero">
             ${
               surface.viewId === "sent"
-                ? "No sent messages yet. Sent Email and Slack replies will appear here."
-                : "Nothing is waiting on you in the selected Loops."
+                ? "暂无已发送消息。已发送的邮件和 Slack 回复将显示在这里。"
+                : "所选工作流中暂无需要你处理的事项。"
             }
           </div>`
         : nothing
@@ -1592,7 +1589,7 @@ function surfaceTpl(surface: InboxSurface): TemplateResult {
     ${
       resolvedItems.length
         ? html`<div class="inbox-resolved-sect">
-            <div class="inbox-resolved-head">Probably resolved · no reply likely needed</div>
+            <div class="inbox-resolved-head">可能已解决 · 通常无需回复</div>
             <div class="inbox-list inbox-resolved-list">${resolvedItems.map((i) => itemRowTpl(surface, i))}</div>
           </div>`
         : nothing
@@ -1610,37 +1607,37 @@ function surfaceTpl(surface: InboxSurface): TemplateResult {
               }}
             >
               ${icon(surface.showHandled ? ChevronDown : ChevronRight, 13)}
-              <span>Handled (${handledItems.length})</span>
+              <span>已处理（${handledItems.length}）</span>
             </button>
-            ${surface.showHandled ? html`<div class="inbox-list handled">${handledItems.map((i) => itemRowTpl(surface, i))}</div>` : nothing}${surface.showHandled && feedWindows.get(`handled:${surface.viewId}`)?.nextCursor ? html`<button class="btn" ?disabled=${inboxState.loading} @click=${() => void refreshInbox({ more: true, viewId: `handled:${surface.viewId}` })}>Load more handled</button>` : nothing}
+            ${surface.showHandled ? html`<div class="inbox-list handled">${handledItems.map((i) => itemRowTpl(surface, i))}</div>` : nothing}${surface.showHandled && feedWindows.get(`handled:${surface.viewId}`)?.nextCursor ? html`<button class="btn" ?disabled=${inboxState.loading} @click=${() => void refreshInbox({ more: true, viewId: `handled:${surface.viewId}` })}>加载更多已处理事项</button>` : nothing}
           `
         : nothing
     }
   `;
   return html`
     <div class="inbox-surface ${compact ? "compact" : ""}" data-density=${density}>
-      ${inboxState.migrationPending ? html`<div class="inbox-notice" role="status">Moving your existing Inbox. Sync setup will be available once active work finishes and records are verified.</div>` : nothing}
+      ${inboxState.migrationPending ? html`<div class="inbox-notice" role="status">正在迁移现有收件箱。待当前任务完成并核对记录后，即可设置同步。</div>` : nothing}
       <div class="inbox-toolbar">
         ${chips} ${surface.pane ? html`<span class="inbox-toolbar-spacer"></span>${syncLineTpl(surface)}` : nothing}
       </div>
       ${
         setupLoops.length
-          ? html`<section class="inbox-setup" aria-label="Set up account sync">
+          ? html`<section class="inbox-setup" aria-label="设置账户同步">
               ${setupLoops.map(
                 (loop) =>
                   html`<div class="inbox-setup-row">
                     <span class="inbox-setup-icon" aria-hidden="true">${loopIcon(loop, 17)}</span>
                     <div class="inbox-setup-copy">
                       <span class="inbox-setup-title">${loop.name}</span
-                      ><span class="inbox-setup-description">Sync not set up</span>
+                      ><span class="inbox-setup-description">尚未设置同步</span>
                     </div>
                     <button
                       class="inbox-setup-action"
-                      aria-label=${`Set up ${loop.name}`}
+                      aria-label=${`设置 ${loop.name}`}
                       ?disabled=${inboxState.syncBusy || inboxState.migrationPending}
                       @click=${() => void setUpSync(loop.id)}
                     >
-                      <span>${inboxState.syncBusy ? "Setting up…" : "Set up"}</span>${icon(ChevronRight, 14)}
+                      <span>${inboxState.syncBusy ? "正在设置…" : "设置"}</span>${icon(ChevronRight, 14)}
                     </button>
                   </div>`,
               )}
@@ -1661,7 +1658,7 @@ function surfaceTpl(surface: InboxSurface): TemplateResult {
                   openLoop(id);
                 }}
               >
-                Open Loop
+                打开工作流
               </button>
               <button
                 class="btn"
@@ -1672,19 +1669,19 @@ function surfaceTpl(surface: InboxSurface): TemplateResult {
                   void toggleSelection(id);
                 }}
               >
-                Remove from Inbox
+                从收件箱移除
               </button>
             </div>`
           : nothing
       }
       ${
         inboxState.picker
-          ? html`<section class="inbox-loop-picker" aria-label="Add Loop">
+          ? html`<section class="inbox-loop-picker" aria-label="添加工作流">
               <div class="inbox-draft-head">
-                <strong>Loops in your Inbox</strong
+                <strong>收件箱中的工作流</strong
                 ><button
                   class="icon-btn"
-                  aria-label="Close picker"
+                  aria-label="关闭选择器"
                   @click=${() => {
                     inboxState.picker = false;
                     drawAll();
@@ -1693,12 +1690,12 @@ function surfaceTpl(surface: InboxSurface): TemplateResult {
                   ${icon(X, 16)}
                 </button>
               </div>
-              <p>Choose the Loops you want to review here.</p>
-              ${inboxState.available.map((loop) => html`<label><input type="checkbox" .checked=${loop.selected} ?disabled=${inboxState.selectionBusy} @change=${() => void toggleSelection(loop.id)} />${loopIcon(loop)}<span>${loop.name}</span><span>${loop.selected ? "Included" : "Add"}</span></label>`)}
+              <p>选择要在这里审核的工作流。</p>
+              ${inboxState.available.map((loop) => html`<label><input type="checkbox" .checked=${loop.selected} ?disabled=${inboxState.selectionBusy} @change=${() => void toggleSelection(loop.id)} />${loopIcon(loop)}<span>${loop.name}</span><span>${loop.selected ? "已包含" : "添加"}</span></label>`)}
             </section>`
           : nothing
       }
-      ${feedWindows.get(surface.viewId)?.nextCursor ? html`<button class="btn" ?disabled=${inboxState.loading} @click=${() => void refreshInbox({ more: true, viewId: surface.viewId })}>Load more</button>` : nothing}
+      ${feedWindows.get(surface.viewId)?.nextCursor ? html`<button class="btn" ?disabled=${inboxState.loading} @click=${() => void refreshInbox({ more: true, viewId: surface.viewId })}>加载更多</button>` : nothing}
       ${inboxState.notice ? html`<div class="inbox-notice" role="status">${inboxState.notice}</div>` : nothing}
       <div class="inbox-scroll">
         ${
@@ -1723,7 +1720,7 @@ function surfaceTpl(surface: InboxSurface): TemplateResult {
 
 function itemDetailTpl(item: InboxItem, handled: boolean): TemplateResult {
   if (usesOutputReview(item)) return reviewTpl(item);
-  if (!item.detailLoaded) return html`<div class="empty compact">Loading message…</div>`;
+  if (!item.detailLoaded) return html`<div class="empty compact">正在加载消息…</div>`;
   return html`${contextTpl(item)} ${handled ? handledNoteTpl(item) : draftEditorTpl(item, { chat: false })}`;
 }
 
@@ -1735,7 +1732,7 @@ function itemPageTpl(item: InboxItem): TemplateResult {
   return html`
     <div class="pane-head inbox-item-head src-${item.source}">
       <div class="inbox-item-head-copy">
-        ${listBackLink("Inbox", closeInboxItem)}
+        ${listBackLink("收件箱", closeInboxItem)}
         <h1 class="pane-title">
           <span class="inbox-item-glyph">${sourceGlyph(item)}</span><span>${heading}</span>
           <span class="inbox-item-head-meta">
@@ -1762,15 +1759,15 @@ function sentDraftTpl(): TemplateResult | undefined {
   const item = toInboxItem(saved);
   if (item.status !== "open")
     return html`<div class="inbox-draft">
-      <p>Reply sent.</p>
-      <button class="btn" @click=${() => void continueSentReply(item)}>Write another reply</button>
+      <p>回复已发送。</p>
+      <button class="btn" @click=${() => void continueSentReply(item)}>再写一条回复</button>
     </div>`;
   return html`${inboxState.notice ? html`<div class="inbox-notice" role="status">${inboxState.notice}</div>` : nothing}${draftEditorTpl(item, { chat: false })}<button
       class="btn primary"
       ?disabled=${sending.has(item.id)}
       @click=${() => void sendItem(item)}
     >
-      ${sending.has(item.id) ? "Sending…" : "Send reply"}
+      ${sending.has(item.id) ? "正在发送…" : "发送回复"}
     </button>`;
 }
 
@@ -1852,7 +1849,7 @@ function drawFull(): void {
   } else
     page = html`
       <div class="pane-head">
-        <h1 class="pane-title">Inbox</h1>
+        <h1 class="pane-title">收件箱</h1>
         <div class="pane-head-actions">${syncLineTpl(surface)}</div>
       </div>
       ${surfaceTpl(surface)}

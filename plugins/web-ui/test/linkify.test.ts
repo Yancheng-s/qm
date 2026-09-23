@@ -82,10 +82,7 @@ test("a lone @ is left as text", () => {
 const chat = readFileSync(new URL("../src/chat.ts", import.meta.url), "utf8");
 
 test("expanded pinned items render text and preview through the linkifier", () => {
-  assert.match(
-    chat,
-    /pinned-item-text">\$\{linkifiedText\(p\.text \?\? p\.preview \?\? `entry #\$\{p\.entrySeq\}`\)\}/,
-  );
+  assert.match(chat, /pinned-item-text">\$\{linkifiedText\(p\.text \?\? p\.preview \?\? `记录 #\$\{p\.entrySeq\}`\)\}/);
   assert.match(chat, /pinned-item-preview">\$\{linkifiedText\(p\.preview\)\}/);
 });
 

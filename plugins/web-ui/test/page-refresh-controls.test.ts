@@ -19,6 +19,6 @@ test("page headers do not expose manual refresh controls", () => {
     .join("\n");
   assert.doesNotMatch(
     source,
-    /pane-refresh|\bonRefresh\b|Refresh projects|Refresh memory|Refresh conversations|>Refresh<\/button>/,
+    /pane-refresh|\bonRefresh\b|刷新 projects|刷新 memory|刷新 conversations|>刷新<\/button>/,
   );
 });

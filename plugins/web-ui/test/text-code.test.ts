@@ -45,6 +45,6 @@ test("text-block expansion is local and preserves rendered code nodes", () => {
 
   assert.equal(blocks[0]!.dataset.expanded, "true");
   assert.equal(blocks[1]!.dataset.expanded, "false");
-  assert.equal(firstButton.textContent, "Show less");
+  assert.equal(firstButton.textContent, "收起");
   assert.equal(firstButton.getAttribute("aria-expanded"), "true");
 });

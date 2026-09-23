@@ -143,7 +143,7 @@ test("single and multiview headers render mutually exclusive tools and pane cont
     },
     paneScopeId: () => null,
     paneKindEntry: () => null,
-    PANE_TOOLS: ["Crons", "Apps", "Files", "Skills", "Memory", "Your keychain"].map((label) => ({
+    PANE_TOOLS: ["定时任务", "应用", "Files", "技能", "记忆", "你的密钥库"].map((label) => ({
       label,
       tool: label,
       glyph: label,
@@ -172,18 +172,18 @@ test("single and multiview headers render mutually exclusive tools and pane cont
     api: { isMaximized: () => false },
   });
   assert.equal((output.match(/class="session-tool"/g) ?? []).length, 6);
-  assert.doesNotMatch(output, /split-tools-btn|Split this pane|Open full screen|Close pane/);
+  assert.doesNotMatch(output, /split-tools-btn|Split this pane|全屏打开|关闭面板/);
   dockApi.panels.push({});
   assert.ok(activePanelChanged);
   activePanelChanged();
   assert.doesNotMatch(output, /class="session-tool"/);
-  for (const label of ["Tools", "Split this pane with a new session", "Open full screen", "Close pane"])
+  for (const label of ["工具", "拆分此面板并新建会话", "全屏打开", "关闭面板"])
     assert.ok(output.includes(`aria-label="${label}"`) || output.includes(`aria-label=${label}`));
   actions.menuOpen = true;
   dockApi.panels.pop();
   actions.draw();
   assert.equal(actions.menuOpen, false);
-  assert.doesNotMatch(output, /split-tools-btn|role="menu"|Close pane/);
+  assert.doesNotMatch(output, /split-tools-btn|role="menu"|关闭面板/);
 });
 
 test("single-pane toolbar and split menu put Crons and Apps first", () => {

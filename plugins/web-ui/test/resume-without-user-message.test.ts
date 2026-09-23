@@ -49,7 +49,7 @@ test("a pending run restores its input without consuming the previous reply", ()
 test("a recorded input wins over an older pending snapshot without text-based deduplication", () => {
   const messages = entriesToMessages([
     { type: "user", seq: 0, createdAt: 20, payload: { text: "original", runId: "run" } },
-    { type: "text", seq: 1, createdAt: 21, payload: { text: "Working", phase: "commentary" } },
+    { type: "text", seq: 1, createdAt: 21, payload: { text: "执行中", phase: "commentary" } },
     { type: "user", seq: 2, createdAt: 22, payload: { text: "steer", runId: "run", steered: true } },
   ]);
   const resumed = continuableMessages(messages, { runId: "run", seq: null, text: "stale", createdAt: 19 });

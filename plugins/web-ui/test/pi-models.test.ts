@@ -6,8 +6,8 @@ import { getBaseModel, modelSupportsFastMode } from "../src/pi-models.ts";
 import { metadata } from "./model-metadata.ts";
 
 test("models require server metadata even when the browser SDK knows their id", () => {
-  assert.throws(() => getBaseModel("gpt-5.5"), /metadata unavailable/);
-  assert.throws(() => getBaseModel("future", metadata("other")), /metadata unavailable/);
+  assert.throws(() => getBaseModel("gpt-5.5"), /模型信息不可用/);
+  assert.throws(() => getBaseModel("future", metadata("other")), /模型信息不可用/);
 });
 
 test("browser model preserves safe server geometry and does not share mutable metadata", () => {

@@ -66,7 +66,7 @@ test("an empty principal is a 400 with guidance, distinct from being refused", a
   assert.equal(r.status, 400);
   const body = await r.json();
   assert.equal(body.error, "bad_request");
-  assert.match(body.message, /Enter a principal/);
+  assert.match(body.message, /请输入要登录的账户标识/);
 });
 
 test("an over-long principal is truncated in the echoed error", async () => {

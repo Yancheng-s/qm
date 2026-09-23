@@ -148,7 +148,7 @@ test("persistent transient failures past the idle window fail with a timeout, no
   const final = await drain(stream);
 
   assert.equal(final.stopReason, "error");
-  assert.equal(final.errorMessage, "Timed out waiting for the agent to respond.");
+  assert.equal(final.errorMessage, "等待智能体响应超时。");
 });
 
 test("poll requests never put bearer credentials in the URL", async () => {

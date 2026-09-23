@@ -140,7 +140,7 @@ test("keychain overview wires managed connector grants into account controls", (
 
 test("destructive controls settle duplicate attempts while a mutation is busy", () => {
   assert.match(connectorsSource, /\?disabled=\$\{keychainOperations\.mutationInFlight\}/);
-  assert.match(connectorsSource, /connectorNotice = "Another keychain change is still in progress\."/);
+  assert.match(connectorsSource, /connectorNotice = "另一项密钥库操作仍在进行。"/);
   assert.equal(connectorsSource.match(/const operation = beginKeychainMutation\(\)/g)?.length, 3);
   assert.equal(
     connectorsSource.match(/if \(keychainOperations\.finishMutation\(operation\)\) drawConnectors\(\)/g)?.length,
@@ -151,8 +151,8 @@ test("destructive controls settle duplicate attempts while a mutation is busy", 
 test("keychain rows reserve success badges for actionable states", () => {
   assert.doesNotMatch(connectorsSource, /Stored securely/);
   assert.doesNotMatch(connectorsSource, />Connected<\/span>/);
-  assert.match(connectorsSource, /expired \? html`<span class="kc-state warning">Expired<\/span>` : ""/);
-  assert.match(connectorsSource, /<span class="kc-state warning">Reconnect needed<\/span>/);
+  assert.match(connectorsSource, /expired \? html`<span class="kc-state warning">已过期<\/span>` : ""/);
+  assert.match(connectorsSource, /<span class="kc-state warning">需要重新连接<\/span>/);
 });
 
 test("keychain index keeps operational state and removes redundant explanatory copy", () => {
@@ -160,10 +160,10 @@ test("keychain index keeps operational state and removes redundant explanatory c
   assert.doesNotMatch(connectorsSource, /Provider APIs the agent can use as you/);
   assert.doesNotMatch(connectorsSource, /API keys, tokens, and files you added/);
   assert.doesNotMatch(connectorsSource, /kc-summary|kc-resource-description|No audited use yet|Last used |Added \$\{/);
-  assert.match(connectorsSource, /class="kc-access-label">Access/);
-  assert.match(connectorsSource, /expires \$\{fmtDate\(/);
-  assert.match(connectorsSource, />\s*Revoke\s*</);
-  assert.match(connectorsSource, /encrypted one-time page next/);
+  assert.match(connectorsSource, /class="kc-access-label">访问权限/);
+  assert.match(connectorsSource, /到期时间 \$\{fmtDate\(/);
+  assert.match(connectorsSource, />\s*撤销\s*</);
+  assert.match(connectorsSource, /接下来请在加密的一次性页面/);
 });
 
 test("keychain access rows retain security-relevant mode and purpose", () => {
@@ -185,11 +185,8 @@ test("keychain page renders loading placeholders instead of empty states while l
   assert.match(connectorsSource, /connectorsLoading && !connectorsEverLoaded/);
   assert.match(connectorsSource, /keysLoading && !keysEverLoaded/);
   assert.match(connectorsSource, /keysLoading = true;\s*\n\s*drawConnectors\(\)/);
-  assert.match(connectorsSource, /if \(accountsLoading\) accountsContent = loadingPlaceholder\("Loading accounts/);
-  assert.match(
-    connectorsSource,
-    /if \(keysLoadingFresh\) credentialsContent = loadingPlaceholder\("Loading credentials/,
-  );
+  assert.match(connectorsSource, /if \(accountsLoading\) accountsContent = loadingPlaceholder\("正在加载账户/);
+  assert.match(connectorsSource, /if \(keysLoadingFresh\) credentialsContent = loadingPlaceholder\("正在加载凭据/);
 
   assert.match(
     connectorsSource,

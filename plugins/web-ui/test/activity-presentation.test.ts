@@ -25,7 +25,7 @@ function row(command: string, result: ToolPayload | null = { code: 0 }): ToolRow
 
 test("simple shell reads and searches get semantic labels, compound commands stay exact", () => {
   assert.equal(activityLabel(row("cat /workspace/src/main.ts"), "complete"), "main.ts");
-  assert.equal(activityLabel(row("rg -n 'gateway' src/main.ts"), "complete"), "Searched for gateway in main.ts");
+  assert.equal(activityLabel(row("rg -n 'gateway' src/main.ts"), "complete"), "已搜索 gateway，位于 main.ts");
   for (const command of [
     "cat file; rm file",
     "rg foo src | head -10",
@@ -37,10 +37,10 @@ test("simple shell reads and searches get semantic labels, compound commands sta
   }
   assert.equal(
     activityLabel(row("rg -n 'gateway|secret' src/main.ts"), "complete"),
-    "Searched for gateway|secret in main.ts",
+    "已搜索 gateway|secret，位于 main.ts",
   );
   assert.equal(activityLabel(row("sed -n '1,120p' src/main.ts"), "complete"), "main.ts");
-  assert.equal(activityLabel(row("rg --files src"), "complete"), "Searched for files in src");
+  assert.equal(activityLabel(row("rg --files src"), "complete"), "已搜索 文件，位于 src");
   assert.deepEqual(activityDescription({ tool: "skill", name: "publish" }), {
     category: "read",
     target: "publish/SKILL.md",
@@ -52,9 +52,9 @@ test("simple shell reads and searches get semantic labels, compound commands sta
 });
 
 test("status labels never report missing or failed results as successful", () => {
-  assert.equal(activityLabel(row("npm test", null), "working"), "Running npm test");
-  assert.equal(activityLabel(row("npm test", null), "complete"), "Tried running npm test");
-  assert.equal(activityLabel(row("cat missing", { code: 1 }), "complete"), "Failed to read missing");
+  assert.equal(activityLabel(row("npm test", null), "working"), "运行中 npm test");
+  assert.equal(activityLabel(row("npm test", null), "complete"), "已尝试运行 npm test");
+  assert.equal(activityLabel(row("cat missing", { code: 1 }), "complete"), "读取失败 missing");
   assert.equal(activityLabel(row("npm test", { blocked: "needs_approval" }), "working"), null);
 });
 
@@ -64,15 +64,15 @@ test("groups describe categories and surface errors and approvals", () => {
     { kind: "tool", row: row("npm test") },
   ];
   assert.deepEqual(activityGroupSummary(items, "complete"), {
-    label: "Read files, ran commands",
+    label: "已读取文件、已运行命令",
     category: "read",
     attention: false,
   });
   items.push({ kind: "tool", row: row("false", { code: 1 }) });
   assert.equal(activityGroupSummary(items, "complete").attention, true);
-  assert.match(activityGroupSummary(items, "complete").label, /1 failed/);
+  assert.match(activityGroupSummary(items, "complete").label, /1 失败/);
   items.push({ kind: "tool", row: row("run", { blocked: "needs_approval" }) });
-  assert.doesNotMatch(activityGroupSummary(items, "working").label, /Approval needed/);
+  assert.doesNotMatch(activityGroupSummary(items, "working").label, /需要审批/);
 });
 
 test("thinking titles become disclosure labels without repeating the heading", () => {
@@ -83,10 +83,10 @@ test("thinking titles become disclosure labels without repeating the heading", (
     });
   }
   assert.deepEqual(thinkingPresentation("A thought without a heading"), {
-    title: "Thought process",
+    title: "思考过程",
     body: "A thought without a heading",
   });
-  assert.equal(thinkingPresentation("**Bold** inside a sentence").title, "Thought process");
+  assert.equal(thinkingPresentation("**Bold** inside a sentence").title, "思考过程");
 });
 
 test("session actions identify their recipient and retain failure state", () => {
@@ -98,12 +98,12 @@ test("session actions identify their recipient and retain failure state", () => 
     text: "Check the remaining tests",
   };
   assert.deepEqual(sessionPresentation(tool, "complete"), {
-    label: "Sent message to",
+    label: "已发送消息给",
     target: "compaction-exact",
     preview: "Check the remaining tests",
   });
   tool.result!.payload = { isError: true };
-  assert.equal(sessionPresentation(tool, "complete")?.label, "Failed to send message to");
+  assert.equal(sessionPresentation(tool, "complete")?.label, "无法发送消息给");
   tool.call!.payload = { tool: "session", action: "open", name: "worker" };
   tool.result!.payload = { title: "Named worker", sessionId: "id" };
   assert.equal(sessionPresentation(tool, "complete")?.target, "Named worker");

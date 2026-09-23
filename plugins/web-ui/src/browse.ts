@@ -30,23 +30,23 @@ export function destinations(): Destination[] {
     blurb,
   });
   const list: Destination[] = [
-    to("contexts", Folder, "Projects", "Group chats, files, and automations"),
-    to("files", Files, "Files", "Everything you and QM have shared"),
-    to("crons", Clock, "Crons", "Work that runs on a schedule"),
-    to("webhooks", Webhook, "Webhooks", "Inbound events that wake QM"),
-    to("keychain", KeyRound, "Keychain", "Connected accounts and credentials"),
-    to("deploys", Rocket, "Apps", "What QM has shipped for you"),
-    to("memory", Brain, "Memory", "What QM remembers about your work"),
-    to("skills", Box, "Skills", "Reusable procedures QM can follow"),
+    to("contexts", Folder, "项目", "集中管理对话、文件和自动化任务"),
+    to("files", Files, "文件", "你和 QM 分享的所有内容"),
+    to("crons", Clock, "定时任务", "按时间安排自动执行的任务"),
+    to("webhooks", Webhook, "Webhook", "接收外部事件并触发 QM"),
+    to("keychain", KeyRound, "密钥库", "已连接账户和访问凭据"),
+    to("deploys", Rocket, "应用", "QM 为你创建的应用"),
+    to("memory", Brain, "记忆", "QM 记住的工作信息"),
+    to("skills", Box, "技能", "QM 可以遵循的可复用操作流程"),
   ];
-  if (can("loops")) list.push(to("loops", Repeat, "Loops", "Standing work QM keeps pushing forward"));
+  if (can("loops")) list.push(to("loops", Repeat, "持续工作流", "QM 持续推进的工作"));
   if (can("admin")) {
     list.push({
       view: null,
       href: ADMIN_HOME_URL,
       glyph: ShieldUser,
-      label: "Admin",
-      blurb: "Org settings, people, and policy",
+      label: "管理后台",
+      blurb: "组织设置、成员和策略",
     });
   }
   return list;
@@ -145,12 +145,12 @@ function paletteTpl(): TemplateResult {
         if (e.target === e.currentTarget) closeBrowse();
       }}
     >
-      <div class="chat-search-palette browse-palette" role="dialog" aria-label="Browse" @keydown=${onGridKeydown}>
+      <div class="chat-search-palette browse-palette" role="dialog" aria-label="浏览" @keydown=${onGridKeydown}>
         <div class="chat-search-inputrow browse-head">
-          <span class="browse-title">Browse</span>
-          <span class="chat-search-kbd">esc</span>
+          <span class="browse-title">浏览</span>
+          <span class="chat-search-kbd">Esc</span>
         </div>
-        <div class="browse-grid" role="group" aria-label="Destinations">${destinations().map(tile)}</div>
+        <div class="browse-grid" role="group" aria-label="浏览分类">${destinations().map(tile)}</div>
       </div>
     </div>
   `;

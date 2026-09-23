@@ -11,7 +11,7 @@ export type ModelMetadata = Pick<
 };
 
 export function getBaseModel(id: string, metadata?: ModelMetadata): Model<Api> {
-  if (!metadata || metadata.id !== id) throw new Error(`Model metadata unavailable: ${id}`);
+  if (!metadata || metadata.id !== id) throw new Error(`模型信息不可用：${id}`);
   return { ...structuredClone(metadata), baseUrl: "" };
 }
 

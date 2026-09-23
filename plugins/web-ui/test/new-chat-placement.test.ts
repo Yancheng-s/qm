@@ -109,7 +109,7 @@ async function withCanvas(
                   contentComponent: "pane",
                   tabComponent: "pane",
                   params: {},
-                  title: "New session",
+                  title: "新会话",
                 },
               ]),
             ),
@@ -136,7 +136,7 @@ async function withCanvas(
         document
           .querySelectorAll(".dv-groupview")
           .item(index)!
-          .querySelector<HTMLButtonElement>('[aria-label="Split this pane with a new session"]')!
+          .querySelector<HTMLButtonElement>('[aria-label="拆分此面板并新建会话"]')!
           .click();
       },
       tiles: () => document.querySelectorAll(".dv-groupview").length,
@@ -154,7 +154,7 @@ async function withCanvas(
         document
           .querySelectorAll(".dv-groupview")
           .item(index)!
-          .querySelector<HTMLButtonElement>('[aria-label="Close pane"]')!
+          .querySelector<HTMLButtonElement>('[aria-label="关闭面板"]')!
           .click();
         await new Promise((resolve) => setTimeout(resolve, 0));
       },
@@ -179,16 +179,16 @@ test("New chat stops splitting after three tiles and adds tabs to the selected p
     assert.deepEqual([canvas.panes(), canvas.tiles()], [1, 1]);
 
     assert.equal(canvas.newChat(), true);
-    assert.deepEqual([canvas.panes(), canvas.tiles()], [1, 1], "one session: New chat replaces it");
+    assert.deepEqual([canvas.panes(), canvas.tiles()], [1, 1], "one session: 新对话 replaces it");
 
     await canvas.split();
     assert.deepEqual([canvas.panes(), canvas.tiles()], [2, 2]);
 
     assert.equal(canvas.newChat(), true);
-    assert.deepEqual([canvas.panes(), canvas.tiles()], [3, 3], "split screen: New chat adds a window");
+    assert.deepEqual([canvas.panes(), canvas.tiles()], [3, 3], "split screen: 新对话 adds a window");
 
     assert.equal(canvas.newChat(), true);
-    assert.deepEqual([canvas.panes(), canvas.tiles()], [4, 3], "three tiles: New chat adds a tab");
+    assert.deepEqual([canvas.panes(), canvas.tiles()], [4, 3], "three tiles: 新对话 adds a tab");
 
     assert.equal(canvas.newChat(), true);
     assert.deepEqual([canvas.panes(), canvas.tiles()], [5, 3], "further sessions also add tabs");
@@ -199,7 +199,7 @@ test("New chat stops splitting after three tiles and adds tabs to the selected p
     canvas.splitTile(2);
     assert.deepEqual([canvas.panes(), canvas.tiles()], [7, 4], "explicit splitting still creates a fourth tile");
     assert.equal(canvas.newChat(), true);
-    assert.deepEqual([canvas.panes(), canvas.tiles()], [8, 4], "four tiles: New chat still adds a tab");
+    assert.deepEqual([canvas.panes(), canvas.tiles()], [8, 4], "four tiles: 新对话 still adds a tab");
   });
 });
 
@@ -270,12 +270,12 @@ test("a drafted first pane survives splitting and closing its neighbor", async (
     assert.equal(first.state.agent, agent);
     assert.equal(first.composer.state.draft, "Keep this unsent draft");
     assert.equal(
-      document.querySelector('.split-pane-actions [aria-label="Close pane"]'),
+      document.querySelector('.split-pane-actions [aria-label="关闭面板"]'),
       null,
       "single view has no group close control",
     );
     assert.ok(canvas.newChat());
-    assert.deepEqual([canvas.panes(), canvas.tiles()], [1, 1], "New chat replaces the last pane");
+    assert.deepEqual([canvas.panes(), canvas.tiles()], [1, 1], "新对话 replaces the last pane");
   });
 });
 

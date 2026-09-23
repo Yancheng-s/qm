@@ -73,9 +73,9 @@ test("a preset that keeps separate light and dark colours falls back to its dark
 test("a plist without a background and foreground is rejected with a plain explanation", () => {
   assert.throws(
     () => importTheme("x.itermcolors", `<plist><dict>${plistColor("Ansi 0 Color", 0, 0, 0)}</dict></plist>`),
-    /Background Color and a Foreground Color/,
+    /背景色和前景色/,
   );
-  assert.throws(() => importTheme("x.itermcolors", "bplist00\0\0"), /binary plist/);
+  assert.throws(() => importTheme("x.itermcolors", "bplist00\0\0"), /二进制 plist/);
 });
 
 const vsCodeTheme = `{
@@ -126,7 +126,7 @@ test("a colour with a malformed component is dropped instead of leaking NaN into
     <key>Background Color</key><dict><key>Red Component</key><real>.</real><key>Green Component</key><real>0</real><key>Blue Component</key><real>0</real></dict>
     ${plistColor("Foreground Color", 1, 1, 1)}
   </dict></plist>`;
-  assert.throws(() => importTheme("nan.itermcolors", xml), /Background Color and a Foreground Color/);
+  assert.throws(() => importTheme("nan.itermcolors", xml), /背景色和前景色/);
 });
 
 test("integer plist components are as good as reals", () => {
@@ -152,7 +152,7 @@ test("a theme name is capped so the settings radio stays a label", () => {
 });
 
 test("garbage is rejected with a message that names both accepted formats", () => {
-  assert.throws(() => importTheme("notes.json", "hello there"), /iTerm2 \.itermcolors or a VS Code color theme/);
+  assert.throws(() => importTheme("notes.json", "hello there"), /iTerm2 \.itermcolors 或 VS Code 颜色主题/);
   assert.throws(() => importTheme("empty.json", "{}"), /editor\.background/);
 });
 

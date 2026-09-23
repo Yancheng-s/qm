@@ -27,16 +27,16 @@ test("a still-loading composer is not painted as a failure", () => {
   );
   assert.ok(branch, "the runtime-pending branch not found");
   assert.match(branch, /composerState\.error\s*\?/, "the branch must split on a real error");
-  assert.match(branch, /class="composer-note">Loading runtime settings…/, "loading is a note");
-  const loadingAt = branch.indexOf("Loading runtime settings…");
+  assert.match(branch, /class="composer-note">正在加载运行设置…/, "loading is a note");
+  const loadingAt = branch.indexOf("正在加载运行设置…");
   const errorClassAt = branch.indexOf('class="composer-error"');
   assert.ok(errorClassAt >= 0 && errorClassAt < loadingAt, "only the real error keeps the error class");
   assert.ok(
-    !/class="composer-error">[\s\S]{0,80}Loading runtime settings…/.test(branch),
+    !/class="composer-error">[\s\S]{0,80}正在加载运行设置…/.test(branch),
     "the loading placeholder must not render inside .composer-error",
   );
-  const retryAt = branch.indexOf("Retry");
-  assert.ok(retryAt >= 0 && retryAt < loadingAt, "Retry stays on the error side");
+  const retryAt = branch.indexOf("重试");
+  assert.ok(retryAt >= 0 && retryAt < loadingAt, "重试 stays on the error side");
 });
 
 test(".composer-error is the destructive colour — which is why loading must not use it", () => {

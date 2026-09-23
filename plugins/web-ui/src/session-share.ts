@@ -58,22 +58,22 @@ export async function openSessionShare(id: string): Promise<void> {
     try {
       state = await api<ShareState>(endpoint, { method: "POST", body: JSON.stringify({ audience }) });
     } catch (e) {
-      error = e instanceof Error ? e.message : "Could not create share.";
+      error = e instanceof Error ? e.message : "无法创建分享。";
     } finally {
       busy = false;
       draw();
     }
   };
   const draw = () => {
-    const saveLabel = state.share ? "Create new link" : "Create link";
+    const saveLabel = state.share ? "创建新链接" : "创建链接";
     const url = state.share
       ? new URL(withBase(`/share/${state.share.audience}/${state.share.token}`), location.origin).href
       : "";
     render(
       html`
         <div class="project-dialog-head">
-          <div><h2 id="session-share-heading">Share conversation</h2></div>
-          <button class="chip-x" type="button" aria-label="Close" @click=${close}>${icon(X, 16)}</button>
+          <div><h2 id="session-share-heading">分享对话</h2></div>
+          <button class="chip-x" type="button" aria-label="关闭" @click=${close}>${icon(X, 16)}</button>
         </div>
         <div class="share-access-row">
           <span class="share-access-icon">${icon(audience === "external" ? Globe : Users, 18)}</span>
@@ -81,7 +81,7 @@ export async function openSessionShare(id: string): Promise<void> {
             <button
               class="btn menu-button share-audience-button"
               type="button"
-              aria-label="Who can view"
+              aria-label="谁可以查看"
               aria-haspopup="menu"
               aria-expanded="false"
               ?disabled=${busy}
@@ -95,13 +95,12 @@ export async function openSessionShare(id: string): Promise<void> {
                 options[event.key === "ArrowUp" ? options.length - 1 : 0]?.focus();
               }}
             >
-              <span>${audience === "external" ? "Anyone with the link" : "Anyone in your organization"}</span
-              >${icon(ChevronDown, 14)}
+              <span>${audience === "external" ? "知道链接的任何人" : "组织内的任何人"}</span>${icon(ChevronDown, 14)}
             </button>
             <div
               class="menu-popover share-audience-menu"
               role="menu"
-              aria-label="Who can view"
+              aria-label="谁可以查看"
               hidden
               @keydown=${(event: KeyboardEvent) => {
                 const options = [
@@ -135,21 +134,21 @@ export async function openSessionShare(id: string): Promise<void> {
                     }}
                   >
                     ${icon(value === "external" ? Globe : Users, 16)}<span class="menu-option-label"
-                      >${value === "external" ? "Anyone with the link" : "Anyone in your organization"}</span
+                      >${value === "external" ? "知道链接的任何人" : "组织内的任何人"}</span
                     >${audience === value ? icon(Check, 15) : ""}
                   </button>`,
               )}
             </div>
           </div>
-          <span class="share-access-label">Can view</span>
+          <span class="share-access-label">可查看</span>
         </div>
-        ${audience === "external" ? html`<p class="share-external-warning" role="status">⚠️ External. Double-check what you're sharing.</p>` : ""}
+        ${audience === "external" ? html`<p class="share-external-warning" role="status">⚠️ 允许外部访问，请核对分享内容。</p>` : ""}
         ${
           state.share
             ? html`
                 <div class="share-link-row project-name-field">
                   <input
-                    aria-label="Share link"
+                    aria-label="分享链接"
                     readonly
                     .value=${url}
                     @click=${(e: Event) => (e.target as HTMLInputElement).select()}
@@ -163,20 +162,19 @@ export async function openSessionShare(id: string): Promise<void> {
                         await navigator.clipboard.writeText(url);
                         copied = true;
                       } catch {
-                        error = "Could not copy. Select and copy the link above.";
+                        error = "复制失败，请选中并复制上方链接。";
                       }
                       draw();
                     }}
                   >
-                    ${icon(copied ? Check : Copy, 14)}${copied ? "Copied" : "Copy link"}
+                    ${icon(copied ? Check : Copy, 14)}${copied ? "已复制" : "复制链接"}
                   </button>
                 </div>
               `
             : ""
         }
         <p class="share-privacy-note">
-          Subsequent messages will not be visible unless you re-share.
-          ${url ? html`<a class="as-link" href=${url} target="_blank" rel="noreferrer">Preview</a>` : ""}
+          除非重新分享，否则后续消息不会显示。${url ? html`<a class="as-link" href=${url} target="_blank" rel="noreferrer">预览</a>` : ""}
         </p>
         ${error ? html`<div class="composer-error" role="alert">${error}</div>` : ""}
         <div class="project-dialog-actions actions">
@@ -186,7 +184,7 @@ export async function openSessionShare(id: string): Promise<void> {
             ?disabled=${busy}
             @click=${() => void change()}
           >
-            ${!state.share ? icon(Link, 14) : ""}${busy ? "Loading…" : saveLabel}
+            ${!state.share ? icon(Link, 14) : ""}${busy ? "加载中…" : saveLabel}
           </button>
         </div>
       `,

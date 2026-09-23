@@ -139,23 +139,23 @@ function drawFiles(loading = false): void {
   const visible = visibleFiles();
   const groups = groupFilesByScope(visible);
   const filtered = Boolean(filesScope || filesQuery.trim() || filesType !== "all" || filesOwnership !== "all");
-  let dropLabel = isTouch() ? "Choose files to upload" : "Drop files here or choose files";
-  if (filesDragActive) dropLabel = "Drop files";
-  else if (filesUploading) dropLabel = "Uploading…";
-  const status = filesNotice || (loading && !fileRows.length ? "Loading files…" : "");
+  let dropLabel = isTouch() ? "选择要上传的文件" : "将文件拖到此处，或选择文件";
+  if (filesDragActive) dropLabel = "拖入文件";
+  else if (filesUploading) dropLabel = "正在上传…";
+  const status = filesNotice || (loading && !fileRows.length ? "正在加载文件…" : "");
   const scoped = Boolean(scopedSession.active);
   filesHost.classList.toggle("scoped-view", scoped);
   render(
     html`
       ${scopedViewTopbar("files", drawFiles)}
       <div class="list-page-head">
-        <h1 class="pane-title">Files</h1>
+        <h1 class="pane-title">文件</h1>
         <label class="list-search"
-          >${icon(Search, 16)}<span class="sr-only">Search files</span
+          >${icon(Search, 16)}<span class="sr-only">搜索文件</span
           ><input
             type="search"
-            aria-label="Search files"
-            placeholder="Search file names and types…"
+            aria-label="搜索文件"
+            placeholder="搜索文件名和类型…"
             .value=${filesQuery}
             @input=${(e: Event) => {
               filesQuery = (e.currentTarget as HTMLInputElement).value;
@@ -166,12 +166,12 @@ function drawFiles(loading = false): void {
       </div>
       <div class="list-toolbar">
         ${selectControl(
-          "Ownership",
+          "归属",
           filesOwnership,
           [
-            ["all", "All files"],
-            ["owned", "Yours"],
-            ["shared", "Shared"],
+            ["all", "所有文件"],
+            ["owned", "我的"],
+            ["shared", "共享"],
           ],
           (v) => {
             filesOwnership = v as typeof filesOwnership;
@@ -180,13 +180,13 @@ function drawFiles(loading = false): void {
           },
         )}
         ${selectControl(
-          "Type",
+          "类型",
           filesType,
           [
-            ["all", "All types"],
-            ["image", "Images"],
-            ["document", "Documents"],
-            ["other", "Other"],
+            ["all", "所有类型"],
+            ["image", "图片"],
+            ["document", "文档"],
+            ["other", "其他"],
           ],
           (v) => {
             filesType = v as typeof filesType;
@@ -219,9 +219,9 @@ function drawFiles(loading = false): void {
                   </section>`,
               )}
             </div>`
-          : html`<div class="empty compact">${filtered ? "No files match these filters." : "No files yet."}</div>`
+          : html`<div class="empty compact">${filtered ? "没有符合筛选条件的文件。" : "暂无文件。"}</div>`
       }
-      ${filesNextCursor ? html`<div class="list-footer"><button class="btn" type="button" ?disabled=${filesLoadingMore} @click=${() => void loadMoreFiles()}>${filesLoadingMore ? "Loading…" : "Load more"}</button></div>` : nothing}
+      ${filesNextCursor ? html`<div class="list-footer"><button class="btn" type="button" ?disabled=${filesLoadingMore} @click=${() => void loadMoreFiles()}>${filesLoadingMore ? "加载中…" : "加载更多"}</button></div>` : nothing}
     `,
     filesHost,
   );
@@ -235,7 +235,7 @@ function fileRow(f: FileRow) {
     <span class="list-row-title" dir="auto">${f.name}</span>
     <span class="list-row-meta"
       ><span>${formatBytes(f.sizeBytes)}</span><span>${relTime(f.createdAt)}</span>${
-        f.openable ? nothing : html`<span>Unavailable</span>`
+        f.openable ? nothing : html`<span>不可用</span>`
       }</span
     >
   `;
@@ -262,7 +262,7 @@ async function uploadOne(file: globalThis.File): Promise<void> {
   });
   if (!r.ok) {
     const text = await r.text();
-    let message = `Upload failed (${r.status})`;
+    let message = `上传失败（${r.status}）`;
     try {
       const parsed = JSON.parse(text) as { message?: string; error?: string };
       message = parsed.message ?? parsed.error ?? message;
@@ -277,7 +277,7 @@ async function uploadFiles(files: globalThis.File[]): Promise<void> {
   const picked = files.filter((f) => f.size >= 0);
   if (!picked.length || filesUploading) return;
   filesUploading = true;
-  filesNotice = `Uploading ${picked.length} ${picked.length === 1 ? "file" : "files"}…`;
+  filesNotice = `正在上传 ${picked.length} ${"个文件"}…`;
   drawFiles();
   let uploaded = 0;
   try {
@@ -285,10 +285,10 @@ async function uploadFiles(files: globalThis.File[]): Promise<void> {
       await uploadOne(file);
       uploaded++;
     }
-    filesNotice = `Uploaded ${picked.length} ${picked.length === 1 ? "file" : "files"}.`;
+    filesNotice = `已上传 ${picked.length} ${"个文件"}。`;
     await loadFiles(appState.viewRenderSeq);
   } catch (e) {
-    filesNotice = `${uploaded ? `Uploaded ${uploaded} of ${picked.length}. ` : ""}${errMessage(e, "Upload failed.")}`;
+    filesNotice = `${uploaded ? `已上传 ${uploaded} / ${picked.length}。` : ""}${errMessage(e, "上传失败。")}`;
     if (uploaded) await loadFiles(appState.viewRenderSeq);
     else drawFiles();
   } finally {
@@ -368,7 +368,7 @@ async function loadMoreFiles(): Promise<void> {
     filesNextCursor = page.nextCursor;
   } catch (e) {
     if (requestSeq !== filesRequestSeq) return;
-    filesNotice = errMessage(e, "Failed to load more files.");
+    filesNotice = errMessage(e, "加载更多文件失败。");
   }
   if (requestSeq !== filesRequestSeq) return;
   filesLoadingMore = false;
@@ -400,7 +400,7 @@ async function loadAllFiles(): Promise<void> {
     }
   } catch (e) {
     if (requestSeq !== filesRequestSeq) return;
-    filesNotice = errMessage(e, "Failed to load all matching files.");
+    filesNotice = errMessage(e, "加载所有匹配文件失败。");
   }
   if (requestSeq !== filesRequestSeq) return;
   filesLoadAllQueued = false;
@@ -422,7 +422,7 @@ async function loadFiles(seq: number): Promise<void> {
     void loadAllFiles();
   } catch (e) {
     if (requestSeq !== filesRequestSeq || seq !== appState.viewRenderSeq || appState.currentView !== "files") return;
-    filesNotice = errMessage(e, "Failed to load files.");
+    filesNotice = errMessage(e, "加载文件失败。");
   }
   drawFiles();
 }

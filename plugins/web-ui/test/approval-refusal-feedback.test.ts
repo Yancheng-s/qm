@@ -100,10 +100,7 @@ function stubResolveResponse(body: unknown, status: number): void {
 
 test("a missing or expired approval record surfaces a visible expiry message", async () => {
   stubResolveResponse({ error: "not_found" }, 404);
-  await assert.rejects(
-    runApprovalTurn(fakeAgent(), { requestId: "a-1", approved: true }, undefined),
-    /no longer available/,
-  );
+  await assert.rejects(runApprovalTurn(fakeAgent(), { requestId: "a-1", approved: true }, undefined), /审批已失效/);
 });
 
 test("a synchronous core refusal surfaces its reason, not a bare HTTP status", async () => {
@@ -124,10 +121,7 @@ test("a synchronous core refusal surfaces its reason, not a bare HTTP status", a
 
 test("a pending_approval response without a run is a visible failure, not quiet success", async () => {
   stubResolveResponse({ status: "pending_approval" }, 200);
-  await assert.rejects(
-    runApprovalTurn(fakeAgent(), { requestId: "a-1", approved: true }, undefined),
-    /waiting on a different approval/,
-  );
+  await assert.rejects(runApprovalTurn(fakeAgent(), { requestId: "a-1", approved: true }, undefined), /等待另一项审批/);
 });
 
 test("a pending_approval response carrying a reason surfaces that reason instead of the generic copy", async () => {

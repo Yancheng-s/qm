@@ -94,7 +94,7 @@ test("long prompts clamp to the pane and expand or collapse through their button
     f.toggle.click();
     assert.equal(f.row.classList.contains("pin-expanded"), true);
     assert.equal(f.toggle.getAttribute("aria-expanded"), "true");
-    assert.equal(f.toggle.textContent, "Show less");
+    assert.equal(f.toggle.textContent, "收起");
     f.toggle.click();
     assert.ok(f.content.scrollHeight > f.content.clientHeight);
     assert.equal(f.toggle.getAttribute("aria-expanded"), "false");
@@ -138,7 +138,7 @@ test("a reused row resets expansion when its message index changes", () => {
     f.row.dataset.index = "2";
     f.viewport.sync(f.scroller);
     assert.equal(f.row.classList.contains("pin-expanded"), false);
-    assert.equal(f.toggle.textContent, "Show more");
+    assert.equal(f.toggle.textContent, "展开更多");
     assert.equal(f.content.scrollTop, 0);
   } finally {
     f.close();
@@ -180,7 +180,7 @@ test("only the last prompt is measured and expansion survives an unchanged redra
     f.viewport.sync(f.scroller);
     assert.equal(f.row.classList.contains("pin-expanded"), true);
     assert.equal(f.toggle.hidden, false);
-    assert.equal(f.toggle.textContent, "Show less");
+    assert.equal(f.toggle.textContent, "收起");
   } finally {
     f.close();
   }

@@ -47,9 +47,9 @@ test("a share link whose transcript 404s falls back to the session list", async 
     await booted;
     assert.equal(h.sessionsState.loaded, true, "the fallback waits for the list");
     assert.equal(h.visibleConversation().state.sessionId, null, "no conversation is mounted");
-    assert.match(h.mainText(), /Conversation not found/);
+    assert.match(h.mainText(), /找不到对话/);
     assert.match(h.mainText(), /404/);
-    assert.match(h.mainText(), /Back to chats/);
+    assert.match(h.mainText(), /返回对话列表/);
     assert.equal(location.pathname, "/s/sess-deep");
     assert.equal(document.querySelector("textarea"), null);
     assert.equal(document.activeElement?.id, "conversation-error-title");
@@ -77,7 +77,7 @@ test("a share link whose transcript fetch flakes still opens from the session li
 
 test("a session list that wins the race keeps its own decorated rows", async () => {
   const listed = { ...SESSION, working: true };
-  const other = { id: "sess-other", threadRef: "web:tester:other", scopeId: "personal:tester", title: "Other" };
+  const other = { id: "sess-other", threadRef: "web:tester:other", scopeId: "personal:tester", title: "其他" };
   const h = await harness({ path: "/s/sess-deep", holdTranscript: true, listSessions: [other, listed] });
   try {
     const booted = h.boot();
@@ -102,7 +102,7 @@ test("a session list that wins the race keeps its own decorated rows", async () 
 });
 
 test("a list that omits the open conversation does not drop its row", async () => {
-  const other = { id: "sess-other", threadRef: "web:tester:other", scopeId: "personal:tester", title: "Other" };
+  const other = { id: "sess-other", threadRef: "web:tester:other", scopeId: "personal:tester", title: "其他" };
   const h = await harness({ path: "/s/sess-deep", listSessions: [other] });
   try {
     await h.boot();
@@ -119,7 +119,7 @@ test("a list that omits the open conversation does not drop its row", async () =
 });
 
 test("a list landing mid-open still keeps the row of the conversation being opened", async () => {
-  const other = { id: "sess-other", threadRef: "web:tester:other", scopeId: "personal:tester", title: "Other" };
+  const other = { id: "sess-other", threadRef: "web:tester:other", scopeId: "personal:tester", title: "其他" };
   const h = await harness({ path: "/s/sess-deep", holdApprovals: true, listSessions: [other] });
   try {
     const booted = h.boot();
@@ -172,8 +172,8 @@ test("a server failure shows a retry page rather than a missing conversation", a
     const booted = h.boot();
     h.releaseSessions();
     await booted;
-    assert.match(h.mainText(), /Couldn't load conversation/);
-    assert.match(h.mainText(), /Try again/);
+    assert.match(h.mainText(), /无法加载对话/);
+    assert.match(h.mainText(), /重试/);
     assert.doesNotMatch(h.mainText(), /404/);
     assert.equal(location.pathname, "/s/sess-deep");
   } finally {
@@ -188,7 +188,7 @@ test("a missing share link keeps its error page instead of restoring the saved c
     h.releaseSessions();
     await booted;
     await new Promise((resolve) => setTimeout(resolve, 50));
-    assert.match(h.mainText(), /Conversation not found/);
+    assert.match(h.mainText(), /找不到对话/);
     assert.equal(location.pathname, "/s/sess-deep");
     assert.equal(document.querySelector(".dockview-theme-light"), null);
     assert.equal(document.querySelector("textarea"), null);
@@ -206,7 +206,7 @@ test("saved empty welcome stays an empty chat and doesn't show another starter h
   const h = await harness({ path: "/s/sess-deep", welcome: true });
   try {
     await h.boot();
-    await waitForText(h, /Connect your apps/);
+    await waitForText(h, /连接你的应用/);
     assert.ok(document.querySelector(".empty-chat qm-onboarding-welcome"));
     assert.equal(document.querySelector(".chat-cta"), null);
   } finally {
@@ -219,11 +219,11 @@ test("a failed connection refresh removes previously verified badges", async () 
   try {
     h.setConnections([{ id: "ca_test", toolkit: "gmail" }]);
     await h.boot();
-    await waitForText(h, /Gmail connected/);
+    await waitForText(h, /Gmail 已连接/);
     h.setConnections([], 503);
     window.dispatchEvent(new Event("focus"));
-    await waitForText(h, /Could not check connected apps/);
-    assert.doesNotMatch(h.mainText(), /Gmail connected/);
+    await waitForText(h, /无法检查已连接的应用/);
+    assert.doesNotMatch(h.mainText(), /Gmail 已连接/);
   } finally {
     await h.close();
   }
@@ -242,3 +242,110 @@ test("a message link loads older history and highlights the addressed row", asyn
     await h.close();
   }
 });
+
+const PROJECT = { scopeId: "group:project-004", kind: "group", name: "004", sessionCount: 0, lastActivityAt: null };
+const PROJECT_SESSION = { ...SESSION, scopeId: PROJECT.scopeId };
+
+for (const phone of [true, false]) {
+  test(`an apps link opens a new project chat and preserves its identity on ${phone ? "mobile" : "desktop"}`, async () => {
+    const h = await harness({
+      path: "/chat/?scopeId=group%3Aproject-004&conversationId=new-chat",
+      contexts: [PROJECT],
+      phone,
+      savedCanvas: true,
+    });
+    try {
+      h.releaseSessions();
+      await h.boot();
+      const state = h.visibleConversation().state;
+      assert.equal(state.sessionId, null);
+      assert.equal(state.threadRef, "web:tester:new-chat");
+      assert.equal(state.scopeId, PROJECT.scopeId);
+      assert.equal(new URLSearchParams(location.search).get("scopeId"), PROJECT.scopeId);
+      assert.equal(new URLSearchParams(location.search).get("conversationId"), "new-chat");
+      assert.ok(document.querySelector(".composer-wrap"));
+      assert.equal(
+        h.requests.some((path) => path.includes("old-a") || path.includes("old-b")),
+        false,
+      );
+    } finally {
+      await h.close();
+    }
+  });
+
+  test(`an apps history link opens the requested session on ${phone ? "mobile" : "desktop"}`, async () => {
+    const h = await harness({
+      path: "/chat/?scopeId=group%3Aproject-004&conversationId=deep&session=sess-deep",
+      session: PROJECT_SESSION,
+      contexts: [PROJECT],
+      phone,
+      savedCanvas: true,
+    });
+    try {
+      await h.boot();
+      assert.equal(h.visibleConversation().state.sessionId, SESSION.id);
+      assert.equal(h.visibleConversation().state.scopeId, PROJECT.scopeId);
+      assert.equal(location.pathname, "/s/sess-deep");
+      assert.equal(h.sessionsState.loaded, false);
+    } finally {
+      await h.close();
+    }
+  });
+}
+
+test("an apps conversation id resolves its history without a session id", async () => {
+  const h = await harness({
+    path: "/chat/?scopeId=group%3Aproject-004&conversationId=deep",
+    listSessions: [PROJECT_SESSION],
+    session: PROJECT_SESSION,
+    contexts: [PROJECT],
+    phone: true,
+  });
+  try {
+    h.releaseSessions();
+    await h.boot();
+    assert.equal(h.visibleConversation().state.sessionId, SESSION.id);
+    assert.equal(h.visibleConversation().state.scopeId, PROJECT.scopeId);
+  } finally {
+    await h.close();
+  }
+});
+
+test("an apps project link without a conversation id creates a refreshable project chat", async () => {
+  const h = await harness({ path: "/?scopeId=group%3Aproject-004", contexts: [PROJECT], phone: true });
+  try {
+    h.releaseSessions();
+    await h.boot();
+    const id = new URLSearchParams(location.search).get("conversationId");
+    assert.ok(id);
+    assert.equal(h.visibleConversation().state.threadRef, `web:tester:${id}`);
+    assert.equal(h.visibleConversation().state.scopeId, PROJECT.scopeId);
+  } finally {
+    await h.close();
+  }
+});
+
+for (const options of [
+  { path: "/chat/?scopeId=group%3Aproject-004&conversationId=deep", sessionsStatus: 503 },
+  { path: "/chat/?scopeId=group%3Aproject-004&conversationId=deep" },
+  { path: "/chat/?scopeId=&conversationId=deep" },
+  { path: "/chat/?scopeId=group%3Aproject-004&conversationId=bad%3Avalue" },
+  { path: "/chat/?scopeId=group%3Aproject-004&conversationId=deep", listSessions: [SESSION] },
+  { path: "/chat/?scopeId=group%3Aproject-004&conversationId=deep&session=sess-deep" },
+]) {
+  test(`an invalid or unavailable apps target never opens a personal chat: ${JSON.stringify(options)}`, async () => {
+    const h = await harness({ ...options, phone: true, savedCanvas: true });
+    try {
+      h.releaseSessions();
+      await h.boot();
+      assert.equal(h.visibleConversation().state.threadRef, null);
+      assert.equal(document.querySelector("textarea"), null);
+      assert.equal(
+        new URLSearchParams(location.search).get("scopeId"),
+        new URLSearchParams(options.path.split("?")[1]).get("scopeId"),
+      );
+    } finally {
+      await h.close();
+    }
+  });
+}

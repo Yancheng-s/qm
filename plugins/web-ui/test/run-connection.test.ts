@@ -49,13 +49,13 @@ for (const withAttachments of [false, true]) {
     assert.deepEqual(resumed.popped, [failed]);
     assert.deepEqual((resumed.messages[0] as unknown as { attachments?: unknown[] }).attachments, attachments);
     agent.state.messages = resumed.messages;
-    agent.streamFn = makeRunResumeStreamFn("r", { status: "done", result: { status: "ok", reply: "Done" } });
+    agent.streamFn = makeRunResumeStreamFn("r", { status: "done", result: { status: "ok", reply: "完成" } });
     await agent.continue();
     assert.equal(agent.state.messages.length, 2);
     assert.equal(agent.state.messages[0], input);
     const reply = agent.state.messages[1];
     assert.ok(reply?.role === "assistant");
-    assert.deepEqual(reply.content, [{ type: "text", text: "Done" }]);
+    assert.deepEqual(reply.content, [{ type: "text", text: "完成" }]);
   });
 }
 
@@ -273,7 +273,7 @@ test("approval activity reaches the visible transcript before any response text"
     name: "run",
     value: {
       status: "done",
-      result: { status: "ok", reply: "Done" },
+      result: { status: "ok", reply: "完成" },
       activity: [
         {
           seq: 57,

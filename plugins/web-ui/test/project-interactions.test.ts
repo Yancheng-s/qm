@@ -50,7 +50,7 @@ test("project interactions preserve focus and successful local mutations", async
   const personal = {
     scopeId: "personal:owner",
     kind: "personal",
-    name: "Personal",
+    name: "个人",
     sessionCount: 0,
     lastActivityAt: null,
   } as const;
@@ -60,7 +60,7 @@ test("project interactions preserve focus and successful local mutations", async
     ownerId: "owner",
     memberIds: ["owner"],
     scopeId: "project:1",
-    members: [{ principalId: "owner", displayName: "Owner" }],
+    members: [{ principalId: "owner", displayName: "所有者" }],
   };
   globalThis.fetch = async (input, init) => {
     const path = String(input);

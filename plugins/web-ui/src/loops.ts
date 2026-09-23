@@ -1,3 +1,4 @@
+import { displayStatus } from "./display-labels";
 import { LOOP_ICONS, loopIcon, readLoopIcon } from "./loop-icon";
 import { html, nothing, render, type TemplateResult } from "lit";
 import { CheckCircle2, CornerUpLeft, Pause, Play, Zap } from "lucide";
@@ -104,13 +105,13 @@ function healthBadge(loop: LoopView): TemplateResult {
 }
 
 function ago(ts?: number): string {
-  if (!ts) return "never";
+  if (!ts) return "从未";
   const mins = Math.round((Date.now() - ts) / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return "刚刚";
+  if (mins < 60) return `${mins} 分钟前`;
   const hours = Math.round(mins / 60);
-  if (hours < 48) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
+  if (hours < 48) return `${hours} 小时前`;
+  return `${Math.round(hours / 24)} 天前`;
 }
 
 async function refreshLoops(): Promise<void> {
@@ -206,7 +207,7 @@ function setAutopilot(loop: LoopView, enabled: boolean): void {
 function decide(loop: LoopView, output: LoopOutputView, decision: "ship" | "return"): void {
   const note = returnDrafts.get(output.id)?.trim();
   if (decision === "return" && !note) {
-    loopsNotice = "a return needs a note for the next attempt";
+    loopsNotice = "退回时需要填写下次处理的说明";
     paint();
     return;
   }
@@ -232,7 +233,7 @@ function savePlaybook(loop: LoopView): void {
   playbookDraft = null;
 }
 
-function reviewRow(loop: LoopView, output: LoopOutputView, shipLabel = "Ship"): TemplateResult {
+function reviewRow(loop: LoopView, output: LoopOutputView, shipLabel = "交付"): TemplateResult {
   const externalUrl = output.externalRef && /^https?:\/\//i.test(output.externalRef) ? output.externalRef : undefined;
   return html`
     <div class="loop-output">
@@ -250,12 +251,12 @@ function reviewRow(loop: LoopView, output: LoopOutputView, shipLabel = "Ship"): 
       <div class="loop-output-decide">
         <input
           type="text"
-          placeholder="return note…"
+          placeholder="填写退回说明…"
           .value=${returnDrafts.get(output.id) ?? ""}
           @input=${(e: Event) => returnDrafts.set(output.id, (e.target as HTMLInputElement).value)}
         />
         <button class="btn" type="button" ?disabled=${loopBusy} @click=${() => decide(loop, output, "return")}>
-          ${icon(CornerUpLeft, 14)}<span>Return</span>
+          ${icon(CornerUpLeft, 14)}<span>退回</span>
         </button>
         <button class="btn primary" type="button" ?disabled=${loopBusy} @click=${() => decide(loop, output, "ship")}>
           ${icon(CheckCircle2, 14)}<span>${shipLabel}</span>
@@ -268,12 +269,12 @@ function reviewRow(loop: LoopView, output: LoopOutputView, shipLabel = "Ship"): 
 function itemRow(item: LoopItemView): TemplateResult {
   return html`
     <div class="loop-item">
-      <span class="loop-item-status loop-item-${item.status}">${item.status}</span>
+      <span class="loop-item-status loop-item-${item.status}">${displayStatus(item.status)}</span>
       <span class="loop-item-key">${item.sourceKey}</span>
       <span class="loop-item-summary">${item.sourceSummary ?? ""}</span>
       <span class="loop-item-meta">
-        ${item.attempts > 0 ? `${item.attempts} attempt${item.attempts === 1 ? "" : "s"}` : ""}
-        ${item.parkedReason ? html` · <span title=${item.parkedReason}>parked</span>` : nothing}
+        ${item.attempts > 0 ? `${item.attempts} 次尝试` : ""}
+        ${item.parkedReason ? html` · <span title=${item.parkedReason}>已搁置</span>` : nothing}
       </span>
     </div>
   `;
@@ -302,18 +303,18 @@ async function addIngestion(loop: LoopView): Promise<void> {
 }
 
 function ingestionTpl(loop: LoopView): TemplateResult {
-  const names = { webhook: "Signed webhook", slack: "Slack events", gmail: "Gmail Pub/Sub" };
+  const names = { webhook: "签名 Webhook", slack: "Slack 事件", gmail: "Gmail Pub/Sub" };
   return html`<section class="loop-ingestion">
     <div class="loop-ingestion-heading">
-      <h2>Ingestion</h2>
-      <span>${loop.cronId ? "Scheduled sync enabled" : "No scheduled sync"}</span>
+      <h2>输入来源</h2>
+      <span>${loop.cronId ? "定时同步已启用" : "未设置定时同步"}</span>
     </div>
-    <p>Choose how new work reaches this Loop. Event sources can run alongside a schedule.</p>
+    <p>选择新任务进入此工作流的方式。事件来源可与定时运行同时启用。</p>
     ${ingestion?.sources.map(
       (source) =>
         html`<div class="loop-ingestion-source">
           <div class="loop-ingestion-source-head">
-            <strong>${names[source.kind]}</strong><span>${source.enabled ? "Listening" : "Disabled"}</span
+            <strong>${names[source.kind]}</strong><span>${source.enabled ? "监听中" : "已停用"}</span
             ><button
               class="btn compact"
               ?disabled=${loopBusy}
@@ -326,13 +327,13 @@ function ingestionTpl(loop: LoopView): TemplateResult {
                   await refreshDetail(loop.id);
                 })}
             >
-              ${source.enabled ? "Disable" : "Enable"}
+              ${source.enabled ? "停用" : "启用"}
             </button>
           </div>
-          <label>Endpoint<input readonly .value=${source.url} aria-label=${`${names[source.kind]} endpoint`} /></label>
-          ${source.gmail ? html`<p>${source.gmail.email} · watch renews automatically</p>` : nothing}
-          ${source.channels?.length ? html`<p>Channels: ${source.channels.join(", ")}</p>` : nothing}
-          <p>Last event: ${ago(source.lastReceivedAt)}${loop.state !== "enabled" ? " · Processing paused" : ""}</p>
+          <label>接口地址<input readonly .value=${source.url} aria-label=${`${names[source.kind]} 接口地址`} /></label>
+          ${source.gmail ? html`<p>${source.gmail.email} · 监听会自动续期</p>` : nothing}
+          ${source.channels?.length ? html`<p>频道：${source.channels.join(", ")}</p>` : nothing}
+          <p>最近事件：${ago(source.lastReceivedAt)}${loop.state !== "enabled" ? " · 处理已暂停" : ""}</p>
           ${source.lastError ? html`<p class="error-banner">${source.lastError}</p>` : nothing}
         </div>`,
     )}
@@ -340,12 +341,9 @@ function ingestionTpl(loop: LoopView): TemplateResult {
       createdSecret
         ? html`<div class="loop-ingestion-secret">
             <label
-              >Signing secret — save it now; it is only shown once<input
-                readonly
-                .value=${createdSecret}
-                aria-label="Webhook signing secret"
+              >签名密钥 — 请立即保存，仅显示一次<input readonly .value=${createdSecret} aria-label="Webhook 签名密钥"
             /></label>
-            <p>Sign the exact JSON body with HMAC-SHA256 and send its hex digest in X-Signature.</p>
+            <p>使用 HMAC-SHA256 对原始 JSON 正文签名，并将十六进制摘要放入 X-Signature 请求头。</p>
             <button
               class="btn compact"
               @click=${() => {
@@ -353,21 +351,21 @@ function ingestionTpl(loop: LoopView): TemplateResult {
                 paint();
               }}
             >
-              Done
+              完成
             </button>
           </div>`
         : nothing
     }
     <div class="loop-ingestion-add">
       ${fieldSelect({
-        ariaLabel: "Ingestion source",
+        ariaLabel: "输入来源",
         value: ingestionKind,
         onChange: (value) => {
           ingestionKind = value as typeof ingestionKind;
           ingestionSecret = "";
           paint();
         },
-        options: html`<option value="">Add event source…</option>
+        options: html`<option value="">添加事件来源…</option>
           ${Object.entries(names)
             .filter(
               ([kind]) =>
@@ -381,21 +379,21 @@ function ingestionTpl(loop: LoopView): TemplateResult {
       ingestionKind === "slack"
         ? html`<div class="loop-ingestion-fields">
             <label
-              >Workspace ID<input
+              >工作区 ID<input
                 placeholder="T0123456789"
                 .value=${ingestionTeam}
                 @input=${(event: Event) => {
                   ingestionTeam = (event.target as HTMLInputElement).value;
                 }} /></label
             ><label
-              >Channel IDs<input
+              >频道 ID<input
                 placeholder="C0123456789, C9876543210"
                 .value=${ingestionChannels}
                 @input=${(event: Event) => {
                   ingestionChannels = (event.target as HTMLInputElement).value;
                 }} /></label
             ><label
-              >Slack signing secret<input
+              >Slack 签名密钥<input
                 type="password"
                 autocomplete="off"
                 .value=${ingestionSecret}
@@ -403,15 +401,12 @@ function ingestionTpl(loop: LoopView): TemplateResult {
                   ingestionSecret = (event.target as HTMLInputElement).value;
                 }}
             /></label>
-            <p>
-              Use the endpoint as your Slack app’s Events API request URL. Only human messages from these channels are
-              accepted.
-            </p>
+            <p>将此接口地址配置为 Slack 应用的 Events API 请求地址。只接收这些频道中由用户发送的消息。</p>
           </div>`
         : nothing
     }
-    ${ingestionKind === "gmail" ? html`<p>${ingestion?.gmailAvailable ? "Uses your connected personal Gmail account. New Inbox messages become Loop work items." : "An administrator must configure the Google Cloud Pub/Sub topic, audience, and push service account before Gmail can be enabled."}</p>` : nothing}
-    ${ingestionKind ? html`<button class="btn compact" ?disabled=${loopBusy || (ingestionKind === "gmail" && !ingestion?.gmailAvailable)} @click=${() => void addIngestion(loop)}>${loopBusy ? "Connecting…" : `Enable ${names[ingestionKind]}`}</button>` : nothing}
+    ${ingestionKind === "gmail" ? html`<p>${ingestion?.gmailAvailable ? "使用你已连接的个人 Gmail 账户，收件箱的新邮件将转为工作流待办。" : "管理员需要先配置 Google Cloud Pub/Sub 主题、受众和推送服务账户，才能启用 Gmail。"}</p>` : nothing}
+    ${ingestionKind ? html`<button class="btn compact" ?disabled=${loopBusy || (ingestionKind === "gmail" && !ingestion?.gmailAvailable)} @click=${() => void addIngestion(loop)}>${loopBusy ? "正在连接…" : `启用 ${names[ingestionKind]}`}</button>` : nothing}
   </section>`;
 }
 
@@ -422,7 +417,7 @@ function detailTpl(detail: LoopDetail): TemplateResult {
   const unconfirmed = outputs.filter((o) => o.state === "unconfirmed");
   const decided = outputs.filter((o) => o.state !== "ready" && o.state !== "unconfirmed");
   return html`
-    ${listBackLink("Loops", () => {
+    ${listBackLink("持续工作流", () => {
       resetActiveLoop();
       paint();
       void refreshLoops();
@@ -443,18 +438,18 @@ function detailTpl(detail: LoopDetail): TemplateResult {
             }
           }}
         >
-          <summary aria-label=${`Change icon for ${loop.name}`} title="Change icon">${loopIcon(loop, 24)}</summary>
-          <div class="loop-icon-popover" role="group" aria-label="Loop icon">
-            <span class="loop-icon-heading">Choose an icon</span>
+          <summary aria-label=${`更换 ${loop.name} 的图标`} title="更换图标">${loopIcon(loop, 24)}</summary>
+          <div class="loop-icon-popover" role="group" aria-label="工作流图标">
+            <span class="loop-icon-heading">选择图标</span>
             <div class="loop-icon-grid">
               ${LOOP_ICONS.map((choice) => html`<button type="button" aria-label=${choice.label} title=${choice.label} aria-pressed=${loop.icon === choice.id ? "true" : "false"} ?disabled=${loopBusy} @click=${() => void setLoopIcon(loop, choice.id)}>${loopIcon({ icon: choice.id }, 20)}</button>`)}
             </div>
             <label class="loop-icon-upload">
-              <span>${loopBusy ? "Saving…" : "Upload image"}</span>
+              <span>${loopBusy ? "正在保存…" : "上传图片"}</span>
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-                aria-label="Upload loop icon"
+                aria-label="上传工作流图标"
                 ?disabled=${loopBusy}
                 @change=${(event: Event) => {
                   const input = event.currentTarget as HTMLInputElement;
@@ -464,14 +459,14 @@ function detailTpl(detail: LoopDetail): TemplateResult {
                 }}
               />
             </label>
-            <span class="loop-icon-hint">Images up to 2 MB, including SVG</span>
+            <span class="loop-icon-hint">支持不超过 2 MB 的图片，包括 SVG</span>
             <button
               class="loop-icon-default"
               type="button"
               ?disabled=${loopBusy || !loop.icon}
               @click=${() => void setLoopIcon(loop, null)}
             >
-              ${loopIcon({ sources: loop.sources })}<span>Use default</span>
+              ${loopIcon({ sources: loop.sources })}<span>使用默认图标</span>
             </button>
           </div>
         </details>
@@ -480,12 +475,12 @@ function detailTpl(detail: LoopDetail): TemplateResult {
       <div class="list-page-actions">
         ${healthBadge(loop)}
         <button class="btn" type="button" ?disabled=${loopBusy} @click=${() => fireNow(loop)}>
-          ${icon(Zap, 14)}<span>Fire now</span>
+          ${icon(Zap, 14)}<span>立即运行</span>
         </button>
         ${
           loop.state === "enabled"
             ? html`<button class="btn" type="button" ?disabled=${loopBusy} @click=${() => setState(loop, "paused")}>
-                ${icon(Pause, 14)}<span>Pause</span>
+                ${icon(Pause, 14)}<span>暂停</span>
               </button>`
             : html`<button
                 class="btn primary"
@@ -493,7 +488,7 @@ function detailTpl(detail: LoopDetail): TemplateResult {
                 ?disabled=${loopBusy}
                 @click=${() => setState(loop, "enabled")}
               >
-                ${icon(Play, 14)}<span>${loop.state === "quarantined" ? "Clear quarantine" : "Resume"}</span>
+                ${icon(Play, 14)}<span>${loop.state === "quarantined" ? "解除隔离" : "继续"}</span>
               </button>`
         }
       </div>
@@ -511,10 +506,8 @@ function detailTpl(detail: LoopDetail): TemplateResult {
             @click=${() => setAutopilot(loop, !autopilot)}
           >
             <span class="loop-autopilot-copy">
-              <span class="loop-autopilot-label">Autopilot</span>
-              <span class="loop-autopilot-sublabel"
-                >${autopilot ? "Shipping without review" : "Ships outputs without review"}</span
-              >
+              <span class="loop-autopilot-label">自动执行</span>
+              <span class="loop-autopilot-sublabel">${autopilot ? "无需审核直接交付" : "无需审核即可交付结果"}</span>
             </span>
             <span class="loop-autopilot-switch"><span></span></span>
           </button>`
@@ -522,20 +515,20 @@ function detailTpl(detail: LoopDetail): TemplateResult {
     }
 
     <h2 class="loop-section-title">
-      Ready to ship ${ready.length ? html`<span class="loop-count">${ready.length}</span>` : nothing}
+      待交付 ${ready.length ? html`<span class="loop-count">${ready.length}</span>` : nothing}
     </h2>
-    ${ready.length ? ready.map((o) => reviewRow(loop, o)) : html`<p class="list-empty">Nothing waiting on you.</p>`}
+    ${ready.length ? ready.map((o) => reviewRow(loop, o)) : html`<p class="list-empty">暂无需要你处理的事项。</p>`}
 
     <h2 class="loop-section-title">
-      Needs confirmation ${unconfirmed.length ? html`<span class="loop-count">${unconfirmed.length}</span>` : nothing}
+      待确认 ${unconfirmed.length ? html`<span class="loop-count">${unconfirmed.length}</span>` : nothing}
     </h2>
     ${
       unconfirmed.length
-        ? unconfirmed.map((o) => reviewRow(loop, o, "Confirm shipped"))
-        : html`<p class="list-empty">Nothing needs confirmation.</p>`
+        ? unconfirmed.map((o) => reviewRow(loop, o, "确认已交付"))
+        : html`<p class="list-empty">暂无需要确认的事项。</p>`
     }
     ${ingestionTpl(loop)}
-    <h2 class="loop-section-title">Playbook <span class="loop-count">v${loop.playbookVersion}</span></h2>
+    <h2 class="loop-section-title">执行手册 <span class="loop-count">v${loop.playbookVersion}</span></h2>
     <textarea
       class="loop-playbook"
       rows="10"
@@ -545,25 +538,25 @@ function detailTpl(detail: LoopDetail): TemplateResult {
       }}
     ></textarea>
     <div class="loop-playbook-actions">
-      <span class="loop-success-condition" title="success condition">Done when: ${loop.successCondition}</span>
+      <span class="loop-success-condition" title="完成条件">完成条件：${loop.successCondition}</span>
       ${
         playbookDraft !== null && playbookDraft !== loop.playbook
           ? html`<button class="btn primary" type="button" ?disabled=${loopBusy} @click=${() => savePlaybook(loop)}>
-              Save playbook
+              保存执行手册
             </button>`
           : nothing
       }
     </div>
 
-    <h2 class="loop-section-title">Work ledger</h2>
-    ${items.length ? items.map(itemRow) : html`<p class="list-empty">No items yet. Fire the loop.</p>`}
+    <h2 class="loop-section-title">工作记录</h2>
+    ${items.length ? items.map(itemRow) : html`<p class="list-empty">暂无事项，请运行工作流。</p>`}
     ${
       decided.length
-        ? html`<h2 class="loop-section-title">Decided</h2>
+        ? html`<h2 class="loop-section-title">已决定</h2>
             ${decided.map(
               (o) => html`
                 <div class="loop-output loop-output-decided">
-                  <span class="loop-output-state loop-output-${o.state}">${o.state}</span>
+                  <span class="loop-output-state loop-output-${o.state}">${displayStatus(o.state)}</span>
                   <span class="loop-output-title">${o.title}</span>
                   <span class="loop-output-meta"
                     >${o.decidedBy ?? ""} ${o.decisionNote ? `· ${o.decisionNote}` : ""}</span
@@ -581,7 +574,7 @@ function loopRow(loop: LoopView): TemplateResult {
     <button class="list-row loop-row" type="button" @click=${() => openLoop(loop.id)}>
       ${loopIcon(loop, 18)}<span class="loop-row-name">${loop.name}</span>
       ${healthBadge(loop)}
-      <span class="loop-row-meta">last fire ${ago(loop.lastFiredAt)}</span>
+      <span class="loop-row-meta">上次触发 ${ago(loop.lastFiredAt)}</span>
     </button>
   `;
 }
@@ -589,17 +582,16 @@ function loopRow(loop: LoopView): TemplateResult {
 function paint(): void {
   if (!loopsHost || appState.currentView !== "loops") return;
   if (activeLoopId) {
-    render(activeDetail ? detailTpl(activeDetail) : html`<p class="list-empty">Loading…</p>`, loopsHost);
+    render(activeDetail ? detailTpl(activeDetail) : html`<p class="list-empty">加载中…</p>`, loopsHost);
     return;
   }
   render(
     listPageTpl({
-      title: "Loops",
+      title: "持续工作流",
       rows: loopList.map(loopRow),
       empty: loopsLoading
-        ? "Loading…"
-        : (loopsNotice ??
-          "No loops yet. Ask the agent to set one up. The define-loop skill walks through it, shadow run first."),
+        ? "加载中…"
+        : (loopsNotice ?? "暂无工作流。可以让智能体帮你设置，define-loop 技能会先进行模拟运行。"),
     }),
     loopsHost,
   );

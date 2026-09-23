@@ -29,18 +29,18 @@ export function mountConnectionPicker(
     });
     const shown = expanded || words.length ? matches : matches.slice(0, 6);
     render(
-      html`<section class="connection-picker" aria-label="Connect your apps">
+      html`<section class="connection-picker" aria-label="连接你的应用">
         <header class="connection-picker-header">
           <div>
-            <h3>Connect your apps</h3>
+            <h3>连接你的应用</h3>
           </div>
         </header>
         <label class="connection-picker-search">
           ${icon(Search, 16)}
           <input
             type="search"
-            aria-label="Search apps"
-            placeholder="Search apps…"
+            aria-label="搜索应用"
+            placeholder="搜索应用…"
             .value=${query}
             @input=${(event: Event) => {
               query = (event.target as HTMLInputElement).value;
@@ -50,7 +50,7 @@ export function mountConnectionPicker(
           />
         </label>
         <div class="connection-picker-caption" role="status" aria-live="polite">
-          ${words.length ? `${matches.length} ${matches.length === 1 ? "app" : "apps"} found` : "Popular apps"}
+          ${words.length ? `找到 ${matches.length} 个应用` : "热门应用"}
         </div>
         <div class="connection-picker-grid">
           ${shown.map(
@@ -59,7 +59,7 @@ export function mountConnectionPicker(
                 type="button"
                 class="connection-picker-app"
                 ?disabled=${service.connected}
-                aria-label=${service.connected ? `${service.name} connected` : `Connect ${service.name}`}
+                aria-label=${service.connected ? `${service.name} 已连接` : `连接 ${service.name}`}
                 @click=${() => onSelect(service)}
               >
                 ${connectorLogo(service.id, service.logoUrl)}
@@ -68,7 +68,7 @@ export function mountConnectionPicker(
               </button>`,
           )}
         </div>
-        ${matches.length === 0 ? html`<p class="connection-picker-empty">No apps match “${query}”. Try another name.</p>` : nothing}
+        ${matches.length === 0 ? html`<p class="connection-picker-empty">没有与“${query}”匹配的应用，请换个名称试试。</p>` : nothing}
         ${
           !words.length && matches.length > 6
             ? html`<button
@@ -80,7 +80,7 @@ export function mountConnectionPicker(
                   draw();
                 }}
               >
-                ${expanded ? "Show fewer apps" : `Browse all ${services.length} apps`}
+                ${expanded ? "收起应用" : `浏览全部 ${services.length} 个应用`}
               </button>`
             : nothing
         }

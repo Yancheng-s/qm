@@ -23,7 +23,7 @@ test("a tab offers an archive button beside close, for real sessions only", () =
   assert.match(btn, /@click=[\s\S]*?if \(inTab\) e\.stopPropagation\(\)/);
   const archiveAt = split.indexOf("split-tab-archive");
   assert.ok(
-    archiveAt !== -1 && split.indexOf('tip("Close pane")', archiveAt) !== -1,
+    archiveAt !== -1 && split.indexOf('tip("关闭面板")', archiveAt) !== -1,
     "archive sits before (next to) the close button",
   );
 });

@@ -8,8 +8,8 @@ const browse = readFileSync(new URL("../src/browse.ts", import.meta.url), "utf8"
 
 test("unconfirmed loop outputs have confirmation and return controls", () => {
   assert.match(source, /const unconfirmed = outputs\.filter\(\(o\) => o\.state === "unconfirmed"\)/);
-  assert.match(source, /Needs confirmation/);
-  assert.match(source, /reviewRow\(loop, o, "Confirm shipped"\)/);
+  assert.match(source, /需要确认/);
+  assert.match(source, /reviewRow\(loop, o, "确认已交付"\)/);
   assert.match(source, /decide\(loop, output, "return"\)/);
 });
 
@@ -22,9 +22,9 @@ test("loops navigation, routing, and fetching require permission", () => {
 
 test("loop detail derives and renders the autopilot toggle", () => {
   assert.match(source, /shipActions\.length > 0 && loop\.shipActions\.every\(\(policy\) => policy\.gate === "auto"\)/);
-  assert.match(source, />Autopilot</);
-  assert.match(source, /Ships outputs without review/);
-  assert.match(source, /Shipping without review/);
+  assert.match(source, />自动执行</);
+  assert.match(source, /无需审核即可交付结果/);
+  assert.match(source, /无需审核直接交付/);
   assert.match(source, /setAutopilot\(loop, !autopilot\)/);
   assert.match(source, /\?disabled=\$\{loopBusy\}/);
   assert.match(source, /loop\.shipActions\.length[^]*class="loop-autopilot/);

@@ -155,7 +155,7 @@ test("failed saves keep the last good snapshot and do not poison the write queue
 
 test("bad scope responses never update or notify the requested scope", async () => {
   globalThis.fetch = async () => Response.json(runtimeConfig("scope:wrong"));
-  await assert.rejects(loadRuntimeConfig("scope:expected"), /scope mismatch/);
+  await assert.rejects(loadRuntimeConfig("scope:expected"), /运行配置所属项目不匹配/);
   assert.equal(getRuntimeConfig("scope:expected"), null);
 });
 

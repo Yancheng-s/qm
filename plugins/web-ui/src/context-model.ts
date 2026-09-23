@@ -76,7 +76,7 @@ export async function loadContextModel(scopeId: string, onChange: () => void): P
   if (seq !== loadSeq) return;
   contextModelState.loading = false;
   if (!config) {
-    contextModelState.notice = "Couldn't load this project's model.";
+    contextModelState.notice = "无法加载此项目的模型。";
     contextModelState.noticeKind = "error";
   }
   redraw();
@@ -145,7 +145,7 @@ async function choose(scope: string, value: string, effort?: string, fast = fals
     if (seq !== loadSeq) return;
   } catch (e) {
     if (seq !== loadSeq) return;
-    contextModelState.notice = errMessage(e, "Couldn't change the model. Try again.");
+    contextModelState.notice = errMessage(e, "无法切换模型，请重试。");
     contextModelState.noticeKind = "error";
   } finally {
     if (seq === loadSeq) {
@@ -221,13 +221,13 @@ export function contextModelSection(scopeId: string): TemplateResult | typeof no
   if (contextModelState.scope !== scopeId) return nothing;
   if (contextModelState.loading)
     return html`<section class="context-panel context-model" aria-labelledby="context-model-title">
-      <h2 class="context-panel-title" id="context-model-title">Model</h2>
-      <div class="context-panel-loading">Loading…</div>
+      <h2 class="context-panel-title" id="context-model-title">模型</h2>
+      <div class="context-panel-loading">加载中…</div>
     </section>`;
   const config = contextModelState.config;
   if (!config)
     return html`<section class="context-panel context-model" aria-labelledby="context-model-title">
-      <h2 class="context-panel-title" id="context-model-title">Model</h2>
+      <h2 class="context-panel-title" id="context-model-title">模型</h2>
       <span class="context-model-status error" aria-live="polite">${contextModelState.notice}</span>
     </section>`;
   const options = optionsFor(config);
@@ -239,9 +239,9 @@ export function contextModelSection(scopeId: string): TemplateResult | typeof no
   picker.place();
   return html`
     <section class="context-panel context-model" aria-labelledby="context-model-title">
-      <h2 class="context-panel-title" id="context-model-title">Model</h2>
-      ${stalePin ? html`<span class="context-model-status">${labelForRuntime(config, config.scopeOverride!)} (no longer offered)</span>` : nothing}
-      ${!option && !stalePin ? html`<span class="context-model-status">${labelForRuntime(config, config.effective)} (no longer offered)</span>` : nothing}
+      <h2 class="context-panel-title" id="context-model-title">模型</h2>
+      ${stalePin ? html`<span class="context-model-status">${labelForRuntime(config, config.scopeOverride!)}（已不再提供）</span>` : nothing}
+      ${!option && !stalePin ? html`<span class="context-model-status">${labelForRuntime(config, config.effective)}（已不再提供）</span>` : nothing}
       ${picker.render(undefined, option, contextModelState.saving)}
       ${
         contextModelState.notice

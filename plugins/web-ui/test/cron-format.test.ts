@@ -18,7 +18,7 @@ test("recurring schedule detail shows first run before the first fire", () => {
     ...baseCron,
     schedule: { everyMs: 86_400_000, firstFireAt: Date.UTC(2026, 0, 2, 9) },
   });
-  assert.match(detail, /^Every 1d - first run /);
+  assert.match(detail, /^每 1天 - 首次运行 /);
 });
 
 test("recurring schedule detail stops showing stale first run after firing", () => {
@@ -28,7 +28,7 @@ test("recurring schedule detail stops showing stale first run after firing", () 
       schedule: { everyMs: 86_400_000, firstFireAt: Date.UTC(2026, 0, 2, 9) },
       lastFiredAt: Date.UTC(2026, 0, 3, 9),
     }),
-    "Every 1d",
+    "每 1天",
   );
 });
 
@@ -39,7 +39,7 @@ test("one-shot schedule detail keeps the configured run time", () => {
     schedule: { firstFireAt: Date.UTC(2026, 0, 2, 9) },
     lastFiredAt: Date.UTC(2026, 0, 2, 9),
   });
-  assert.match(detail, /^One-time - run /);
+  assert.match(detail, /^一次性 - 运行 /);
 });
 
 test("calendar schedule summary and detail show the canonical expression and timezone", () => {
@@ -47,8 +47,8 @@ test("calendar schedule summary and detail show the canonical expression and tim
     ...baseCron,
     schedule: { cron: "0 9 * * 1-5", timezone: "America/Los_Angeles" },
   };
-  assert.equal(cronScheduleSummary(cron), "cron 0 9 * * 1-5");
-  assert.equal(cronScheduleDetail(cron), "Cron 0 9 * * 1-5 (America/Los_Angeles)");
+  assert.equal(cronScheduleSummary(cron), "定时规则 0 9 * * 1-5");
+  assert.equal(cronScheduleDetail(cron), "定时规则 0 9 * * 1-5 (America/Los_Angeles)");
 });
 
 test("calendar schedule without a core-provided next fire degrades to last/never, not a bogus time", () => {
@@ -57,8 +57,8 @@ test("calendar schedule without a core-provided next fire degrades to last/never
     schedule: { cron: "0 9 * * 1-5", timezone: "America/Los_Angeles" },
   };
   assert.equal(cronNextFire(cron), null);
-  assert.equal(cronRunSummary(cron), "never fired");
-  assert.match(cronRunSummary({ ...cron, lastFiredAt: Date.UTC(2026, 0, 1, 17) }), /^last /);
+  assert.equal(cronRunSummary(cron), "从未触发");
+  assert.match(cronRunSummary({ ...cron, lastFiredAt: Date.UTC(2026, 0, 1, 17) }), /^上次 /);
 });
 
 test("calendar schedule honors a core-provided next fire timestamp", () => {
@@ -74,14 +74,18 @@ test("calendar schedule honors a core-provided next fire timestamp", () => {
 });
 
 function zonedTime(ms: number, timeZone?: string): string {
-  return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", ...(timeZone ? { timeZone } : {}) });
+  return new Date(ms).toLocaleTimeString("zh-CN", {
+    hour: "numeric",
+    minute: "2-digit",
+    ...(timeZone ? { timeZone } : {}),
+  });
 }
 
 test("same instant renders as today's time in one timezone and tomorrow's in another", () => {
   const now = Date.UTC(2026, 6, 21, 12, 0);
   const ms = Date.UTC(2026, 6, 21, 22, 0);
   assert.equal(formatCronDateTime(ms, now, "America/Los_Angeles"), zonedTime(ms, "America/Los_Angeles"));
-  assert.equal(formatCronDateTime(ms, now, "Asia/Tokyo"), `tomorrow ${zonedTime(ms, "Asia/Tokyo")}`);
+  assert.equal(formatCronDateTime(ms, now, "Asia/Tokyo"), `明天 ${zonedTime(ms, "Asia/Tokyo")}`);
 });
 
 test("tomorrow classification survives the DST spring-forward boundary", () => {
@@ -90,9 +94,9 @@ test("tomorrow classification survives the DST spring-forward boundary", () => {
   const dayAfterMs = Date.UTC(2026, 2, 9, 20, 0);
   assert.equal(
     formatCronDateTime(tomorrowMs, now, "America/Los_Angeles"),
-    `tomorrow ${zonedTime(tomorrowMs, "America/Los_Angeles")}`,
+    `明天 ${zonedTime(tomorrowMs, "America/Los_Angeles")}`,
   );
-  assert.doesNotMatch(formatCronDateTime(dayAfterMs, now, "America/Los_Angeles"), /^tomorrow /);
+  assert.doesNotMatch(formatCronDateTime(dayAfterMs, now, "America/Los_Angeles"), /^明天 /);
 });
 
 test("a different year in the schedule timezone includes the year", () => {
@@ -133,12 +137,12 @@ function legacyFormatCronDateTime(ms: number, now: number, timeZone?: string): s
       const tomorrow = legacyAddLocalDays(todayParts, 1);
       const time = zonedTime(ms, timeZone);
       if (legacySameLocalDay(parts, todayParts)) return time;
-      if (legacySameLocalDay(parts, tomorrow)) return `tomorrow ${time}`;
+      if (legacySameLocalDay(parts, tomorrow)) return `明天 ${time}`;
       const dateOpts: Intl.DateTimeFormatOptions =
         parts.year === todayParts.year
           ? { month: "short", day: "numeric", timeZone }
           : { month: "short", day: "numeric", year: "numeric", timeZone };
-      return `${date.toLocaleDateString([], dateOpts)} ${time}`;
+      return `${date.toLocaleDateString("zh-CN", dateOpts)} ${time}`;
     }
   }
   const tomorrow = new Date(today);
@@ -155,12 +159,12 @@ function legacyFormatCronDateTime(ms: number, now: number, timeZone?: string): s
     date.getMonth() === tomorrow.getMonth() &&
     date.getDate() === tomorrow.getDate()
   )
-    return `tomorrow ${time}`;
+    return `明天 ${time}`;
   const dateOpts: Intl.DateTimeFormatOptions =
     date.getFullYear() === today.getFullYear()
       ? { month: "short", day: "numeric" }
       : { month: "short", day: "numeric", year: "numeric" };
-  return `${date.toLocaleDateString([], dateOpts)} ${time}`;
+  return `${date.toLocaleDateString("zh-CN", dateOpts)} ${time}`;
 }
 
 interface LegacyParts {

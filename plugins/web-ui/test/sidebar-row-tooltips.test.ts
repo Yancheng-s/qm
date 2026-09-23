@@ -12,7 +12,7 @@ function block(marker: string): string {
 
 test("the sidebar row's archive button names itself on hover", () => {
   const archive = block('class="session-menu-btn session-archive-btn"');
-  assert.match(archive, /\$\{tip\(s\.archived \? "Unarchive" : "Archive"\)\}/);
+  assert.match(archive, /\$\{tip\(s\.archived \? "取消归档" : "归档"\)\}/);
   assert.match(archive, /aria-label=/);
 });
 
@@ -23,10 +23,10 @@ test("the sidebar row's options button names itself on hover", () => {
 });
 
 test("row tooltips reuse the wording the chats page already uses for the same actions", () => {
-  const chatsPage = block('${tip(s.archived ? "Unarchive" : "Archive")}');
+  const chatsPage = block('${tip(s.archived ? "取消归档" : "归档")}');
   assert.ok(chatsPage.length > 0);
-  assert.equal(sessions.match(/\$\{tip\(s\.archived \? "Unarchive" : "Archive"\)\}/g)?.length, 2);
-  assert.match(sessions, /const CHAT_OPTIONS_TOOLTIP = "Chat options";/);
+  assert.equal(sessions.match(/\$\{tip\(s\.archived \? "取消归档" : "归档"\)\}/g)?.length, 2);
+  assert.match(sessions, /const CHAT_OPTIONS_TOOLTIP = "对话选项";/);
 });
 
 test("every sidebar control uses the app tooltip, never the native title attribute", () => {

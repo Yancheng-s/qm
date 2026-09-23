@@ -9,7 +9,7 @@ const bridge = readFileSync(new URL("../src/core-bridge.ts", import.meta.url), "
 test("project detail offers a Slack home-channel section", () => {
   assert.match(source, /function projectSlackSection\(/);
   assert.match(source, /c\.project \? projectSlackSection\(c\) : nothing/);
-  assert.match(source, /Link a channel/);
+  assert.match(source, /关联频道/);
 });
 
 test("the slack-channel input keeps focus across redraws and commits to state", () => {
@@ -52,10 +52,10 @@ test("CoreProject carries the linked slack channel", () => {
 test("channel-derived members are badged and not removable", () => {
   assert.match(source, /viaChannel = Boolean\(/);
   assert.match(source, /principalId !== project\.ownerId && !viaChannel/);
-  assert.match(source, /Joined via the linked Slack channel/);
+  assert.match(source, /通过关联的 Slack 频道加入/);
 });
 
 test("hint copy says the agent posts there and membership follows the channel", () => {
-  assert.match(source, /everyone in the channel joins\s+the project/);
-  assert.match(source, /everyone in the channel is in the project/);
+  assert.match(source, /频道内的所有成员都会加入项目/);
+  assert.match(source, /频道内的所有成员都属于此项目/);
 });

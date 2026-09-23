@@ -92,9 +92,9 @@ export function deploymentTab(d: DeploymentView, viewer: string | undefined): De
 }
 
 export function deploymentTabEmptyMessage(tab: DeploymentTab): string {
-  if (tab === "shared") return "No apps shared with you.";
-  if (tab === "archived") return "Nothing archived.";
-  return "No apps of your own yet.";
+  if (tab === "shared") return "暂无与你共享的应用。";
+  if (tab === "archived") return "暂无归档内容。";
+  return "你还没有自己的应用。";
 }
 
 export function filterDeployments(
@@ -124,7 +124,7 @@ export function filterDeployments(
 
 export function friendlyPrincipal(principal: string | undefined): string {
   const local = (principal ?? "").split("@")[0]!.trim();
-  if (!local) return "Unknown owner";
+  if (!local) return "未知所有者";
   return local
     .split(/[._-]+/)
     .filter(Boolean)

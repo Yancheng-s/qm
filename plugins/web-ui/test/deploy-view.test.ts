@@ -126,7 +126,7 @@ test("the empty Yours message stays tab-local when a manageable transfer is Shar
     permission: "write",
   });
   assert.equal(deploymentTab(transferred, "blair@example.com"), "shared");
-  assert.equal(deploymentTabEmptyMessage("yours"), "No apps of your own yet.");
+  assert.equal(deploymentTabEmptyMessage("yours"), "你还没有自己的应用。");
 });
 
 test("management actions fail closed when permission is missing or unknown", () => {

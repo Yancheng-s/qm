@@ -136,25 +136,25 @@ async function withTabs(run: (requests: string[]) => Promise<void>): Promise<voi
   }
 }
 
-for (const action of ["Archive session", "Share conversation"]) {
+for (const action of ["归档会话", "分享对话"]) {
   test(`group ${action} follows the surviving tab after closing the active tab`, async () => {
     await withTabs(async (requests) => {
       const tabs = Array.from(document.querySelectorAll(".dv-tab"));
       const closed = tabs.find((el) => el.querySelector(".split-pane-title-text")?.textContent?.trim() === "b")!;
       const group = closed.closest(".dv-groupview")!;
-      closed.querySelector<HTMLButtonElement>('[aria-label="Close pane"]')!.click();
+      closed.querySelector<HTMLButtonElement>('[aria-label="关闭面板"]')!.click();
       assert.equal(group.querySelectorAll(".dv-tab").length, 1);
       assert.equal(group.querySelector(".split-pane-title-text")?.textContent?.trim(), "a");
       group.querySelector<HTMLButtonElement>(`.split-pane-actions [aria-label="${action}"]`)!.click();
-      if (action === "Share conversation") {
+      if (action === "分享对话") {
         document.querySelector<HTMLButtonElement>(".session-share-dialog .project-dialog-actions button")!.click();
       }
       await new Promise((resolve) => setTimeout(resolve, 0));
-      const expected = action === "Archive session" ? "POST /api/sessions/a" : "POST /api/sessions/a/share";
+      const expected = action === "归档会话" ? "POST /api/sessions/a" : "POST /api/sessions/a/share";
       assert.ok(requests.includes(expected), JSON.stringify(requests));
       assert.ok(!requests.includes("POST /api/sessions/b"));
       assert.ok(!requests.includes("POST /api/sessions/b/share"));
-      if (action === "Archive session") assert.ok(!group.isConnected);
+      if (action === "归档会话") assert.ok(!group.isConnected);
     });
   });
 }

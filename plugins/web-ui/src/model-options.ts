@@ -20,11 +20,11 @@ const HARNESS_LABELS: Record<string, string> = {
   opencode: "OpenCode",
   codex: "Codex",
   claude: "Claude Code",
-  mock: "Mock",
+  mock: "模拟",
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
-  "qm:gateway": "Gateway",
+  "qm:gateway": "网关",
   anthropic: "Anthropic",
   openai: "OpenAI",
   openrouter: "OpenRouter",

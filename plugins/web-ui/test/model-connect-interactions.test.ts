@@ -114,12 +114,12 @@ test("AI account modal interactions", async (t) => {
   await t.test("Escape, focus trap, backdrop close, and focus restoration work", async () => {
     fetcher = base;
     await open();
-    assert.equal(doc.activeElement, button("Close"));
-    const last = button("Done");
+    assert.equal(doc.activeElement, button("关闭"));
+    const last = button("完成");
     last.focus();
     last.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
-    assert.equal(doc.activeElement, button("Close"));
-    button("Close").dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    assert.equal(doc.activeElement, button("关闭"));
+    button("关闭").dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     assert.equal(doc.querySelector(".mc-overlay"), null);
     assert.equal(doc.activeElement?.id, "opener");
     await open();
@@ -134,7 +134,7 @@ test("AI account modal interactions", async (t) => {
     assert.match(doc.querySelector("[role=alert]")!.textContent!, /offline/);
     assert.equal(doc.querySelector(".mc-providers"), null);
     fail = false;
-    button("Retry").click();
+    button("重试").click();
     await tick();
     assert.ok(doc.querySelector(".mc-providers"));
     close();
@@ -143,18 +143,18 @@ test("AI account modal interactions", async (t) => {
   await t.test("switching providers clears key drafts; selecting the same method preserves them", async () => {
     fetcher = base;
     await open();
-    providerButton("ChatGPT / Codex", "Connect");
-    providerButton("ChatGPT / Codex", "Use an API key");
+    providerButton("ChatGPT / Codex", "连接");
+    providerButton("ChatGPT / Codex", "使用 API 密钥");
     const input = doc.querySelector<HTMLInputElement>("input")!;
     input.value = "test-only-openai-key";
     input.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
-    providerButton("ChatGPT / Codex", "Use an API key");
+    providerButton("ChatGPT / Codex", "使用 API 密钥");
     assert.equal(doc.querySelector<HTMLInputElement>("input")!.value, "test-only-openai-key");
-    providerButton("Claude", "Connect");
+    providerButton("Claude", "连接");
     assert.equal(doc.querySelector("input"), null);
-    providerButton("Claude", "Use an API key");
+    providerButton("Claude", "使用 API 密钥");
     assert.equal(doc.querySelector<HTMLInputElement>("input")!.value, "");
-    providerButton("Claude", "Cancel");
+    providerButton("Claude", "取消");
     assert.equal(doc.querySelector("input"), null);
     close();
   });
@@ -168,12 +168,12 @@ test("AI account modal interactions", async (t) => {
           })
         : base(path);
     await open();
-    providerButton("ChatGPT / Codex", "Connect");
-    providerButton("ChatGPT / Codex", "Sign in with ChatGPT / Codex");
+    providerButton("ChatGPT / Codex", "连接");
+    providerButton("ChatGPT / Codex", "使用 ChatGPT / Codex 登录");
     close();
     await open();
-    providerButton("Claude", "Connect");
-    providerButton("Claude", "Use an API key");
+    providerButton("Claude", "连接");
+    providerButton("Claude", "使用 API 密钥");
     resolveStart(Response.json(pendingDevice));
     await tick();
     assert.ok(provider("Claude").querySelector("input"));
@@ -190,11 +190,11 @@ test("AI account modal interactions", async (t) => {
         : base(path);
     };
     await open();
-    providerButton("ChatGPT / Codex", "Connect");
-    providerButton("ChatGPT / Codex", "Sign in with ChatGPT / Codex");
+    providerButton("ChatGPT / Codex", "连接");
+    providerButton("ChatGPT / Codex", "使用 ChatGPT / Codex 登录");
     await tick();
     assert.match(doc.querySelector("[role=alert]")!.textContent!, /expired/);
-    providerButton("ChatGPT / Codex", "Sign in with ChatGPT / Codex");
+    providerButton("ChatGPT / Codex", "使用 ChatGPT / Codex 登录");
     await tick();
     assert.equal(starts, 2);
     close();
@@ -215,19 +215,19 @@ test("AI account modal interactions", async (t) => {
       return base(path);
     };
     await open();
-    providerButton("ChatGPT / Codex", "Connect");
-    providerButton("ChatGPT / Codex", "Sign in with ChatGPT / Codex");
+    providerButton("ChatGPT / Codex", "连接");
+    providerButton("ChatGPT / Codex", "使用 ChatGPT / Codex 登录");
     await tick();
-    providerButton("ChatGPT / Codex", "Use an API key");
+    providerButton("ChatGPT / Codex", "使用 API 密钥");
     assert.equal(doc.querySelector("input"), null);
-    assert.equal(button("Cancel").disabled, true);
+    assert.equal(button("取消").disabled, true);
     close();
     assert.ok(doc.querySelector(".mc-overlay"));
     connected = true;
     resolvePoll(Response.json({ status: "connected" }));
     await tick();
     assert.ok(provider("ChatGPT / Codex").classList.contains("connected"));
-    assert.equal(button("Done").disabled, false);
+    assert.equal(button("完成").disabled, false);
     close();
   });
 
@@ -251,27 +251,27 @@ test("AI account modal interactions", async (t) => {
         return Response.json(status(account, connected ? [{ provider: "anthropic", kind: "apikey" }] : []));
       };
       await open();
-      providerButton("Claude", "Connect");
-      providerButton("Claude", "Use an API key");
+      providerButton("Claude", "连接");
+      providerButton("Claude", "使用 API 密钥");
       const input = doc.querySelector<HTMLInputElement>("input")!;
       input.value = "test-only-key";
       input.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
-      providerButton("Claude", "Connect");
+      providerButton("Claude", "连接");
       await tick();
       assert.match(doc.querySelector("[role=alert]")!.textContent!, /rejected/);
       assert.equal(doc.querySelector<HTMLInputElement>("input")!.value, "test-only-key");
       fail = false;
-      providerButton("Claude", "Connect");
+      providerButton("Claude", "连接");
       await tick();
       assert.ok(provider("Claude").classList.contains("connected"));
       assert.equal(appState.me.individualModelAuth, false);
-      providerButton("Claude", "Use account");
+      providerButton("Claude", "使用此账户");
       await tick();
-      providerButton("Claude", "Disconnect");
+      providerButton("Claude", "断开连接");
       await tick();
       assert.equal(appState.me.individualModelAuth, true);
       assert.equal(appState.me.modelAuthConnected, false);
-      assert.match(doc.querySelector("[role=status]")!.textContent!, /Reconnect/);
+      assert.match(doc.querySelector("[role=status]")!.textContent!, /重新连接/);
       close();
     },
   );
@@ -286,8 +286,8 @@ test("AI account modal interactions", async (t) => {
           })
         : Promise.resolve(Response.json(status("company", connections)));
     await open();
-    providerButton("ChatGPT / Codex", "Use account");
-    assert.equal(button("Done").disabled, true);
+    providerButton("ChatGPT / Codex", "使用此账户");
+    assert.equal(button("完成").disabled, true);
     close();
     doc
       .querySelector(".mc-overlay")!
@@ -297,7 +297,7 @@ test("AI account modal interactions", async (t) => {
     resolveSave(Response.json(status("openai", connections)));
     await tick();
     assert.equal(appState.me.individualModelAuth, true);
-    assert.equal(button("Done").disabled, false);
+    assert.equal(button("完成").disabled, false);
     close();
     assert.equal(doc.querySelector(".mc-overlay"), null);
   });
@@ -315,24 +315,24 @@ test("AI account modal interactions", async (t) => {
       return base(path);
     };
     await open();
-    providerButton("Claude", "Connect");
-    providerButton("Claude", "Use an API key");
+    providerButton("Claude", "连接");
+    providerButton("Claude", "使用 API 密钥");
     const input = doc.querySelector<HTMLInputElement>("input")!;
     input.value = "test-only-key";
     input.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
-    providerButton("Claude", "Connect");
-    assert.equal(button("Cancel").disabled, true);
-    providerButton("Claude", "Cancel");
+    providerButton("Claude", "连接");
+    assert.equal(button("取消").disabled, true);
+    providerButton("Claude", "取消");
     const submit = provider("Claude").querySelector<HTMLButtonElement>(".btn.primary")!;
     assert.equal(submit.disabled, true);
     submit.click();
-    providerButton("ChatGPT / Codex", "Connect");
+    providerButton("ChatGPT / Codex", "连接");
     assert.equal(writes, 1);
     assert.ok(provider("Claude").querySelector("input"));
     resolveSave(Response.json({ error: "invalid_api_key" }, { status: 400 }));
     await tick();
-    assert.equal(button("Cancel").disabled, false);
-    assert.equal(button("Done").disabled, false);
+    assert.equal(button("取消").disabled, false);
+    assert.equal(button("完成").disabled, false);
     assert.equal(doc.querySelector<HTMLInputElement>("input")!.value, "test-only-key");
     close();
   });
@@ -355,14 +355,14 @@ test("AI account modal interactions", async (t) => {
     };
     openModelConnectManager("anthropic");
     await tick();
-    assert.equal(doc.querySelector("#mc-title")!.textContent?.trim(), "Connect Claude");
+    assert.equal(doc.querySelector("#mc-title")!.textContent?.trim(), "连接 Claude");
     assert.equal(doc.querySelector(".mc-providers"), null);
     assert.equal(doc.querySelector(".mc-method"), null);
-    button("Use an API key instead").click();
+    button("改用 API 密钥").click();
     const input = doc.querySelector<HTMLInputElement>("input")!;
     input.value = "test-only-key";
     input.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
-    button("Connect").click();
+    button("连接").click();
     await tick();
     assert.equal(account, "anthropic");
     assert.equal(appState.me.individualModelAuth, true);
@@ -377,8 +377,8 @@ test("AI account modal interactions", async (t) => {
       return base(path);
     };
     await open();
-    providerButton("ChatGPT / Codex", "Connect");
-    providerButton("ChatGPT / Codex", "Sign in with ChatGPT / Codex");
+    providerButton("ChatGPT / Codex", "连接");
+    providerButton("ChatGPT / Codex", "使用 ChatGPT / Codex 登录");
     await tick();
     assert.match(doc.querySelector("[role=alert]")!.textContent!, /expired/);
     assert.equal(polls, 0);
@@ -402,13 +402,13 @@ test("AI account modal interactions", async (t) => {
       return Response.json(status(account, connections));
     };
     await open();
-    providerButton("ChatGPT / Codex", "Use account");
+    providerButton("ChatGPT / Codex", "使用此账户");
     await tick();
     assert.equal(appState.me.individualModelAuth, true);
-    assert.ok(provider("ChatGPT / Codex").textContent?.includes("In use"));
-    assert.equal(doc.querySelector("[role=status]")?.textContent, "New chats will use your ChatGPT / Codex account.");
+    assert.ok(provider("ChatGPT / Codex").textContent?.includes("使用中"));
+    assert.equal(doc.querySelector("[role=status]")?.textContent, "新对话将使用你的 ChatGPT / Codex 账户。");
     const company = [...doc.querySelectorAll<HTMLButtonElement>(".mc-method")].find((b) =>
-      b.textContent?.includes("Company access"),
+      b.textContent?.includes("组织提供"),
     )!;
     company.click();
     await tick();
@@ -442,17 +442,15 @@ test("AI account modal interactions", async (t) => {
     };
     renderModelConnectGate();
     await tick();
-    providerButton("ChatGPT / Codex", "Connect");
-    providerButton("ChatGPT / Codex", "Use an API key");
+    providerButton("ChatGPT / Codex", "连接");
+    providerButton("ChatGPT / Codex", "使用 API 密钥");
     const input = doc.querySelector<HTMLInputElement>("#app input")!;
     input.value = "test-only-key";
     input.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
-    providerButton("ChatGPT / Codex", "Connect");
+    providerButton("ChatGPT / Codex", "连接");
     await tick();
     const startButton = () =>
-      [...doc.querySelectorAll<HTMLButtonElement>("#app button")].find(
-        (el) => el.textContent?.trim() === "Start chatting",
-      );
+      [...doc.querySelectorAll<HTMLButtonElement>("#app button")].find((el) => el.textContent?.trim() === "开始对话");
     assert.ok(!startButton() || startButton()!.disabled);
     assert.equal(typeof resolveSave, "function");
     account = "openai";
@@ -460,7 +458,7 @@ test("AI account modal interactions", async (t) => {
     await tick();
     assert.equal(appState.me.modelAuthConnected, true);
     assert.equal(startButton()?.disabled, false);
-    assert.match(provider("ChatGPT / Codex").textContent!, /In use/);
+    assert.match(provider("ChatGPT / Codex").textContent!, /使用中/);
     doc.querySelector("#app")!.replaceChildren();
   });
 
@@ -486,12 +484,12 @@ test("AI account modal interactions", async (t) => {
     renderSettings();
     await tick();
     const choice = (label: string) =>
-      [...doc.querySelectorAll<HTMLButtonElement>('[aria-label="AI access"] button')].find(
+      [...doc.querySelectorAll<HTMLButtonElement>('[aria-label="AI 服务"] button')].find(
         (el) => el.textContent?.trim() === label,
       )!;
     const manage = () =>
       [...doc.querySelectorAll<HTMLButtonElement>(".settings-ai-controls button")].find(
-        (el) => el.textContent?.trim() === "Connection settings",
+        (el) => el.textContent?.trim() === "连接设置",
       )!;
     choice("ChatGPT / Codex").click();
     assert.equal(writes, 1);
@@ -499,13 +497,13 @@ test("AI account modal interactions", async (t) => {
     manage().click();
     assert.equal(doc.querySelector(".mc-overlay"), null);
     window.dispatchEvent(new CustomEvent("model-account-changed", { detail: status("anthropic", connections) }));
-    assert.equal(choice("Company").disabled, true);
+    assert.equal(choice("组织").disabled, true);
     assert.equal(manage().disabled, true);
-    choice("Company").click();
+    choice("组织").click();
     assert.equal(writes, 1);
     resolveSave(Response.json(status("openai", connections)));
     await tick();
-    assert.equal(choice("Company").disabled, false);
+    assert.equal(choice("组织").disabled, false);
     assert.equal(choice("ChatGPT / Codex").getAttribute("aria-pressed"), "true");
     assert.equal(manage().disabled, false);
     appState.currentView = "chats";

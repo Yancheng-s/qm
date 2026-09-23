@@ -255,7 +255,7 @@ test("a failed show load surfaces an error instead of dying silently", async () 
     },
   });
   await controller.toggle();
-  assert.equal(error, "Couldn't load the original conversation's history.");
+  assert.equal(error, "无法加载原对话的历史记录。");
   assert.ok(redraws >= 1);
   assert.equal(state.inheritedExpanded, false, "a failed load never expands");
   assert.equal(state.inheritedLoaded, false);
@@ -390,23 +390,23 @@ test("fork origin DOM navigates, reports access failure once, pages, toggles, su
       }
   };
   draw();
-  assert.match(host.textContent ?? "", /Forked from Original/);
+  assert.match(host.textContent ?? "", /分支来源 Original/);
   assert.doesNotMatch(host.textContent ?? "", /messages/);
   host.querySelector<HTMLButtonElement>(".fork-origin-badge")!.click();
   assert.equal(navigations, 1);
   navigationFails = true;
   host.querySelector<HTMLButtonElement>(".fork-origin-badge")!.click();
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(host.textContent?.match(/You no longer have access to the original conversation\./g)?.length, 1);
+  assert.equal(host.textContent?.match(/你已无权访问原对话。/g)?.length, 1);
   controller.reset();
   draw();
-  assert.doesNotMatch(host.textContent ?? "", /no longer have access/);
+  assert.doesNotMatch(host.textContent ?? "", /无权访问/);
   host.querySelector<HTMLButtonElement>(".fork-origin-toggle")!.click();
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual(calls, [3, 2]);
   assert.match(host.textContent ?? "", /old one/);
   assert.match(host.textContent ?? "", /old two/);
-  assert.match(host.textContent ?? "", /2 messages/);
+  assert.match(host.textContent ?? "", /2 条消息/);
   host.querySelector<HTMLButtonElement>(".fork-origin-toggle")!.click();
   assert.doesNotMatch(host.textContent ?? "", /old one/);
   const refresh = inheritedRefreshEntries(

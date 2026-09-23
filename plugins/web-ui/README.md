@@ -1,5 +1,7 @@
 # Web UI plugin
 
+界面默认使用简体中文，涵盖导航、对话、项目资源、设置、弹窗和状态提示。日期与时间使用中文格式；模型及服务名称、接口标识符和用户内容保留原值。
+
 An end-user web surface with a custom chat shell, connected to the
 platform core. It still uses Pi's `Agent` state machine and selected Pi web utilities
 for markdown, attachment loading, and model metadata, but the visible conversation UI is
@@ -125,13 +127,14 @@ same scoped access controls as other personal work.
 
 Below 860px the same build behaves like an app rather than a shrunken desktop:
 
-- **Drawer, not rail.** The sidebar slides over the content from a floating menu button (or an
-  edge swipe); a leftward swipe or a tap on the scrim closes it. Every top bar reserves the
-  button's column so nothing renders under it.
+- **Chat without navigation.** The sidebar and its menu button are hidden on phones.
+  Edge swipes do not open navigation, and headers use the full available width.
 - **Bottom sheets.** Popover menus — composer settings, a session's ⋯, the user menu, the
   per-session tools — render as sheets with a backdrop; tap outside or swipe down to dismiss.
-- **Compact composer.** Attach · input · settings · send on one row; model, harness, effort, and
-  Fast live in the settings sheet. Inputs are 16px so iOS never zooms on focus, and the layout
+- **Compact composer.** The plus button opens a sheet for the camera, photo library,
+  file uploads, and the current conversation's workspace tools; use the microphone for
+  voice input or type to reveal the send button. Model and effort controls are hidden on phones.
+  Inputs are 16px so iOS never zooms on focus, and the layout
   tracks the visual viewport so the composer stays above the on-screen keyboard.
 - **Touch targets.** Message actions, file chips, selects, drawer rows, approvals, and back
   links are ≥44px; hover tooltips are suppressed on hoverless devices.
@@ -142,6 +145,42 @@ Below 860px the same build behaves like an app rather than a shrunken desktop:
 
 The phone-class breakpoint is one constant (`src/viewport.ts`, `PHONE_MAX_WIDTH`), shared by
 the CSS media queries, the composer, and the split canvas.
+
+## Voice input
+
+On phones, an empty composer shows a microphone button. Tap to record, tap stop to
+recognize, then edit and send the resulting text. Recognition never sends a chat
+message automatically. The plus button offers image and file attachments.
+Recording stops after 60 seconds; cancelling, switching conversations, hiding the
+page, or leaving the phone layout releases the microphone and discards pending
+results.
+
+The browser module `src/voice-input.ts` captures audio with MediaRecorder. The
+independent `server/asr.ts` module forwards it through the authenticated
+`POST /api/asr` route. It does not call the card service.
+
+Set all three variables on the **web-ui server process**, then restart it:
+
+| Variable             | Value                                                                        |
+| -------------------- | ---------------------------------------------------------------------------- |
+| `WEB_UI_ASR_URL`     | Full HTTPS endpoint ending in `/audio/transcriptions` or `/chat/completions` |
+| `WEB_UI_ASR_MODEL`   | The provider's speech recognition model ID                                   |
+| `WEB_UI_ASR_API_KEY` | The provider's API key; server-only                                          |
+
+The transcription endpoint receives multipart `file`, `model`, and
+`response_format=json` and must return `{"text":"..."}`. The chat endpoint receives
+a Qwen-style `input_audio` data URI and returns `choices[0].message.content`.
+Choose a provider/model that accepts the browser's recording format (WebM/Opus,
+MP4, or Ogg/Opus). These are protocol adapters, not support for every ASR vendor.
+
+Never prefix the key with `VITE_` or put it in browser code. The browser calls
+only the same-origin web-ui API. Audio is held temporarily in memory and forwarded
+to the configured provider, not saved by web-ui. Provider retention follows that
+provider's policy. Requests are limited to 8 MiB of audio and upstream recognition
+has a 45-second timeout. Missing configuration returns a readable error.
+
+Microphone access requires HTTPS on phones, a compatible browser or WebView, and
+microphone permission. Loopback HTTP is allowed for local development.
 
 ## What you get
 
@@ -192,6 +231,10 @@ the CSS media queries, the composer, and the split canvas.
   or view (`?view=…`), kept in sync via `replaceState`; each conversation's ⋯ menu has a
   **Copy link**. Opening a link while signed out keeps the query string through sign-in, so
   shared links land in the right conversation (subject to the recipient's own access).
+  Apps entry links carry `scopeId` and an optional `conversationId` and `session`. They open
+  the matching history or a new chat in the requested project, taking priority over saved
+  layouts. New project chats retain their scope and conversation ID in the URL across refreshes;
+  inaccessible projects and failed history loads show an error instead of opening a personal chat.
 - **Read Slack & group/channel sessions** — they render **read-only** (transcript only, no
   composer). One-way projection: a web reply would be invisible to Slack participants, so
   contributing to those Slack threads from the web isn't allowed yet (spec B6) — start a fresh

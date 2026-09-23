@@ -194,11 +194,10 @@ async function load(): Promise<void> {
 
 function friendly(e: unknown): string {
   const raw = errMessage(e);
-  if (/invalid_api_key|rejected this API key/i.test(raw)) return "That API key was rejected — check it and try again.";
+  if (/invalid_api_key|rejected this API key/i.test(raw)) return "API 密钥被拒绝，请检查后重试。";
   if (/oauth_start_failed|oauth_poll_failed|oauth_complete_failed/i.test(raw))
-    return "Sign-in didn't complete. Try again — the code may have expired.";
-  if (/network|fetch failed|timeout/i.test(raw))
-    return "Couldn't reach the sign-in service. Check your connection and try again.";
+    return "登录未完成，验证码可能已过期，请重试。";
+  if (/network|fetch failed|timeout/i.test(raw)) return "无法连接登录服务，请检查网络后重试。";
   return raw;
 }
 
@@ -218,7 +217,7 @@ async function afterConnect(provider: "anthropic" | "openai"): Promise<void> {
     if (current(state) && !s.error && s.mode === "manager") closeManager();
     return;
   }
-  s.notice = "Account connected. Choose Use account to use it for your chats.";
+  s.notice = "账户已连接。选择“使用此账户”即可用于对话。";
   paint();
 }
 
@@ -282,7 +281,7 @@ async function copyCode(code: string): Promise<void> {
     }, 1600);
   } catch {
     if (!current(state, revision)) return;
-    s.error = "Could not copy the code. Select it and copy it manually.";
+    s.error = "无法复制验证码，请手动选中并复制。";
     paint();
   }
 }
@@ -319,7 +318,7 @@ async function pollChatGPT(): Promise<void> {
   const device = s.flow.device;
   if (Date.now() > device.expiresAt) {
     resetFlow();
-    s.error = "That code expired. Select Sign in to get a new code.";
+    s.error = "验证码已过期，请选择“登录”获取新验证码。";
     paint();
     return;
   }
@@ -392,10 +391,7 @@ async function disconnect(p: ProviderMeta): Promise<void> {
     await load();
     if (!current(state)) return;
     s.saving = false;
-    s.notice =
-      s.account === p.apiName
-        ? "Account disconnected. Reconnect it or choose company access to continue chatting."
-        : "Account disconnected.";
+    s.notice = s.account === p.apiName ? "账户已断开。请重新连接或使用组织提供的服务以继续对话。" : "账户已断开。";
     paint();
   } catch (e) {
     if (!current(state, revision)) return;
@@ -411,7 +407,7 @@ function methodRow(title: string, detail: string, selected: boolean, onPick: () 
     <button
       type="button"
       class="mc-method ${selected ? "selected" : ""}"
-      ?disabled=${s.busy || s.saving || (title === "Company access" && s.required)}
+      ?disabled=${s.busy || s.saving || (title === "组织提供" && s.required)}
       aria-pressed=${selected}
       @click=${onPick}
     >
@@ -430,15 +426,15 @@ function claudeSteps(): TemplateResult {
   return html`
     <ol class="mc-steps">
       <li>
-        <a class="btn" href=${flow.authorizeUrl} target="_blank" rel="noopener">Continue to Claude ↗</a>
+        <a class="btn" href=${flow.authorizeUrl} target="_blank" rel="noopener">前往 Claude 继续 ↗</a>
       </li>
       <li>
         <label class="mc-field">
-          <span>Authorization code</span>
+          <span>授权码</span>
           <input
             ?disabled=${s.busy || s.saving}
             .value=${flow.code}
-            placeholder="Paste the code from Claude"
+            placeholder="粘贴 Claude 提供的授权码"
             autocomplete="off"
             spellcheck="false"
             @input=${(e: Event) => {
@@ -451,7 +447,7 @@ function claudeSteps(): TemplateResult {
       </li>
       <li>
         <button class="btn primary" ?disabled=${!flow.code.trim() || s.busy} @click=${finishClaude}>
-          ${s.busy ? "Connecting…" : "Connect account"}
+          ${s.busy ? "正在连接…" : "连接账户"}
         </button>
       </li>
     </ol>
@@ -467,18 +463,18 @@ function chatgptSteps(): TemplateResult {
         <button
           type="button"
           class="mc-code-btn ${s.copied ? "copied" : ""}"
-          title="Copy code to clipboard"
+          title="复制验证码"
           @click=${() => copyCode(device.userCode)}
         >
           <span class="mc-code">${device.userCode}</span>
-          <span class="mc-copy-hint">${s.copied ? "Copied ✓" : "Click to copy"}</span>
+          <span class="mc-copy-hint">${s.copied ? "已复制 ✓" : "点击复制"}</span>
         </button>
       </li>
       <li>
-        <a class="btn" href=${device.verificationUrl} target="_blank" rel="noopener">Open chatgpt.com and paste it ↗</a>
+        <a class="btn" href=${device.verificationUrl} target="_blank" rel="noopener">打开 chatgpt.com 并粘贴 ↗</a>
       </li>
       <li>
-        <span class="mc-waiting"><span class="mc-spinner" aria-hidden="true"></span>Waiting for your approval…</span>
+        <span class="mc-waiting"><span class="mc-spinner" aria-hidden="true"></span>等待你的授权…</span>
       </li>
     </ol>
   `;
@@ -490,7 +486,7 @@ function apikeySteps(p: ProviderMeta): TemplateResult {
   return html`
     <div class="mc-keyform">
       <label class="mc-field">
-        <span>API key · from <a href=${p.keyConsoleUrl} target="_blank" rel="noopener">${p.keyConsole}</a></span>
+        <span>API 密钥 · 获取地址： <a href=${p.keyConsoleUrl} target="_blank" rel="noopener">${p.keyConsole}</a></span>
         <input
           type="password"
           ?disabled=${s.busy || s.saving}
@@ -505,7 +501,7 @@ function apikeySteps(p: ProviderMeta): TemplateResult {
         />
       </label>
       <button class="btn primary" ?disabled=${!flow.value.trim() || s.busy} @click=${() => saveKey(p)}>
-        ${s.busy ? "Checking…" : "Connect"}
+        ${s.busy ? "正在检查…" : "连接"}
       </button>
     </div>
   `;
@@ -517,29 +513,29 @@ function connectBody(p: ProviderMeta): TemplateResult {
   if (s.intent) {
     return html`<div class="mc-simple-flow">
       ${s.method === "apikey" ? apikeySteps(p) : subscriptionSteps}
-      ${s.busy ? html`<p class="mc-waiting">Connecting…</p>` : nothing}
-      ${!s.method ? html`<button class="btn primary" ?disabled=${s.saving} @click=${() => void pickSubscription(p)}>Sign in with ${p.name}</button>` : nothing}
+      ${s.busy ? html`<p class="mc-waiting">正在连接…</p>` : nothing}
+      ${!s.method ? html`<button class="btn primary" ?disabled=${s.saving} @click=${() => void pickSubscription(p)}>使用 ${p.name} 登录</button>` : nothing}
       <button
         class="settings-theme-link"
         ?disabled=${s.busy || s.saving}
         @click=${() => (s.method === "apikey" ? void pickSubscription(p) : pickApiKey())}
       >
-        ${s.method === "apikey" ? "Use my subscription instead" : "Use an API key instead"}
+        ${s.method === "apikey" ? "改用我的订阅" : "改用 API 密钥"}
       </button>
     </div>`;
   }
   return html`
     <div class="mc-connect">
       ${methodRow(
-        `Sign in with ${p.name}`,
-        `Uses your ${p.subscription} subscription and its usage limits.`,
+        `使用 ${p.name} 登录`,
+        `使用你的 ${p.subscription} 订阅及其用量额度。`,
         s.method === "subscription",
         () => void pickSubscription(p),
       )}
       ${subscriptionSteps}
       ${methodRow(
-        "Use an API key",
-        `Paste a key from ${p.keyConsole} — usage is billed to the key.`,
+        "使用 API 密钥",
+        `粘贴 ${p.keyConsole} 提供的密钥，费用将计入该密钥。`,
         s.method === "apikey",
         pickApiKey,
       )}
@@ -551,9 +547,9 @@ function connectBody(p: ProviderMeta): TemplateResult {
 function providerRow(p: ProviderMeta): TemplateResult {
   const kind = s.connections[p.key];
   const open = s.open === p.key;
-  let statusLine = `Chat with ${p.name} on your own account`;
-  if (kind === "oauth") statusLine = `Connected with your ${p.name} subscription`;
-  else if (kind === "apikey") statusLine = "Connected with your API key";
+  let statusLine = `使用自己的账户与 ${p.name} 对话`;
+  if (kind === "oauth") statusLine = `已通过你的 ${p.name} 订阅连接`;
+  else if (kind === "apikey") statusLine = "已通过你的 API 密钥连接";
   let action: TemplateResult | typeof nothing = nothing;
   if (kind) {
     action = html`<button
@@ -561,9 +557,9 @@ function providerRow(p: ProviderMeta): TemplateResult {
         ?disabled=${s.busy || s.saving || s.account === p.apiName}
         @click=${() => switchAccount("personal", p.apiName)}
       >
-        ${s.account === p.apiName ? "In use" : "Use account"}</button
+        ${s.account === p.apiName ? "使用中" : "使用此账户"}</button
       ><button class="btn mc-quiet-danger" ?disabled=${s.busy || s.saving} @click=${() => disconnect(p)}>
-        ${s.busy ? "…" : "Disconnect"}
+        ${s.busy ? "…" : "断开连接"}
       </button>`;
   } else if (open) {
     action = html`<button
@@ -576,7 +572,7 @@ function providerRow(p: ProviderMeta): TemplateResult {
         paint();
       }}
     >
-      Cancel
+      取消
     </button>`;
   } else if (!open) {
     action = html`<button
@@ -588,7 +584,7 @@ function providerRow(p: ProviderMeta): TemplateResult {
         paint();
       }}
     >
-      Connect
+      连接
     </button>`;
   }
   return html`
@@ -625,8 +621,8 @@ async function switchAccount(account: "personal" | "company", provider?: "anthro
     applyStatus(status);
     s.notice =
       account === "company"
-        ? "New chats will use company access."
-        : `New chats will use your ${provider === "anthropic" ? "Claude" : "ChatGPT / Codex"} account.`;
+        ? "新对话将使用组织提供的服务。"
+        : `新对话将使用你的 ${provider === "anthropic" ? "Claude" : "ChatGPT / Codex"} 账户。`;
   } catch (e) {
     if (!current(state, revision)) return;
     s.error = friendly(e);
@@ -645,47 +641,38 @@ function view(): TemplateResult {
     cta =
       s.mode === "gate"
         ? html`<button class="btn primary mc-cta" ?disabled=${s.saving} @click=${() => location.reload()}>
-            Start chatting
+            开始对话
           </button>`
-        : html`<button class="btn primary mc-cta" ?disabled=${s.saving} @click=${closeManager}>Done</button>`;
+        : html`<button class="btn primary mc-cta" ?disabled=${s.saving} @click=${closeManager}>完成</button>`;
   }
   let choices: TemplateResult;
-  if (!s.loaded) choices = html`<button type="button" class="btn" @click=${() => void load()}>Retry</button>`;
+  if (!s.loaded) choices = html`<button type="button" class="btn" @click=${() => void load()}>重试</button>`;
   else if (s.intent)
     choices = html`<div class="mc-simple-connect">
       ${s.connections[s.intent.key] ? providerRow(s.intent) : connectBody(s.intent)}
     </div>`;
   else
     choices = html`<div class="mc-providers">
-      ${methodRow(
-        "Company access",
-        s.required ? "Your organization requires a personal account." : "Use the access provided by your organization.",
-        !s.personal,
-        () => {
-          if (!s.required) void switchAccount("company");
-        },
-      )}
+      ${methodRow("组织提供", s.required ? "你的组织要求使用个人账户。" : "使用组织提供的服务。", !s.personal, () => {
+        if (!s.required) void switchAccount("company");
+      })}
       <p class="mc-account-hint">
-        ${s.personal ? "Using a personal account. Choose a connected provider below." : "Or use your own account. Connect a provider, then choose Use account."}
+        ${s.personal ? "正在使用个人账户，请选择下方已连接的服务商。" : "也可以使用个人账户。连接服务商后，选择“使用此账户”。"}
       </p>
       ${PROVIDERS.map((p) => providerRow(p))}
     </div>`;
-  let title = s.mode === "gate" ? "Connect your AI account" : "AI accounts";
-  if (s.intent) title = `Connect ${s.intent.name}`;
+  let title = s.mode === "gate" ? "连接你的 AI 账户" : "AI 账户";
+  if (s.intent) title = `连接 ${s.intent.name}`;
   const body = s.loading
-    ? html`<div class="mc-waiting"><span class="mc-spinner" aria-hidden="true"></span>Loading…</div>`
+    ? html`<div class="mc-waiting"><span class="mc-spinner" aria-hidden="true"></span>加载中…</div>`
     : html`
         ${s.error ? html`<div class="mc-error" role="alert">${s.error}</div>` : nothing}
-        ${s.saving || s.notice ? html`<p class="mc-notice" role="status">${s.saving ? "Saving changes…" : s.notice}</p>` : nothing}
+        ${s.saving || s.notice ? html`<p class="mc-notice" role="status">${s.saving ? "正在保存更改…" : s.notice}</p>` : nothing}
         ${choices} ${s.intent ? nothing : cta}
       `;
   const personalCopy =
-    s.method === "apikey"
-      ? "New chats will be billed to this API key."
-      : `Use your ${s.intent?.subscription} subscription for new chats.`;
-  const subCopy = s.intent
-    ? personalCopy
-    : "Choose who provides access for your chats on the web and in Slack. Background tasks continue using company access.";
+    s.method === "apikey" ? "新对话将通过此 API 密钥计费。" : `新对话使用你的 ${s.intent?.subscription} 订阅。`;
+  const subCopy = s.intent ? personalCopy : "选择网页和 Slack 对话使用的服务来源。后台任务仍使用组织提供的服务。";
   return html`
     <div class="signin">
       <div
@@ -699,8 +686,8 @@ function view(): TemplateResult {
             ? html`<button
                 type="button"
                 class="mc-close"
-                aria-label="Close"
-                title="Close"
+                aria-label="关闭"
+                title="关闭"
                 ?disabled=${s.saving}
                 @click=${closeManager}
               >
@@ -734,7 +721,7 @@ function closeManager(): void {
   s.controller.abort();
   overlay?.remove();
   overlay = null;
-  restoreDialogFocus(opener, () => document.querySelector<HTMLElement>("[aria-label='Settings']"));
+  restoreDialogFocus(opener, () => document.querySelector<HTMLElement>("[aria-label='设置']"));
   opener = null;
 }
 

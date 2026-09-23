@@ -100,7 +100,7 @@ function draw(): void {
 }
 
 function resourceHits(): ResourceHit[] {
-  const shortcuts = destinations().map((d) => ({ title: d.label, description: d.blurb, group: "Go to", href: d.href }));
+  const shortcuts = destinations().map((d) => ({ title: d.label, description: d.blurb, group: "前往", href: d.href }));
   return [...matchResources(shortcuts, searchState.query), ...searchState.resources];
 }
 
@@ -271,9 +271,7 @@ function askQm(): void {
   closeChatSearch();
   const conv = startNewChat();
   void conv?.state.agent?.prompt(
-    userSendMessage(
-      `Find the chat, skill, cron, app, or other resource matching this search query and give me a link: ${q}`,
-    ),
+    userSendMessage(`查找与以下搜索内容匹配的对话、技能、定时任务、应用或其他资源，并给我链接：${q}`),
   );
 }
 
@@ -295,7 +293,7 @@ function hitSnippet(hit: ChatSearchHit): string {
 function hitTitle(hit: ChatSearchHit): string {
   if (hit.title?.trim()) return hit.title;
   const session = sessionsState.list.find((s) => s.id === hit.sessionId);
-  return session ? sessionTitle(session) : (hit.channelName ?? "Untitled chat");
+  return session ? sessionTitle(session) : (hit.channelName ?? "未命名对话");
 }
 
 function resultRows(): TemplateResult[] {
@@ -321,13 +319,13 @@ function resultRows(): TemplateResult[] {
         }}
       >
         <span class="chat-search-who ${hit.entryType === "user" ? "user" : "agent"}" dir="auto"
-          >${(hit.entryType === "user" ? (hit.author ?? "You") : "QM").slice(0, 1).toUpperCase()}</span
+          >${(hit.entryType === "user" ? (hit.author ?? "你") : "QM").slice(0, 1).toUpperCase()}</span
         >
         <span class="chat-search-text">
           <span class="chat-search-snippet" dir="auto">${highlight(hitSnippet(hit))}</span>
           <span class="chat-search-meta"
-            ><bdi>${hit.entryType === "user" ? (hit.author ?? "you") : "agent"}</bdi> ·
-            ${new Date(hit.createdAt).toLocaleDateString()}</span
+            ><bdi>${hit.entryType === "user" ? (hit.author ?? "你") : "智能体"}</bdi> ·
+            ${new Date(hit.createdAt).toLocaleDateString("zh-CN")}</span
           >
         </span>
       </button>
@@ -382,8 +380,8 @@ function askRow(): TemplateResult {
     >
       <span class="chat-search-who ask">+</span>
       <span class="chat-search-text">
-        <span class="chat-search-snippet">Ask QM to find it: <b dir="auto">“${searchState.query.trim()}”</b></span>
-        <span class="chat-search-meta">starts a new chat where QM finds the matching resource and links it</span>
+        <span class="chat-search-snippet">让 QM 帮你查找： <b dir="auto">“${searchState.query.trim()}”</b></span>
+        <span class="chat-search-meta">开始新对话，由 QM 查找匹配资源并提供链接</span>
       </span>
       <span class="chat-search-kbd">${isMac ? "⌘" : "Ctrl"}${icon(CornerDownLeft, 11)}</span>
     </button>
@@ -396,13 +394,13 @@ function paletteTpl(): TemplateResult {
   if (q.length < MIN_QUERY_LEN) {
     body = nothing;
   } else if (searchState.loading && !searchState.hits.length) {
-    body = html`<div class="chat-search-empty">Searching…</div>`;
+    body = html`<div class="chat-search-empty">正在搜索…</div>`;
   } else if (searchState.failed) {
-    body = html`<div class="chat-search-empty chat-search-failed">Search failed. Try again.</div>`;
+    body = html`<div class="chat-search-empty chat-search-failed">搜索失败，请重试。</div>`;
   } else if (resourceHits().length || searchState.resourcesLoading) {
     body = html`${resultRows()}`;
   } else if (!searchState.hits.length) {
-    body = html`<div class="chat-search-empty">No results match “${q}”.</div>`;
+    body = html`<div class="chat-search-empty">没有与“${q}”匹配的结果。</div>`;
   } else {
     body = html`${resultRows()}`;
   }
@@ -413,33 +411,33 @@ function paletteTpl(): TemplateResult {
         if (e.target === e.currentTarget) closeChatSearch();
       }}
     >
-      <div class="chat-search-palette" role="dialog" aria-label="Search QM" @keydown=${onPaletteKeydown}>
+      <div class="chat-search-palette" role="dialog" aria-label="搜索 QM" @keydown=${onPaletteKeydown}>
         <div class="chat-search-inputrow">
           ${icon(Search, 16)}
           <input
             class="chat-search-input"
             type="text"
-            placeholder="Search chats, skills, crons, apps…"
+            placeholder="搜索对话、技能、定时任务、应用…"
             autocomplete="off"
             spellcheck="false"
             .value=${searchState.query}
             @input=${onQueryInput}
           />
-          <span class="chat-search-kbd">esc</span>
-          <button class="chat-search-cancel" type="button" @click=${closeChatSearch}>Cancel</button>
+          <span class="chat-search-kbd">Esc</span>
+          <button class="chat-search-cancel" type="button" @click=${closeChatSearch}>取消</button>
         </div>
         <div class="chat-search-results">
           ${resourceRows()}
-          ${searchState.resourcesLoading ? html`<div class="chat-search-empty">Loading resources…</div>` : nothing}
-          ${searchState.resourceFailures.length ? html`<div class="chat-search-empty chat-search-failed">Could not search: ${searchState.resourceFailures.join(", ")}. Try searching again.</div>` : nothing}
-          ${searchState.resourcesLimited ? html`<div class="chat-search-empty">Refine your search to see more resource matches.</div>` : nothing}
+          ${searchState.resourcesLoading ? html`<div class="chat-search-empty">正在加载资源…</div>` : nothing}
+          ${searchState.resourceFailures.length ? html`<div class="chat-search-empty chat-search-failed">搜索失败：${searchState.resourceFailures.join(", ")}。请重试。</div>` : nothing}
+          ${searchState.resourcesLimited ? html`<div class="chat-search-empty">请细化搜索条件，以查看更多匹配资源。</div>` : nothing}
           ${body}
         </div>
         ${askRowShown() ? html`<div class="chat-search-askbar">${askRow()}</div>` : nothing}
         <div class="chat-search-foot">
-          <span><span class="chat-search-kbd">↑↓</span> navigate</span>
-          <span><span class="chat-search-kbd">↵</span> open</span>
-          <span><span class="chat-search-kbd">${isMac ? "⌘↵" : "Ctrl+↵"}</span> ask QM in a new chat</span>
+          <span><span class="chat-search-kbd">↑↓</span> 选择</span>
+          <span><span class="chat-search-kbd">↵</span> 打开</span>
+          <span><span class="chat-search-kbd">${isMac ? "⌘↵" : "Ctrl+↵"}</span> 在新对话中询问 QM</span>
         </div>
       </div>
     </div>

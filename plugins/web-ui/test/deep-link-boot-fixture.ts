@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { JSDOM } from "jsdom";
 import { createServer } from "vite";
 
@@ -11,7 +12,7 @@ export interface Harness {
   boot: () => Promise<void>;
   appState: { currentView: string };
   sessionsState: { list: Array<{ id: string }>; loaded: boolean; openingKey: string | null };
-  visibleConversation: () => { state: { sessionId: string | null; threadRef: string | null } };
+  visibleConversation: () => { state: { sessionId: string | null; threadRef: string | null; scopeId: string | null } };
   mainText: () => string;
   close: () => Promise<void>;
 }
@@ -24,6 +25,10 @@ interface HarnessOptions {
   holdTranscript?: boolean;
   holdApprovals?: boolean;
   listSessions?: unknown[];
+  session?: typeof SESSION;
+  contexts?: unknown[];
+  sessionsStatus?: number;
+  phone?: boolean;
   savedCanvas?: boolean;
   welcome?: boolean;
   connectionReturn?: boolean;
@@ -117,7 +122,7 @@ export async function harness(opts: HarnessOptions): Promise<Harness> {
       return Response.json({ items: [{ id: "gmail", name: "Gmail", description: "Email" }], nextCursor: null });
     if (path.startsWith("/api/runtime-config")) {
       return Response.json({
-        scopeId: "personal:tester",
+        scopeId: new URL(path, "http://localhost").searchParams.get("scopeId") ?? "personal:tester",
         approvedHarnesses: [],
         modelsByHarness: {},
         modelCatalog: {},
@@ -142,7 +147,7 @@ export async function harness(opts: HarnessOptions): Promise<Harness> {
         const older = path.includes("beforeSeq=");
         const seqs = older ? [10, 11] : [80, 81];
         return Response.json({
-          session: SESSION,
+          session: opts.session ?? SESSION,
           entries: seqs.map((seq) => ({
             seq,
             type: seq % 2 ? "assistant" : "user",
@@ -152,13 +157,13 @@ export async function harness(opts: HarnessOptions): Promise<Harness> {
           earlierEntries: older ? 0 : 80,
         });
       }
-      return Response.json({ session: SESSION, entries: [] });
+      return Response.json({ session: opts.session ?? SESSION, entries: [] });
     }
     if (path === "/api/sessions") {
       await sessionsHeld;
-      return Response.json({ sessions: opts.listSessions ?? [] });
+      return Response.json({ sessions: opts.listSessions ?? [] }, { status: opts.sessionsStatus ?? 200 });
     }
-    return Response.json({ contexts: [], items: [], crons: [] });
+    return Response.json({ contexts: opts.contexts ?? [], items: [], crons: [] });
   };
 
   const globals = {
@@ -212,10 +217,19 @@ export async function harness(opts: HarnessOptions): Promise<Harness> {
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   }
   Object.defineProperty(dom.window, "matchMedia", {
-    value: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+    value: (query: string) => ({
+      matches: !!opts.phone && query.includes("max-width: 860px"),
+      addEventListener() {},
+      removeEventListener() {},
+    }),
   });
 
-  const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: "custom" });
+  const vite = await createServer({
+    root: fileURLToPath(new URL("..", import.meta.url)),
+    configLoader: "native",
+    server: { middlewareMode: true, hmr: false, ws: false },
+    appType: "custom",
+  });
   const shell = await vite.ssrLoadModule("/src/shell.ts");
   const sessions = await vite.ssrLoadModule("/src/sessions.ts");
   const conversations = await vite.ssrLoadModule("/src/conversations.ts");

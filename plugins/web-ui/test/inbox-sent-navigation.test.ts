@@ -50,7 +50,7 @@ test("Sent opens from a split pane and retains drafts and queued sends after nav
       id: "message-1",
       threadId: "thread-1",
       to: "Alex",
-      subject: "Subject",
+      subject: "主题",
       snippet: "Sent body",
       sentAt: 1,
     };
@@ -62,7 +62,7 @@ test("Sent opens from a split pane and retains drafts and queued sends after nav
       source: "gmail",
       sourcePayload: {
         sentChat: true,
-        title: "Subject",
+        title: "主题",
         from: "Sam",
         gmail: { threadId: "thread-1", to: ["Alex"], cc: ["Chris"] },
       },
@@ -113,7 +113,7 @@ test("Sent opens from a split pane and retains drafts and queued sends after nav
     const pane = document.getElementById("split")!;
     const mounted = inbox.mountInboxPane({ host: pane, viewId: "all", density: () => "full", onDensityChange() {} });
     [...pane.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
-      .find((button) => button.textContent!.trim() === "Sent")!
+      .find((button) => button.textContent!.trim() === "已发送")!
       .click();
     await waitFor(() => Boolean(pane.querySelector(".inbox-sent-row")));
     pane.querySelector<HTMLButtonElement>(".inbox-sent-row")!.click();
@@ -159,7 +159,7 @@ test("Sent opens from a split pane and retains drafts and queued sends after nav
       header.dispatchEvent(new dom.window.Event("input"));
     }
     [...document.querySelectorAll<HTMLButtonElement>("button")]
-      .find((button) => button.textContent!.trim() === "Send reply")!
+      .find((button) => button.textContent!.trim() === "发送回复")!
       .click();
     inbox.selectInboxView("all");
     inbox.drawAll();
@@ -174,7 +174,7 @@ test("Sent opens from a split pane and retains drafts and queued sends after nav
     assert.equal(actions.at(-1)!.args.expectedProposalAt, ledger.proposal!.at);
     assert.deepEqual(actions.at(-1)!.args.proposal.to, [recipients]);
     assert.deepEqual(actions.at(-1)!.args.proposal.cc, [recipients]);
-    await waitFor(() => inbox.inboxState.notice === "Reply sent by email.");
+    await waitFor(() => inbox.inboxState.notice === "回复已通过邮件发送。");
     inbox.resetInboxState();
     assert.deepEqual(domErrors, []);
   } finally {

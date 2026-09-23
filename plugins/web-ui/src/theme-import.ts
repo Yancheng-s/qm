@@ -60,7 +60,7 @@ export function importTheme(fileName: string, text: string): Palette {
   const body = text.replace(/^\uFEFF/, "");
   const head = body.slice(0, 64);
   if (head.startsWith("bplist")) {
-    throw new Error("This is a binary plist. In iTerm2, export the preset again to get the XML .itermcolors file.");
+    throw new Error("这是二进制 plist 文件。请在 iTerm2 中重新导出为 XML 格式的 .itermcolors 文件。");
   }
   if (/<plist|<\?xml/.test(head) || /\.itermcolors$/i.test(fileName)) return parseItermColors(name, body);
   return parseVsCodeTheme(name, body);
@@ -68,7 +68,7 @@ export function importTheme(fileName: string, text: string): Palette {
 
 function themeName(raw: string): string {
   const trimmed = raw.trim().slice(0, MAX_NAME_LENGTH).trim();
-  return trimmed || "Imported theme";
+  return trimmed || "导入的主题";
 }
 
 const PLIST_COLOR_ENTRY = /<key>([^<]+)<\/key>\s*<dict>([\s\S]*?)<\/dict>/g;
@@ -90,7 +90,7 @@ function parseItermColors(name: string, xml: string): Palette {
   const background = lookup("Background Color");
   const foreground = lookup("Foreground Color");
   if (!background || !foreground) {
-    throw new Error("Expected an iTerm2 .itermcolors file with a Background Color and a Foreground Color.");
+    throw new Error("请选择包含背景色和前景色的 iTerm2 .itermcolors 文件。");
   }
   return {
     name,
@@ -135,16 +135,16 @@ function parseVsCodeTheme(name: string, jsonc: string): Palette {
   try {
     parsed = JSON.parse(stripJsonc(jsonc));
   } catch {
-    throw new Error("Couldn't read that file. Expected an iTerm2 .itermcolors or a VS Code color theme .json.");
+    throw new Error("无法读取文件。请选择 iTerm2 .itermcolors 或 VS Code 颜色主题 .json 文件。");
   }
-  if (!parsed || typeof parsed !== "object") throw new Error("Expected a VS Code color theme object.");
+  if (!parsed || typeof parsed !== "object") throw new Error("请选择有效的 VS Code 颜色主题。");
   const theme = parsed as { name?: unknown; type?: unknown; colors?: unknown; tokenColors?: unknown };
   const colors = (theme.colors && typeof theme.colors === "object" ? theme.colors : {}) as Record<string, unknown>;
   const kind = theme.type === "light" || theme.type === "dark" ? theme.type : undefined;
   const colorAt = (key: string): Rgba | undefined =>
     typeof colors[key] === "string" ? parseHex(colors[key]) : undefined;
   const backdrop = colorAt("editor.background") ?? (kind ? DEFAULT_EDITOR[kind] : undefined);
-  if (!backdrop) throw new Error("Expected a VS Code color theme with an editor.background color.");
+  if (!backdrop) throw new Error("VS Code 颜色主题必须包含 editor.background 颜色。");
   const background = composite(backdrop, BLACK);
   const over = (color: Rgba | undefined): Rgb | undefined => (color ? composite(color, background) : undefined);
   const foreground =

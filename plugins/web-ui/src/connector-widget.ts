@@ -10,12 +10,12 @@ export function connectorCard(
   withReturnTo: (url: string) => string = (url) => url,
 ): TemplateResult {
   const composio = link.provider === "composio";
-  const name = CONNECTOR_NAMES[link.provider] ?? "your account";
+  const name = CONNECTOR_NAMES[link.provider] ?? "你的账户";
   const service = connectorService(link);
   if (!composio && connected) {
     return html`<div class="connector-widget connected" role="status">
       ${connectorLogo(service)}
-      <span class="connector-widget-text"><strong>Connected ${name}</strong><small>Ready to use in chat</small></span>
+      <span class="connector-widget-text"><strong>已连接 ${name}</strong><small>可在对话中使用</small></span>
       <span class="connector-widget-status" aria-hidden="true">${icon(Check, 16)}</span>
     </div>`;
   }
@@ -24,11 +24,11 @@ export function connectorCard(
     href=${composio ? link.url : withReturnTo(link.url)}
     target="_blank"
     rel="noreferrer"
-    title="Opens in a new tab"
+    title="在新标签页中打开"
   >
     ${connectorLogo(service)}
     <span class="connector-widget-text"
-      ><strong>${(composio && link.label) || `Connect ${name}`}</strong> <small>Authorize access · New tab</small></span
+      ><strong>${(composio && link.label) || `连接 ${name}`}</strong> <small>授权访问 · 新标签页</small></span
     >
     <span class="connector-widget-action" aria-hidden="true">${icon(ArrowUpRight, 16)}</span>
   </a>`;

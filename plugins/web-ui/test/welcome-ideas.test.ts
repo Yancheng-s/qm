@@ -87,22 +87,16 @@ test("More ideas opens a fresh personal web chat and sends the examples once", a
     assert.equal(turns[0]!.proactiveOpener, undefined);
     assert.match(String(turns[0]!.text), /Work at a Startup/);
     assert.match(String(turns[0]!.text), /Stripe/);
-    assert.match(String(turns[0]!.text), /fundraising dashboard/);
-    assert.match(String(turns[0]!.text), /Skip onboarding/);
-    assert.match(String(turns[0]!.text), /yc tool/);
-    assert.match(String(turns[0]!.text), /When available and authorized, read company\.get/);
-    assert.match(String(turns[0]!.text), /company\.goals for dated goals and progress/);
-    assert.match(String(turns[0]!.text), /read get_yc_application.*when available and authorized/);
-    assert.match(String(turns[0]!.text), /another company or a draft.*verify it matches my current company/);
-    assert.match(
-      String(turns[0]!.text),
-      /Prefer my recent statements and dated current goals over old application answers/,
-    );
-    assert.match(
-      String(turns[0]!.text),
-      /do not treat historical answers as current facts or assume the company profile was recently updated/,
-    );
-    assert.match(String(turns[0]!.text), /if tools or records are unavailable, continue with what you know/);
+    assert.match(String(turns[0]!.text), /融资看板/);
+    assert.match(String(turns[0]!.text), /跳过新手引导/);
+    assert.match(String(turns[0]!.text), /yc 工具/);
+    assert.match(String(turns[0]!.text), /工具可用且已获授权时，通过 company\.get/);
+    assert.match(String(turns[0]!.text), /company\.goals 读取带日期的目标与进展/);
+    assert.match(String(turns[0]!.text), /get_yc_application 可用且已获授权/);
+    assert.match(String(turns[0]!.text), /另一家公司的最近申请或草稿.*确认它对应当前公司/);
+    assert.match(String(turns[0]!.text), /优先采用我的近期表述和带日期的当前目标/);
+    assert.match(String(turns[0]!.text), /不要把历史申请回答当作当前事实，也不要假设公司资料最近更新过/);
+    assert.match(String(turns[0]!.text), /工具或记录不可用时，基于已知信息继续/);
   } finally {
     releaseRuntime();
     Date.now = realNow;

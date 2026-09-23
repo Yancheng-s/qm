@@ -24,15 +24,15 @@ test("the sidebar footer keeps the identity pill, an admin shortcut, and the set
     shell.indexOf("export function renderSidebarTop"),
   );
   assert.match(footer, /class="user-pill"/);
-  assert.match(footer, /aria-label="Settings"/);
+  assert.match(footer, /aria-label="设置"/);
   assert.doesNotMatch(footer, /theme-toggle/, "the theme toggle became the settings button");
   assert.match(
     footer,
     /can\("admin"\)[\s\S]{0,120}href=\$\{ADMIN_HOME_URL\}/,
     "admins get a one-click way into the admin portal, and only admins",
   );
-  assert.doesNotMatch(footer, /aria-label="Sign out"/, "sign out moved behind the identity pill");
-  assert.match(footer, /Sign out/, "sign out still exists — inside the pill's menu");
+  assert.doesNotMatch(footer, /aria-label="退出登录"/, "sign out moved behind the identity pill");
+  assert.match(footer, /退出登录/, "sign out still exists — inside the pill's menu");
   assert.doesNotMatch(shell, /mini-lit\/dist\/ThemeToggle/, "the theme web component is no longer imported");
 });
 
@@ -78,7 +78,7 @@ test("an imported palette is a fourth theme choice that only exists while a pale
     "a real button opens the picker so the keyboard can reach it",
   );
   assert.match(settings, /\.itermcolors/);
-  assert.match(settings, /aria-label="Remove imported theme"/);
+  assert.match(settings, /aria-label="移除导入的主题"/);
 });
 
 test("the imported palette is painted as one style element that applyTheme owns end to end", () => {

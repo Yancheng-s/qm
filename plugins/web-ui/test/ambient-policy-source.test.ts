@@ -4,8 +4,6 @@ import test from "node:test";
 
 const policy = readFileSync(new URL("../src/ambient-policy.ts", import.meta.url), "utf8");
 const contexts = readFileSync(new URL("../src/contexts.ts", import.meta.url), "utf8");
-const shell = readFileSync(new URL("../src/shell.ts", import.meta.url), "utf8");
-const sessions = readFileSync(new URL("../src/sessions.ts", import.meta.url), "utf8");
 const css = readFileSync(new URL("../src/shell.css", import.meta.url), "utf8");
 
 test("policy edits redraw immediately and preserve focused text controls", () => {
@@ -17,12 +15,11 @@ test("policy edits redraw immediately and preserve focused text controls", () =>
 });
 
 test("policy controls use product language and persistent accessible labels", () => {
-  for (const label of ["Ignore", "Batch updates", "Act immediately", "Treat like a person"])
-    assert.match(policy, new RegExp(label));
+  for (const label of ["忽略", "汇总更新", "立即处理", "按普通成员处理"]) assert.match(policy, new RegExp(label));
   assert.match(policy, /<label class="ambient-field-label" for="ambient-orders">/);
   assert.match(policy, /aria-describedby="ambient-orders-hint"/);
   assert.match(policy, /describedBy: "ambient-enabled-hint"/);
-  assert.match(policy, /aria-label="Bot name"/);
+  assert.match(policy, /aria-label="机器人名称"/);
   assert.match(policy, /required/);
 });
 
@@ -61,21 +58,11 @@ test("policy styles use the shell theme contract", () => {
 
 test("the scope homepage puts work before settings and consolidates the empty project", () => {
   assert.match(contexts, /context-workspace-main[^]*?<aside class="context-settings"/);
-  assert.match(contexts, /This project is ready for work/);
+  assert.match(contexts, /项目已准备就绪/);
   assert.match(contexts, /if\s*\(\s*r\.files\.length === 0[^]*?return nothing;/);
 });
 
-test("narrow navigation overlays content and closes when its breakpoint is crossed", () => {
+test("narrow context pages keep responsive settings", () => {
   assert.doesNotMatch(css, /layout:not\(\.sidebar-closed\) \.pane/);
-  assert.match(shell, /narrowViewport\.addEventListener\("change"/);
-  assert.match(shell, /closeSidebarOnNarrowView\(\)/);
   assert.match(css, /@container \(max-width: 760px\)[^]*?context-workspace\.has-settings/);
-});
-
-test("every sidebar destination dismisses the narrow overlay", () => {
-  const openSession = sessions.match(/export async function openSession[^]*?\n\}/)?.[0] ?? "";
-  const startNewChat = sessions.match(/export function startNewChat\([^]*?\n\}/)?.[0] ?? "";
-  assert.match(openSession, /closeSidebarOnNarrowView\(\)/);
-  assert.match(startNewChat, /closeSidebarOnNarrowView\(\)/);
-  assert.match(shell, /export function switchView[^]*?closeSidebarOnNarrowView\(\)/);
 });

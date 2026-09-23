@@ -73,7 +73,9 @@ export async function openSentEmail(message: SentEmail, draw: () => void): Promi
           ...seeded,
           from: local!.accountEmail,
           cc: "",
-          body: `${plainSnippet(seeded.snippet)}\n\nFull message text is not included in this local preview.`,
+          body: `${plainSnippet(seeded.snippet)}
+
+此本地预览不包含完整消息正文。`,
           html: false,
           attachments: [],
         }
@@ -88,8 +90,7 @@ export async function openSentEmail(message: SentEmail, draw: () => void): Promi
       await loadSentChat(draw, current);
     }
   } catch (cause) {
-    if (current === detailGeneration)
-      detailError = cause instanceof Error ? cause.message : "Couldn't load this email.";
+    if (current === detailGeneration) detailError = cause instanceof Error ? cause.message : "无法加载此邮件。";
   } finally {
     if (current === detailGeneration) draw();
   }
@@ -102,7 +103,12 @@ async function loadSentChat(draw: () => void, current = detailGeneration): Promi
   try {
     let text = detail.html ? plainSnippet(detail.body) : detail.body;
     if (detail.conversation?.length)
-      text = detail.conversation.map((entry) => `${entry.from} to ${entry.to}:\n${entry.body}`).join("\n\n");
+      text = detail.conversation
+        .map(
+          (entry) => `${entry.from} 发送给 ${entry.to}：
+${entry.body}`,
+        )
+        .join("\n\n");
     const result = await api<{ item: LedgerItem }>("/api/inbox/sent-chat", {
       method: "POST",
       body: JSON.stringify({
@@ -122,7 +128,7 @@ async function loadSentChat(draw: () => void, current = detailGeneration): Promi
       updateSentChat(result.item);
     }
   } catch (cause) {
-    if (current === detailGeneration) chatError = cause instanceof Error ? cause.message : "Couldn't load chat.";
+    if (current === detailGeneration) chatError = cause instanceof Error ? cause.message : "无法加载对话。";
   } finally {
     if (current === detailGeneration) draw();
   }
@@ -132,8 +138,8 @@ export function sentChatTpl(draw: () => void, renderChat: (item: LedgerItem) => 
   const item = selectedSentChat();
   if (item) return renderChat(item);
   return html`<div class="inbox-chat">
-    <h2 class="inbox-chat-cta">Ask about this email</h2>
-    ${chatError ? html`<div role="alert">${chatError}<button class="btn" @click=${() => void loadSentChat(draw)}>Try again</button></div>` : html`<div role="status">Loading chat…</div>`}
+    <h2 class="inbox-chat-cta">询问这封邮件的内容</h2>
+    ${chatError ? html`<div role="alert">${chatError}<button class="btn" @click=${() => void loadSentChat(draw)}>重试</button></div>` : html`<div role="status">正在加载对话…</div>`}
   </div>`;
 }
 
@@ -209,7 +215,7 @@ export async function loadSentMail(draw: () => void, more = false): Promise<void
     loaded = true;
   } catch (cause) {
     if (current !== generation) return;
-    error = cause instanceof Error ? cause.message : "Couldn't load sent mail. Try again.";
+    error = cause instanceof Error ? cause.message : "无法加载已发送邮件，请重试。";
   } finally {
     if (current === generation) {
       loading = false;
@@ -295,8 +301,8 @@ export function sentMailTpl(
   open: (message: SentEmail) => void = (message) => void openSentEmail(message, draw),
 ): TemplateResult {
   return html`
-    ${error ? html`<div class="inbox-notice" role="alert">${error} <button class="btn" ?disabled=${loading} @click=${() => void loadSentMail(draw, Boolean(nextPageToken))}>Try again</button></div>` : nothing}
-    ${!messages.length && !error ? html`<div class="empty compact">${loading ? "Loading sent mail…" : "No sent emails in this account."}</div>` : nothing}
+    ${error ? html`<div class="inbox-notice" role="alert">${error} <button class="btn" ?disabled=${loading} @click=${() => void loadSentMail(draw, Boolean(nextPageToken))}>重试</button></div>` : nothing}
+    ${!messages.length && !error ? html`<div class="empty compact">${loading ? "正在加载已发送邮件…" : "此账户暂无已发送邮件。"}</div>` : nothing}
     <div class="inbox-list">
       ${messages.map(
         (message) =>
@@ -306,18 +312,18 @@ export function sentMailTpl(
                 class="inbox-item-row inbox-sent-row"
                 type="button"
                 @click=${() => open(message)}
-                aria-label=${`Open sent email: ${message.subject || "No subject"}`}
+                aria-label=${`打开已发送邮件：${message.subject || "无主题"}`}
               >
                 <span class="inbox-item-glyph">${icon(Mail, 14)}</span>
                 <span class="inbox-item-main">
                   <span class="inbox-item-top"
-                    ><span class="inbox-item-heading">To: ${message.to || "Undisclosed recipients"}</span
-                    ><span class="inbox-item-sub">${message.subject || "(No subject)"}</span></span
+                    ><span class="inbox-item-heading">收件人：${message.to || "收件人未公开"}</span
+                    ><span class="inbox-item-sub">${message.subject || "（无主题）"}</span></span
                   >
                   <span class="inbox-item-snippet">${plainSnippet(message.snippet)}</span>
                 </span>
                 <span class="inbox-item-side"
-                  ><span class="inbox-item-time" title=${new Date(message.sentAt).toLocaleString()}
+                  ><span class="inbox-item-time" title=${new Date(message.sentAt).toLocaleString("zh-CN")}
                     >${relTime(message.sentAt)}</span
                   >${icon(ChevronRight, 13)}</span
                 >
@@ -326,7 +332,7 @@ export function sentMailTpl(
           </div>`,
       )}
     </div>
-    ${nextPageToken ? html`<button class="btn inbox-sent-more" ?disabled=${loading} @click=${() => void loadSentMail(draw, true)}>${loading ? "Loading…" : "Load more"}</button>` : nothing}
+    ${nextPageToken ? html`<button class="btn inbox-sent-more" ?disabled=${loading} @click=${() => void loadSentMail(draw, true)}>${loading ? "加载中…" : "加载更多"}</button>` : nothing}
   `;
 }
 
@@ -336,15 +342,17 @@ function sentMessageTpl(entry: SentThreadMessage): TemplateResult {
     <div class="inbox-context-body">
       <div class="inbox-context-head">
         <span class="inbox-context-author">${entry.from}</span>
-        <span class="inbox-context-at" title=${new Date(entry.sentAt).toLocaleString()}>${relTime(entry.sentAt)}</span>
+        <span class="inbox-context-at" title=${new Date(entry.sentAt).toLocaleString("zh-CN")}
+          >${relTime(entry.sentAt)}</span
+        >
       </div>
       <div class="inbox-sent-recipients">
-        To: ${entry.to}${entry.cc ? html`<span> · Cc: ${entry.cc}</span>` : nothing}
+        收件人：${entry.to}${entry.cc ? html`<span> · 抄送：${entry.cc}</span>` : nothing}
       </div>
-      <div class="inbox-context-text">${entry.body || "This email has no text body."}</div>
+      <div class="inbox-context-text">${entry.body || "此邮件没有文本正文。"}</div>
       ${
         entry.attachments?.length
-          ? html`<div class="inbox-sent-attachments">Attachments: ${entry.attachments.join(", ")}</div>`
+          ? html`<div class="inbox-sent-attachments">附件：${entry.attachments.join(", ")}</div>`
           : nothing
       }
     </div>
@@ -371,25 +379,25 @@ export function sentEmailPageTpl(
         to: message.to,
         cc: detail.cc,
         sentAt: message.sentAt,
-        body: body || "This email has no text body.",
+        body: body || "此邮件没有文本正文。",
         attachments: detail.attachments,
       },
     ];
   return html`
     <div class="pane-head inbox-item-head src-gmail">
       <div class="inbox-item-head-copy">
-        ${listBackLink("Sent", close)}
+        ${listBackLink("已发送", close)}
         <h1 class="pane-title">
           <span class="inbox-item-glyph">${icon(Mail, 18)}</span>
-          <span>To: ${message.to || "Undisclosed recipients"}</span>
+          <span>收件人：${message.to || "收件人未公开"}</span>
           <span class="inbox-item-head-meta">
-            <span class="inbox-item-state">Sent</span>
-            <span class="inbox-item-time" title=${new Date(message.sentAt).toLocaleString()}
+            <span class="inbox-item-state">已发送</span>
+            <span class="inbox-item-time" title=${new Date(message.sentAt).toLocaleString("zh-CN")}
               >${relTime(message.sentAt)}</span
             >
           </span>
         </h1>
-        <div class="pane-subtitle">${message.subject || "(No subject)"}</div>
+        <div class="pane-subtitle">${message.subject || "（无主题）"}</div>
       </div>
     </div>
     <div class="inbox-surface inbox-item-surface">
@@ -397,11 +405,11 @@ export function sentEmailPageTpl(
         ${
           detailError
             ? html`<div class="inbox-notice" role="alert">
-                ${detailError} <button class="btn" @click=${() => void openSentEmail(message, draw)}>Try again</button>
+                ${detailError} <button class="btn" @click=${() => void openSentEmail(message, draw)}>重试</button>
               </div>`
             : nothing
         }
-        ${!detail && !detailError ? html`<div role="status" class="empty compact">Loading email…</div>` : nothing}
+        ${!detail && !detailError ? html`<div role="status" class="empty compact">正在加载邮件…</div>` : nothing}
         ${entries.length ? html`<div class="inbox-context">${entries.map(sentMessageTpl)}</div>` : nothing}
         ${draft ?? nothing}
         <div class="inbox-draft-head inbox-sent-actions">
@@ -411,7 +419,7 @@ export function sentEmailPageTpl(
             target="_blank"
             rel="noopener noreferrer"
           >
-            ${icon(ArrowUpRight, 12)}<span>Open in Gmail</span>
+            ${icon(ArrowUpRight, 12)}<span>在 Gmail 中打开</span>
           </a>
         </div>
       </div>

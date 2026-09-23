@@ -42,7 +42,7 @@ test("conversation details include the waiting message after prior context with 
           source,
           sourcePayload: {
             source: payloadSource,
-            title: "Conversation",
+            title: "对话",
             from: "Sam",
             snippet: "Latest waiting message",
             context,

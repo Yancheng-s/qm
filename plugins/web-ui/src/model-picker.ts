@@ -168,7 +168,7 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
         type="button"
         class="loadout-drag"
         draggable="true"
-        aria-label=${`Reorder ${option.label}; use Up or Down`}
+        aria-label=${`调整 ${option.label} 的顺序；使用上下方向键`}
         @dragstart=${(e: DragEvent) => {
           e.stopPropagation();
           draggedModel = entry.value;
@@ -212,12 +212,12 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
         <span class="loadout-model-copy">
           <span class="loadout-title">
             <span class="loadout-name">${option.label}</span>
-            ${isDefault ? html`<span class="loadout-default">my default</span>` : nothing}
+            ${isDefault ? html`<span class="loadout-default">我的默认设置</span>` : nothing}
           </span>
           <span class="loadout-details">
             <span class="loadout-harness">${option.harnessLabel}</span>
             <span>${effortText(settings.effort)}</span>
-            ${settings.fast ? html`<span class="loadout-bolt" aria-label="Fast">${icon(Zap, 10)}</span>` : nothing}
+            ${settings.fast ? html`<span class="loadout-bolt" aria-label="快速模式">${icon(Zap, 10)}</span>` : nothing}
           </span>
         </span>
         <span class="loadout-end">${active ? icon(Check, 15) : nothing}</span>
@@ -229,8 +229,8 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
               data-default=${isDefault ? "true" : "false"}
               type="button"
               role="menuitem"
-              aria-label=${`Make ${option.label} default`}
-              ${tip("Make default")}
+              aria-label=${`将 ${option.label} 设为默认`}
+              ${tip("设为默认")}
               @click=${async (event: MouseEvent) => {
                 const row = (event.currentTarget as HTMLElement).closest(".loadout-row");
                 await changeScopeRuntime(
@@ -251,14 +251,14 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
             </button>`
           : nothing
       }
-      ${isDefault && !canMakeDefault ? html`<span class="loadout-default-star" role="img" aria-label="My default" ${tip("My default")}>${icon(Star, 14)}</span>` : nothing}
+      ${isDefault && !canMakeDefault ? html`<span class="loadout-default-star" role="img" aria-label="我的默认设置" ${tip("我的默认设置")}>${icon(Star, 14)}</span>` : nothing}
       ${
         !active
           ? html`<button
               class="loadout-remove"
               type="button"
-              aria-label=${`Remove ${option.label} from presets`}
-              ${tip("Remove from presets")}
+              aria-label=${`从预设中移除 ${option.label}`}
+              ${tip("从预设中移除")}
               @click=${() => removeLoadoutEntry(entry.value, selected)}
             >
               ${icon(X, 14)}
@@ -340,7 +340,7 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
     return html`<div
       class="loadout-submenu"
       role="menu"
-      aria-label=${{ effort: "Effort levels", harness: "Run with", add: "Add models" }[loadoutSection]}
+      aria-label=${{ effort: "思考强度", harness: "运行引擎", add: "添加模型" }[loadoutSection]}
       @mouseenter=${() => cancelLoadoutClose()}
       @mouseleave=${() => queueLoadoutClose()}
       @keydown=${(e: KeyboardEvent) => {
@@ -352,7 +352,7 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
       }}
     >
       <button class="loadout-back" type="button" @click=${() => closeLoadoutSection()}>
-        ${icon(ChevronDown, 13)} Back
+        ${icon(ChevronDown, 13)} 返回
       </button>
       ${
         effort
@@ -381,7 +381,7 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
               const compatible = compatibleHarnessOptions(getModelOptions(scopeKey()), selected.model.id).some(
                 (option) => option.harnessId === harness.value,
               );
-              const reason = compatible ? "" : `${harness.label} cannot run ${selected.label}.`;
+              const reason = compatible ? "" : `${harness.label} 无法运行 ${selected.label}。`;
               return html`<button
                 class="loadout-effort"
                 type="button"
@@ -408,11 +408,11 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
       ${
         loadoutSection === "add"
           ? html` <label class="loadout-search"
-                ><span class="sr-only">Search models</span>
+                ><span class="sr-only">搜索模型</span>
                 <input
                   type="search"
                   data-focus-key=${`${loadoutMenuId}-search`}
-                  placeholder="Search models…"
+                  placeholder="搜索模型…"
                   .value=${live(composerState.menuQuery)}
                   @input=${(e: InputEvent) => {
                     const input = e.currentTarget as HTMLInputElement;
@@ -433,7 +433,7 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
                     class="menu-option"
                     type="button"
                     role="menuitem"
-                    aria-label=${`Add ${option.label} to presets`}
+                    aria-label=${`将 ${option.label} 添加到预设`}
                     @click=${() => {
                       dismissSelection();
                       addLoadoutEntry(option, agent);
@@ -441,10 +441,10 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
                   >
                     ${modelGlyph(option)}<span class="menu-option-copy"
                       ><span>${option.label}</span><span class="loadout-meta">${option.harnessLabel}</span></span
-                    ><span class="loadout-add-label" aria-hidden="true">Add</span>
+                    ><span class="loadout-add-label" aria-hidden="true">添加</span>
                   </button>`,
               )}
-              ${catalog.length ? nothing : html`<div class="loadout-empty">No models found</div>`}`
+              ${catalog.length ? nothing : html`<div class="loadout-empty">没有找到模型</div>`}`
           : nothing
       }
     </div>`;
@@ -457,7 +457,7 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
     >`;
     if (options.length < 2)
       return html`<div class="loadout-setting loadout-setting-static">
-        <span class="loadout-setting-label">Run with</span><span class="loadout-setting-value">${value}</span>
+        <span class="loadout-setting-label">运行引擎</span><span class="loadout-setting-value">${value}</span>
       </div>`;
     return html`<div class="loadout-submenu-anchor">
       <button
@@ -484,7 +484,7 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
           openLoadoutSection("harness", e.detail === 0);
         }}
       >
-        <span class="loadout-setting-label">Run with</span>
+        <span class="loadout-setting-label">运行引擎</span>
         <span class="loadout-setting-value">${value}<span class="loadout-end">${icon(ChevronRight, 14)}</span></span>
       </button>
     </div>`;
@@ -492,12 +492,12 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
 
   function render(agent: T, choice: ModelOption | undefined, disabled: boolean): TemplateResult {
     const selected = choice ?? getModelOptions(scopeKey())[0];
-    if (!selected) return html`<span class="context-model-status">No models available</span>`;
+    if (!selected) return html`<span class="context-model-status">暂无可用模型</span>`;
     const open = composerState.openMenu === "loadout";
     const entries = seededLoadout(selected);
     const modelSupportsFast = modelSupportsFastMode(scopeKey(), selected.model.id);
     const fastAvailable = !!choice && harnessSupportsFastMode(selected.harnessId) && modelSupportsFast;
-    const fastUnsupportedReason = modelSupportsFast ? "Not supported by this harness" : "Not supported by this model";
+    const fastUnsupportedReason = modelSupportsFast ? "此执行引擎不支持" : "此模型不支持";
     const fastOn = fastAvailable && effectiveFastMode();
     return html`<div
       class="menu-control loadout-control"
@@ -520,7 +520,7 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
         class="menu-button loadout-button"
         data-focus-key=${`${loadoutMenuId}-trigger`}
         type="button"
-        aria-label=${choice ? `Model: ${choice.label}, ${effortLabel(composerState.effortLevel)} effort${fastOn ? ", Fast" : ""}` : "Choose model"}
+        aria-label=${choice ? `模型：${choice.label}，思考强度：${effortLabel(composerState.effortLevel)}${fastOn ? "，快速模式" : ""}` : "选择模型"}
         aria-haspopup="menu"
         aria-expanded=${open ? "true" : "false"}
         aria-controls=${loadoutMenuId}
@@ -548,7 +548,7 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
           placeLoadout();
         }}
       >
-        <span class="menu-label">${choice?.label ?? "Choose model"}</span>
+        <span class="menu-label">${choice?.label ?? "选择模型"}</span>
         ${choice ? html`<span class="menu-suffix">${effortText(composerState.effortLevel)}</span>` : nothing}
         ${fastOn ? html`<span class="loadout-bolt">${icon(Zap, 13)}</span>` : nothing}${icon(ChevronDown, 13)}
       </button>
@@ -559,7 +559,7 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
               popover="manual"
               id=${loadoutMenuId}
               role="menu"
-              aria-label="Model settings"
+              aria-label="模型设置"
               @click=${(e: Event) => e.stopPropagation()}
               @mouseover=${(e: MouseEvent) => trackLoadoutHover(e)}
               @mouseleave=${() => queueLoadoutClose()}
@@ -574,11 +574,11 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
               }}
             >
               <div class="loadout-panel">
-                <div class="loadout-head">Presets</div>
+                <div class="loadout-head">预设</div>
                 <div class="loadout-list">${entries.map((entry, at) => loadoutRow(entry, at, selected, agent))}</div>
                 <div
                   class="loadout-submenu-anchor"
-                  ${tip(entries.length >= LOADOUT_CAP ? "Remove a preset to add another." : "")}
+                  ${tip(entries.length >= LOADOUT_CAP ? "请移除一个预设后再添加。" : "")}
                 >
                   <button
                     class="loadout-add ${loadoutSection === "add" ? "open" : ""}"
@@ -605,7 +605,7 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
                       openLoadoutSection("add", e.detail === 0);
                     }}
                   >
-                    ${icon(Plus, 16)}<span>Add models</span><span class="loadout-end">${icon(ChevronRight, 14)}</span>
+                    ${icon(Plus, 16)}<span>添加模型</span><span class="loadout-end">${icon(ChevronRight, 14)}</span>
                   </button>
                 </div>
                 ${
@@ -639,7 +639,7 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
                                     openLoadoutSection("effort", e.detail === 0);
                                   }}
                                 >
-                                  <span class="loadout-setting-label">Effort</span
+                                  <span class="loadout-setting-label">思考强度</span
                                   ><span class="loadout-setting-value"
                                     >${effortText(composerState.effortLevel)}<span class="loadout-end"
                                       >${icon(ChevronRight, 14)}</span
@@ -653,12 +653,12 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
                           class="loadout-setting"
                           type="button"
                           role="menuitemcheckbox"
-                          aria-label="Fast"
+                          aria-label="快速模式"
                           aria-checked=${fastOn ? "true" : "false"}
                           ?disabled=${!fastAvailable}
                           @click=${() => toggleFastMode(agent)}
                         >
-                          <span class="loadout-setting-label">Fast</span>
+                          <span class="loadout-setting-label">快速模式</span>
                           <span class="loadout-setting-value">
                             <span class="loadout-shortcut">${fastAvailable ? "⌘⇧E" : fastUnsupportedReason}</span>
                             <span class="loadout-toggle ${fastOn ? "on" : ""}" aria-hidden="true">
@@ -669,7 +669,7 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
                     : nothing
                 }
               </div>
-              ${getRuntimeConfig(scopeKey())?.scopeOverride ? html`<div class="loadout-foot"><button class="loadout-foot-btn" type="button" @click=${() => changeScopeRuntime({ inherit: true }, agent)}>Use org default</button></div>` : nothing}
+              ${getRuntimeConfig(scopeKey())?.scopeOverride ? html`<div class="loadout-foot"><button class="loadout-foot-btn" type="button" @click=${() => changeScopeRuntime({ inherit: true }, agent)}>使用组织默认设置</button></div>` : nothing}
               ${loadoutSubmenu(agent, selected)}
             </div>`
           : nothing

@@ -1,4 +1,5 @@
 import "./instrument.ts";
+import { handleAsr } from "./asr.ts";
 import { browserErrorConfig } from "./browser-error-config.ts";
 import { flushErrorReporting, reportBackendError } from "../../chassis/src/error-reporting.ts";
 import { appEditSlug } from "../src/app-edit.ts";
@@ -115,7 +116,7 @@ async function serveWebManifest(res: ServerResponse): Promise<void> {
 
 async function brandIndexHtml(html: string): Promise<string> {
   const branding = await brandingCache.forRender();
-  return injectBranding(html, branding, { titleSuffix: "· Web" });
+  return injectBranding(html, branding, { titleSuffix: "· 网页端" });
 }
 
 const portalTokenStore = new AsyncLocalStorage<string | undefined>();
@@ -297,7 +298,7 @@ async function gateManageDeployment(res: ServerResponse, user: string, id: strin
     return false;
   }
   if (!mayManageDeployment(d)) {
-    json(res, 403, { error: "forbidden", message: "you do not manage this deployment" });
+    json(res, 403, { error: "forbidden", message: "你没有此应用的管理权限" });
     return false;
   }
   return true;
@@ -308,7 +309,7 @@ function callbackHtml(query: string): string {
     /[&<>"']/g,
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c,
   );
-  return `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=../../../?${safe}"><title>Connector</title>`;
+  return `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=../../../?${safe}"><title>应用连接</title>`;
 }
 
 type WebConversation = {
@@ -343,13 +344,13 @@ function resolveWebConversation(
     !threadRef.startsWith(SUBAGENT_THREAD_PREFIX) &&
     !(scope?.startsWith("channel:") || scope?.startsWith("group:"))
   ) {
-    return { error: "forbidden_thread", message: "this conversation can only be continued from its own context" };
+    return { error: "forbidden_thread", message: "请在此对话所属的项目中继续" };
   }
   const conversation = conversationForScope(user, threadRef, scope, channelName);
   if (!conversation) {
     return {
       error: "forbidden_scope",
-      message: "you can only chat in your personal context or a shared context you're in",
+      message: "只能在个人空间或已加入的共享项目中对话",
     };
   }
   return { conversation };
@@ -622,8 +623,7 @@ async function coreFetchCap(
   } catch {
     token = undefined;
   }
-  if (!token)
-    return { status: 503, text: JSON.stringify({ error: "not_configured", message: "no session capability" }) };
+  if (!token) return { status: 503, text: JSON.stringify({ error: "not_configured", message: "会话功能尚未配置" }) };
   const r = await fetch(`${CORE}${pathWithQuery}`, {
     method,
     headers: { "content-type": "application/json", [CAPABILITY_HEADER]: token },
@@ -832,7 +832,7 @@ function declaredSha(url: URL): string {
 async function uploadBlobFromRequest(req: IncomingMessage, res: ServerResponse, sha256: string): Promise<void> {
   if (!/^[0-9a-f]{64}$/.test(sha256)) {
     req.resume();
-    return json(res, 400, { error: "bad_request", message: "sha (hex sha-256) required" });
+    return json(res, 400, { error: "bad_request", message: "请提供文件的 SHA-256 十六进制摘要" });
   }
   const staged = await stageUploadStream(req, sha256);
   const headers = { "content-type": staged.headers.get("content-type") ?? "application/json" };
@@ -849,7 +849,7 @@ async function uploadFileFromRequest(
 ): Promise<void> {
   if (!/^[0-9a-f]{64}$/.test(sha256)) {
     req.resume();
-    return json(res, 400, { error: "bad_request", message: "sha (hex sha-256) required" });
+    return json(res, 400, { error: "bad_request", message: "请提供文件的 SHA-256 十六进制摘要" });
   }
   const staged = await stageUploadStream(req, sha256);
   const stagedText = await staged.text();
@@ -881,7 +881,7 @@ async function serveStatic(res: ServerResponse, urlPath: string): Promise<void> 
     if (extname(rel)) return void json(res, 404, { error: "not_found" });
     filePath = join(DIST, "index.html");
     if (!existsSync(filePath)) {
-      return void json(res, 503, { error: "not_built", message: "run `npm run build` to produce dist-web/" });
+      return void json(res, 503, { error: "not_built", message: "网页资源尚未构建，请运行 npm run build" });
     }
   }
   if (filePath.endsWith("index.html")) {
@@ -1085,13 +1085,14 @@ async function serveFileContent(c: WebCtx, playground = false): Promise<unknown>
 }
 
 const apiRoutes: readonly WebRoute[] = [
+  { method: "POST", path: "/api/asr", handle: ({ req, res }) => handleAsr(req, res) },
   {
     method: "GET",
     path: "/api/files/by-name/content",
     handle: async (c) => {
       const { res, url, user } = c;
       const name = url.searchParams.get("name")?.trim();
-      if (!name) return json(res, 400, { error: "bad_request", message: "name required" });
+      if (!name) return json(res, 400, { error: "bad_request", message: "请填写名称" });
       let cursor: string | undefined;
       let match: { id: string; createdAt: number } | undefined;
       for (let page = 0; page < 50; page++) {
@@ -1282,7 +1283,7 @@ const apiRoutes: readonly WebRoute[] = [
       if (authStatus === null || authStatus.status !== 200) {
         return json(res, 503, {
           error: "unavailable",
-          message: "the assistant is briefly unavailable — retry shortly",
+          message: "助手暂时不可用，请稍后重试",
         });
       }
       const parsed = JSON.parse(authStatus.text) as {
@@ -1429,7 +1430,7 @@ const apiRoutes: readonly WebRoute[] = [
       const p = await readJson<{ name?: unknown }>(req, res);
       if (!p) return;
       const name = typeof p.name === "string" ? p.name.trim().slice(0, 200) : "";
-      if (!name) return json(res, 400, { error: "bad_request", message: "name required" });
+      if (!name) return json(res, 400, { error: "bad_request", message: "请填写名称" });
       return relayCore(res, "POST", "/v1/projects", JSON.stringify({ principalId: user, name }));
     },
   },
@@ -1442,7 +1443,7 @@ const apiRoutes: readonly WebRoute[] = [
       const p = await readJson<{ name?: unknown }>(req, res);
       if (!p) return;
       const name = typeof p.name === "string" ? p.name.trim().slice(0, 200) : "";
-      if (!name) return json(res, 400, { error: "bad_request", message: "name required" });
+      if (!name) return json(res, 400, { error: "bad_request", message: "请填写名称" });
       return relayCore(
         res,
         "PATCH",
@@ -1460,7 +1461,7 @@ const apiRoutes: readonly WebRoute[] = [
       const p = await readJson<{ memberId?: unknown }>(req, res);
       if (!p) return;
       const memberId = typeof p.memberId === "string" ? p.memberId.trim() : "";
-      if (!memberId) return json(res, 400, { error: "bad_request", message: "memberId required" });
+      if (!memberId) return json(res, 400, { error: "bad_request", message: "缺少成员标识" });
       return relayCore(
         res,
         "POST",
@@ -1478,7 +1479,7 @@ const apiRoutes: readonly WebRoute[] = [
       const p = await readJson<{ channel?: unknown }>(req, res);
       if (!p) return;
       const channel = typeof p.channel === "string" ? p.channel.trim().slice(0, 200) : "";
-      if (!channel) return json(res, 400, { error: "bad_request", message: "channel required" });
+      if (!channel) return json(res, 400, { error: "bad_request", message: "请选择频道" });
       return relayCore(
         res,
         "PUT",
@@ -1522,7 +1523,7 @@ const apiRoutes: readonly WebRoute[] = [
     handle: async (c) => {
       const { res, url } = c;
       const q = (url.searchParams.get("q") ?? "").trim().slice(0, 80);
-      if (!q) return json(res, 400, { error: "bad_request", message: "q required" });
+      if (!q) return json(res, 400, { error: "bad_request", message: "请输入搜索内容" });
       return relayCore(res, "GET", `/v1/directory/resolve?q=${encodeURIComponent(q)}`);
     },
   },
@@ -1698,7 +1699,7 @@ const apiRoutes: readonly WebRoute[] = [
     handle: async (c) => {
       const { res, url, user } = c;
       const scope = url.searchParams.get("scope");
-      if (!scope) return json(res, 400, { error: "bad_request", message: "scope required" });
+      if (!scope) return json(res, 400, { error: "bad_request", message: "缺少作用域" });
       const qs = new URLSearchParams({ principalId: user, scope });
       return relayCore(res, "GET", `/v1/scope-resources?${qs.toString()}`);
     },
@@ -2009,8 +2010,7 @@ const apiRoutes: readonly WebRoute[] = [
       const { req, res, user } = c;
       const p = await readJson<{ content?: unknown; revision?: unknown }>(req, res, false);
       if (!p) return;
-      if (typeof p.content !== "string")
-        return json(res, 400, { error: "bad_request", message: "content must be a string" });
+      if (typeof p.content !== "string") return json(res, 400, { error: "bad_request", message: "内容必须为文本" });
       const content = p.content;
       const revision =
         typeof p.revision === "string"
@@ -2048,7 +2048,7 @@ const apiRoutes: readonly WebRoute[] = [
         patch.pinned === undefined &&
         patch.color === undefined
       ) {
-        return json(res, 400, { error: "bad_request", message: "title, archived, pinned, or color required" });
+        return json(res, 400, { error: "bad_request", message: "请提供标题、归档、置顶或颜色设置" });
       }
       return relayCore(
         res,
@@ -2087,7 +2087,7 @@ const apiRoutes: readonly WebRoute[] = [
       if (!p) return;
       const provider = typeof p.provider === "string" ? p.provider : "";
       const host = typeof p.host === "string" ? p.host : "";
-      if (!provider && !host) return json(res, 400, { error: "bad_request", message: "provider or host required" });
+      if (!provider && !host) return json(res, 400, { error: "bad_request", message: "请提供服务商或主机地址" });
       const rawBody = JSON.stringify({ principalId: user, ...(provider ? { provider } : { host }) });
       return relayCore(res, "POST", "/v1/connectors/oauth/revoke", rawBody);
     },
@@ -2138,7 +2138,7 @@ const apiRoutes: readonly WebRoute[] = [
     handle: async (c) => {
       const { res } = c;
       const id = c.params.id!;
-      if (!id) return json(res, 400, { error: "bad_request", message: "credential id required" });
+      if (!id) return json(res, 400, { error: "bad_request", message: "缺少凭据标识" });
       return relayCap(res, "DELETE", `/v1/keychain/credentials/${encodeURIComponent(id)}`);
     },
   },
@@ -2817,7 +2817,7 @@ const apiRoutes: readonly WebRoute[] = [
           ) {
             return json(res, 400, {
               error: "unsupported_verification",
-              message: "verification requires a scheme (HMAC-SHA256, GitHub, Slack, or Stripe)",
+              message: "请选择验证方案（HMAC-SHA256、GitHub、Slack 或 Stripe）",
             });
           }
           verification = {
@@ -2842,29 +2842,29 @@ const apiRoutes: readonly WebRoute[] = [
           )
             return json(res, 400, {
               error: "invalid_filters",
-              message: "every filter requires a path and at least one value",
+              message: "每个筛选条件都需要路径和至少一个值",
             });
           filters = p.filters as Array<{ path: string; in: string[] }>;
         }
         if (p.destination !== undefined) {
           return json(res, 400, {
             error: "invalid_destination",
-            message: "choose webhook destinations with the agent so teammate and channel names can be resolved safely",
+            message: "请通过智能体选择 Webhook 发送目标，以正确识别成员和频道",
           });
         }
       } catch (e) {
         if (e instanceof PayloadTooLargeError) throw e;
-        return json(res, 400, { error: "bad_request", message: "expected JSON body" });
+        return json(res, 400, { error: "bad_request", message: "请求正文必须为 JSON" });
       }
       if (!action)
         return json(res, 400, {
           error: "action_required",
-          message: "an action (the agent's instructions) is required",
+          message: "请填写智能体需要执行的操作",
         });
       if (!["hmac-sha256", "github", "slack", "stripe"].includes(verification.scheme)) {
         return json(res, 400, {
           error: "unsupported_verification",
-          message: "choose HMAC-SHA256, GitHub, Slack, or Stripe signature verification",
+          message: "请选择 HMAC-SHA256、GitHub、Slack 或 Stripe 签名验证",
         });
       }
       if (!verification.secret) {
@@ -2943,34 +2943,33 @@ const apiRoutes: readonly WebRoute[] = [
           archived?: unknown;
         };
         if ("title" in p) {
-          if (typeof p.title !== "string")
-            return json(res, 400, { error: "bad_request", message: "title must be a string" });
+          if (typeof p.title !== "string") return json(res, 400, { error: "bad_request", message: "标题必须为文本" });
           patch = { ...patch, title: p.title.trim() };
         }
         if ("task" in p) {
           if (typeof p.task !== "string" || !p.task.trim())
-            return json(res, 400, { error: "bad_request", message: "task must be a non-empty string" });
+            return json(res, 400, { error: "bad_request", message: "任务内容必须为非空文本" });
           patch = { ...patch, task: p.task.trim() };
         }
         if ("schedule" in p) patch = { ...patch, schedule: p.schedule };
         if ("enabled" in p) {
           if (typeof p.enabled !== "boolean")
-            return json(res, 400, { error: "bad_request", message: "enabled must be a boolean" });
+            return json(res, 400, { error: "bad_request", message: "启用状态必须为布尔值" });
           patch = { ...patch, enabled: p.enabled };
         }
         if ("archived" in p) {
           if (typeof p.archived !== "boolean")
-            return json(res, 400, { error: "bad_request", message: "archived must be a boolean" });
+            return json(res, 400, { error: "bad_request", message: "归档状态必须为布尔值" });
           patch = { ...patch, archived: p.archived };
         }
       } catch (e) {
         if (e instanceof PayloadTooLargeError) throw e;
-        return json(res, 400, { error: "bad_request", message: "expected JSON body" });
+        return json(res, 400, { error: "bad_request", message: "请求正文必须为 JSON" });
       }
       if (Object.keys(patch).length === 0)
         return json(res, 400, {
           error: "bad_request",
-          message: "expected title, task, schedule, enabled, or archived",
+          message: "请提供标题、任务、时间安排、启用或归档设置",
         });
       if (patch.archived === true) patch = { ...patch, enabled: false };
       return relayCore(
@@ -3049,11 +3048,11 @@ const routeRequest = async (req: IncomingMessage, res: ServerResponse) => {
         return "";
       }
     })();
-    if (!id) return json(res, 400, { error: "bad_request", message: "Enter a principal to sign in as." });
+    if (!id) return json(res, 400, { error: "bad_request", message: "请输入要登录的账户标识。" });
     if (ALLOW.length > 0 && !ALLOW.includes(id))
       return json(res, 403, {
         error: "not_allowed",
-        message: `${id.slice(0, 120)} isn't in this instance's allowed principals. Add it to WEB_UI_PRINCIPALS, or leave that unset to allow any principal.`,
+        message: `${id.slice(0, 120)} 不在此实例的允许账户列表中，请联系管理员配置 WEB_UI_PRINCIPALS。`,
       });
     res.writeHead(200, {
       "set-cookie": sessionCookie(id),
@@ -3231,7 +3230,7 @@ const server = createServer((req, res) => {
   void handler(req, res).catch((err: unknown) => {
     reportBackendError(err);
     console.error("%s", `[web-ui] 502 ${req.method ?? "?"} ${req.url ?? "?"}:`, String(err));
-    if (!res.headersSent) json(res, 502, { error: "bad_gateway", message: "upstream error" });
+    if (!res.headersSent) json(res, 502, { error: "bad_gateway", message: "上游服务异常，请稍后重试" });
     else res.end();
   });
 });

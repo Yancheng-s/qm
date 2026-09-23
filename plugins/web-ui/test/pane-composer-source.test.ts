@@ -60,7 +60,7 @@ test("narrow short panes hide runtime labels, not the accessible picker", () => 
   assert.doesNotMatch(narrow, /\.loadout-(?:button|control) \{[^}]*display: none;/);
   assert.match(
     readFileSync(new URL("../src/model-picker.ts", import.meta.url), "utf8"),
-    /aria-label=\$\{choice \? `Model:/,
+    /aria-label=\$\{choice \? `模型：/,
   );
 });
 
