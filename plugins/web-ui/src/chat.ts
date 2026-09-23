@@ -1,4 +1,5 @@
 import { loadPiWebUi } from "./component-language";
+import { randomUuid } from "./random-uuid";
 import { displayStatus } from "./display-labels";
 import { formatMessageTime } from "./message-time.ts";
 import { messageEntrySeqs, highlightMessage } from "./message-link.ts";
@@ -395,7 +396,7 @@ export function createChatSurface(
     appState.currentView = "chats";
     renderSidebarTop();
     const user = appState.me?.user ?? "anon";
-    const threadRef = `web:${user}:${crypto.randomUUID()}`;
+    const threadRef = `web:${user}:${randomUuid()}`;
     const carried = storedDraft(newChatDraftKey(user));
     if (carried) saveDraft(threadRef, carried);
     ctx.composer.resetComposer();
@@ -1174,7 +1175,7 @@ export function createChatSurface(
   async function showWelcomeIdeas(): Promise<void> {
     if (ideasUnavailable()) return;
     startingIdeas = true;
-    const threadRef = `web:${appState.me!.user}:ideas:${crypto.randomUUID()}`;
+    const threadRef = `web:${appState.me!.user}:ideas:${randomUuid()}`;
     mountContinuable(threadRef, null, null, []);
     const agent = chatState.agent;
     try {

@@ -3,6 +3,7 @@ import { ArrowUpRight, Check, Link2, UserRound } from "lucide";
 import { icon, slackMark } from "./ui";
 import "./slack-account.css";
 import { withBase } from "./core-bridge";
+import { randomUuid } from "./random-uuid";
 
 interface SlackAttempt {
   user: string;
@@ -89,7 +90,7 @@ export class SlackAccount extends LitElement {
     this.busy = true;
     this.error = "";
     try {
-      const state = crypto.randomUUID();
+      const state = randomUuid();
       const response = await fetch(withBase("/api/composio/slack/authorize"), {
         method: "POST",
         headers: { "content-type": "application/json" },

@@ -24,6 +24,15 @@ const IDLOGIN_CLIENT_SECRET = "dev-instance-idlogin-0123456789abcdef";
 const PARTNER_DEV_CREDENTIALS = "dev-partner=dev-instance-partner-0123456789abcdef";
 const PARTNER_DEV_LIBRARY_PRINCIPAL = "dev-admin";
 
+function publicHost(baseEnv: Record<string, string>): string {
+  const lan = baseEnv.DEV_LAN_HOST?.trim();
+  return lan || "localhost";
+}
+
+function publicUrl(baseEnv: Record<string, string>, port: number): string {
+  return `http://${publicHost(baseEnv)}:${port}`;
+}
+
 export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
   const watchArgs = i.watch ? ["--watch"] : [];
   const base = { ...i.baseEnv, ...i.sandboxEnv };
@@ -46,7 +55,7 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         PORT: String(i.ports.core),
         ...(i.databaseUrl ? { DATABASE_URL: i.databaseUrl } : {}),
         ...(i.adminGrantsSeed ? { ADMIN_GRANTS: i.adminGrantsSeed } : {}),
-        PUBLIC_WEB_URL: i.web === false ? "" : `http://localhost:${i.ports.portal}`,
+        PUBLIC_WEB_URL: i.web === false ? "" : publicUrl(i.baseEnv, i.ports.portal),
         ...(i.slack
           ? {
               SLACK_BOT_TOKEN: i.slack.botToken,
@@ -77,7 +86,7 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         ...(i.watch ? { WEB_UI_DEV: "1" } : {}),
         CORE_ORG_ID: orgId,
         WEB_UI_PRINCIPALS: "",
-        WEB_UI_PUBLIC_URL: `http://localhost:${i.ports.portal}`,
+        WEB_UI_PUBLIC_URL: publicUrl(i.baseEnv, i.ports.portal),
       },
       port: i.ports.web,
       readiness: { kind: "log", pattern: `surface on http://localhost:${i.ports.web}` },
@@ -112,10 +121,10 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         CORE_API_URL: `http://localhost:${i.ports.core}`,
         CORE_ORG_ID: orgId,
         ...(i.databaseUrl ? { DATABASE_URL: i.databaseUrl } : {}),
-        IDLOGIN_ISSUER: `http://localhost:${i.ports.h5}`,
+        IDLOGIN_ISSUER: publicUrl(i.baseEnv, i.ports.h5),
         IDLOGIN_CLIENT_ID,
         IDLOGIN_CLIENT_SECRET,
-        IDLOGIN_REDIRECT_URI: `http://localhost:${i.ports.portal}/auth/callback`,
+        IDLOGIN_REDIRECT_URI: `${publicUrl(i.baseEnv, i.ports.portal)}/auth/callback`,
       },
       port: i.ports.h5,
       readiness: { kind: "log", pattern: `gateway on http://localhost:${i.ports.h5}` },
@@ -130,7 +139,7 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         ...siblingBase,
         ...signing,
         PORT: String(i.ports.portal),
-        PORTAL_PUBLIC_URL: `http://localhost:${i.ports.portal}`,
+        PORTAL_PUBLIC_URL: publicUrl(i.baseEnv, i.ports.portal),
         CORE_API_URL: `http://localhost:${i.ports.core}`,
         CORE_ORG_ID: orgId,
         WEB_UI_UPSTREAM: `http://localhost:${i.ports.web}`,
@@ -141,11 +150,11 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         PORTAL_DEV_PRINCIPAL: i.portalDevPrincipal,
         OIDC_CLIENT_ID: IDLOGIN_CLIENT_ID,
         OIDC_CLIENT_SECRET: IDLOGIN_CLIENT_SECRET,
-        OIDC_AUTH_ENDPOINT: `http://localhost:${i.ports.h5}/authorize`,
-        OIDC_TOKEN_ENDPOINT: `http://localhost:${i.ports.h5}/token`,
-        OIDC_USERINFO_ENDPOINT: `http://localhost:${i.ports.h5}/userinfo`,
-        OIDC_ISSUER: `http://localhost:${i.ports.h5}`,
-        OIDC_JWKS_URI: `http://localhost:${i.ports.h5}/.well-known/jwks.json`,
+        OIDC_AUTH_ENDPOINT: `${publicUrl(i.baseEnv, i.ports.h5)}/authorize`,
+        OIDC_TOKEN_ENDPOINT: `${publicUrl(i.baseEnv, i.ports.h5)}/token`,
+        OIDC_USERINFO_ENDPOINT: `${publicUrl(i.baseEnv, i.ports.h5)}/userinfo`,
+        OIDC_ISSUER: publicUrl(i.baseEnv, i.ports.h5),
+        OIDC_JWKS_URI: `${publicUrl(i.baseEnv, i.ports.h5)}/.well-known/jwks.json`,
         OIDC_PRINCIPAL_CLAIM: "sub",
       },
       port: i.ports.portal,
@@ -166,8 +175,8 @@ export function buildChildSpecs(i: SpecInputs): ChildSpec[] {
         PARTNER_CREDENTIALS: i.baseEnv.PARTNER_CREDENTIALS || PARTNER_DEV_CREDENTIALS,
         LIBRARY_SCOPES: i.baseEnv.LIBRARY_SCOPES || `card=org:${orgId}`,
         LIBRARY_PRINCIPAL: i.baseEnv.LIBRARY_PRINCIPAL || PARTNER_DEV_LIBRARY_PRINCIPAL,
-        PORTAL_URL: `http://localhost:${i.ports.portal}`,
-        PARTNER_WEB_REDIRECT_URL: i.baseEnv.PARTNER_WEB_REDIRECT_URL || `http://localhost:${i.ports.portal}/`,
+        PORTAL_URL: publicUrl(i.baseEnv, i.ports.portal),
+        PARTNER_WEB_REDIRECT_URL: i.baseEnv.PARTNER_WEB_REDIRECT_URL || `${publicUrl(i.baseEnv, i.ports.portal)}/`,
       },
       port: i.ports.partner,
       readiness: { kind: "log", pattern: `gateway on http://localhost:${i.ports.partner}` },

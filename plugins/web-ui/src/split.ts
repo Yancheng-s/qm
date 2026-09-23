@@ -88,6 +88,7 @@ import {
   type UiStateRecord,
 } from "./core-bridge";
 import { isPhone, onPhoneChange } from "./viewport";
+import { randomUuid } from "./random-uuid";
 
 export const splitState = {
   active: false,
@@ -130,7 +131,7 @@ let remotePayload: { updatedAt: number } | null = null;
 let persistedUpdatedAt = 0;
 
 function uid(): string {
-  return crypto.randomUUID().slice(0, 8);
+  return randomUuid().slice(0, 8);
 }
 
 let suspended = false;

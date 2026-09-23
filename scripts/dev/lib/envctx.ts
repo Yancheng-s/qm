@@ -169,6 +169,7 @@ export async function assembleEnv(opts: {
     "PARTNER_CREDENTIALS",
     "PARTNER_WEB_REDIRECT_URL",
     "PORTAL_LOCAL_AUTH_BYPASS",
+    "DEV_LAN_HOST",
   ]) {
     if (!env[k] && wtEnv[k]) env[k] = wtEnv[k];
   }

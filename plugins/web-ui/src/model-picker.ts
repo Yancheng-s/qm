@@ -28,6 +28,7 @@ import {
 import { tip } from "./tooltip";
 import { isPhone } from "./viewport";
 import { burstEffortConfetti } from "./effort-confetti";
+import { randomUuid } from "./random-uuid";
 
 const EFFORT_PEAK_FLOOR = EFFORT_LEVELS.findIndex((option) => option.value === "xhigh");
 
@@ -69,7 +70,7 @@ export function createModelPicker<T>(bindings: ModelPickerBindings<T>) {
     effectiveFastMode,
     changeDefault: changeScopeRuntime,
   } = bindings;
-  const loadoutMenuId = `model-picker-${crypto.randomUUID()}`;
+  const loadoutMenuId = `model-picker-${randomUuid()}`;
   let loadoutSection: "effort" | "add" | "harness" | null = null;
   let loadoutSectionHovered = false;
   let loadoutCloseTimer: ReturnType<typeof setTimeout> | null = null;

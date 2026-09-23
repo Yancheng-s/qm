@@ -28,6 +28,7 @@ import {
   type PreviewAttempt,
   type PickerState,
 } from "./connection-preview";
+import { randomUuid } from "./random-uuid";
 
 export class OnboardingWelcome extends LitElement {
   static properties = {
@@ -315,7 +316,7 @@ export class OnboardingWelcome extends LitElement {
     this.authorizing = service.name;
     this.authorizationError = "";
     try {
-      const state = crypto.randomUUID();
+      const state = randomUuid();
       const attempt: ConnectionAttempt = {
         state,
         user: this.previewUser(),

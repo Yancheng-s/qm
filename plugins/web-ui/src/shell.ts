@@ -43,6 +43,7 @@ import {
 } from "./core-bridge";
 import { seedRuntimeConfig } from "./runtime-config-store";
 import { errMessage, swallow } from "../../chassis/src/errors";
+import { randomUuid } from "./random-uuid";
 import { brandMark, brandName, icon } from "./ui";
 import { trackVisualViewport } from "./viewport";
 import { markConnectorConnected } from "./chat";
@@ -1032,7 +1033,7 @@ export async function boot(): Promise<void> {
       showConversationError(true);
       return;
     }
-    const threadRef = `web:${appState.me.user}:${wantedConversation ?? crypto.randomUUID()}`;
+    const threadRef = `web:${appState.me.user}:${wantedConversation ?? randomUuid()}`;
     const existing = sessionsState.list.find((session) => session.threadRef === threadRef);
     if (existing) {
       if (existing.scopeId !== wantedScope) {

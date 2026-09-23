@@ -543,6 +543,17 @@ test("partner child defaults credentials and honors overrides", () => {
   assert.equal(partner.env.PARTNER_WEB_REDIRECT_URL, `http://localhost:${inputs.ports.portal}/`);
   const portal = buildChildSpecs(inputs).find((spec) => spec.name === "portal")!;
   assert.equal(portal.env.PORTAL_PUBLIC_URL, `http://localhost:${inputs.ports.portal}`);
+  inputs.baseEnv.DEV_LAN_HOST = "192.168.2.12";
+  const lan = buildChildSpecs(inputs);
+  assert.equal(
+    lan.find((spec) => spec.name === "partner")!.env.PARTNER_WEB_REDIRECT_URL,
+    `http://192.168.2.12:${inputs.ports.portal}/`,
+  );
+  assert.equal(lan.find((spec) => spec.name === "portal")!.env.PORTAL_PUBLIC_URL, `http://192.168.2.12:${inputs.ports.portal}`);
+  assert.equal(
+    lan.find((spec) => spec.name === "portal")!.env.OIDC_AUTH_ENDPOINT,
+    `http://192.168.2.12:${inputs.ports.h5}/authorize`,
+  );
   assert.equal(portal.env.ADMIN_UPSTREAM, `http://localhost:${inputs.ports.admin}`);
   inputs.baseEnv = {
     PARTNER_CREDENTIALS: "acme=0123456789012345678901234567890123",
