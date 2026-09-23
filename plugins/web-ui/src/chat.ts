@@ -153,7 +153,7 @@ import {
   waveLoader,
 } from "./ui";
 import { appState, renderSidebarTop, switchView, syncUrlFromState } from "./shell";
-import { contextsState, scopeTitle } from "./contexts";
+import { assistantNameForScope, contextsState, scopeTitle } from "./contexts";
 import { openProjectPage, scopeToolCount, sessionTopbarTpl, setScopedSession, type SessionTool } from "./session-scope";
 import {
   addPendingSession,
@@ -1191,8 +1191,7 @@ export function createChatSurface(
 
   function welcomeGreeting(animate = true): TemplateResult {
     if (chatState.scopeId?.startsWith("group:")) {
-      const context = contextsState.list.find((item) => item.scopeId === chatState.scopeId);
-      const name = context?.project?.name?.trim() || context?.name?.trim() || chatState.contextName?.trim();
+      const name = assistantNameForScope(chatState.scopeId, chatState.contextName);
       return html`
         <article class="message-row assistant-row welcome-greeting">
           <div class="assistant-body">

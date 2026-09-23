@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { deepLinkPath, parseDeepLink } from "../src/deep-link.ts";
-import { documentTitle, PRODUCT_TITLE } from "../src/document-title.ts";
 
 const calendar = readFileSync(new URL("../src/calendar.ts", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../src/shell.ts", import.meta.url), "utf8");
@@ -26,5 +25,4 @@ test("calendar reuses the Inbox permission gate", () => {
 test("calendar has a stable route and document title", () => {
   assert.equal(deepLinkPath("", "calendar", null), "/calendar");
   assert.deepEqual(parseDeepLink("", "/calendar", ""), { view: "calendar", session: null, item: null });
-  assert.equal(documentTitle("calendar"), `日历 · ${PRODUCT_TITLE}`);
 });

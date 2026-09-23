@@ -114,9 +114,31 @@ async function serveWebManifest(res: ServerResponse): Promise<void> {
   res.end(JSON.stringify(manifest));
 }
 
-async function brandIndexHtml(html: string): Promise<string> {
+async function brandIndexHtml(html: string, req?: IncomingMessage): Promise<string> {
   const branding = await brandingCache.forRender();
-  return injectBranding(html, branding, { titleSuffix: "· 网页端" });
+  const out = injectBranding(html, branding, { titleSuffix: "" });
+  const scopeId = req && new URL(req.url ?? "/", "http://localhost").searchParams.get("scopeId")?.trim();
+  const user = req && cookieUser(req);
+  if (!user || !scopeId?.startsWith("group:")) return out;
+  try {
+    const response = await coreFetch("GET", `/v1/contexts?principalId=${encodeURIComponent(user)}`, "", 5000);
+    if (response.status !== 200) return out;
+    const data = JSON.parse(response.text) as {
+      contexts?: { scopeId: string; name?: string; project?: { name?: string } }[];
+    };
+    const context = data.contexts?.find((item) => item.scopeId === scopeId);
+    const name = context?.project?.name?.trim() || context?.name?.trim();
+    if (!name) return out;
+    const escaped = name.replace(
+      /[&<>"']/g,
+      (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!,
+    );
+    return out
+      .replace(/<title>[^<]*<\/title>/, () => `<title>${escaped}</title>`)
+      .replace("</head>", () => `<meta name="initial-assistant-name" content="${escaped}" /></head>`);
+  } catch {
+    return out;
+  }
 }
 
 const portalTokenStore = new AsyncLocalStorage<string | undefined>();
@@ -870,7 +892,7 @@ async function uploadFileFromRequest(
   return sendBuffered(res, registered.status, { "content-type": "application/json" }, registered.text);
 }
 
-async function serveStatic(res: ServerResponse, urlPath: string): Promise<void> {
+async function serveStatic(res: ServerResponse, urlPath: string, req?: IncomingMessage): Promise<void> {
   const rel = normalize(decodeURIComponent(urlPath)).replace(/^(\.\.[/\\])+/, "");
   let filePath = join(DIST, rel);
   if (!filePath.startsWith(DIST)) return void json(res, 403, { error: "forbidden" });
@@ -885,7 +907,7 @@ async function serveStatic(res: ServerResponse, urlPath: string): Promise<void> 
     }
   }
   if (filePath.endsWith("index.html")) {
-    const branded = await brandIndexHtml(readFileSync(filePath, "utf8"));
+    const branded = await brandIndexHtml(readFileSync(filePath, "utf8"), req);
     const headers = withSecurityHeaders({ "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" });
     return sendBuffered(res, 200, headers, branded);
   }
@@ -924,7 +946,7 @@ async function serveAppEditHtml(req: IncomingMessage, res: ServerResponse, url: 
   }
   const headers = withSecurityHeaders({ "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" });
   const csp = SPA_CSP.replace("frame-ancestors 'self'", `frame-ancestors 'self' ${slug}.${APPS_FRAME_DOMAIN}`);
-  sendBuffered(res, 200, framedByOwnSurfaces(res, headers, csp), await brandIndexHtml(html));
+  sendBuffered(res, 200, framedByOwnSurfaces(res, headers, csp), await brandIndexHtml(html, req));
   return true;
 }
 
@@ -976,7 +998,7 @@ async function serveVite(req: IncomingMessage, res: ServerResponse, path: string
   let html = readFileSync(join(ROOT, "index.html"), "utf8");
   html = html.replace("%BASE_URL%favicon.svg", "favicon.svg");
   html = await vite.transformIndexHtml(req.url ?? "/", html);
-  sendHtml(res, 200, await brandIndexHtml(html));
+  sendHtml(res, 200, await brandIndexHtml(html, req));
   return true;
 }
 
@@ -3185,7 +3207,7 @@ const routeRequest = async (req: IncomingMessage, res: ServerResponse) => {
   if (method === "GET") {
     if (path.startsWith("/assets/")) return await serveStatic(res, path);
     if (await serveVite(req, res, path)) return;
-    return await serveStatic(res, path === "/" ? "/index.html" : path);
+    return await serveStatic(res, path === "/" ? "/index.html" : path, req);
   }
 
   json(res, 404, { error: "not found" });

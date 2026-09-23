@@ -53,12 +53,12 @@ import { clearAllDrafts, saveDraft, storedDraft } from "./drafts";
 import { deepLinkPath, isPlainLeftClick, parseDeepLink, UI_BASE } from "./deep-link";
 import {
   adoptRemoteSplit,
+  focusedPaneConversation,
   beginPaneKindDrag,
   drawCanvas,
   endPaneDrag,
   exitSplitIfActive,
   fetchRemoteSplit,
-  focusedPaneSession,
   loadPersistedSplit,
   mountRestoredCanvas,
   restoredCanvasNeedsSessionList,
@@ -73,7 +73,6 @@ import {
   renderChatsPage,
   renderList,
   resetSessionsState,
-  sessionTitle,
   sessionsState,
   sessionSelectionBar,
   revealSessionSurface,
@@ -102,9 +101,16 @@ import {
 } from "./inbox";
 import { openSkillById, renderSkills, resetActiveSkill, routeSkillsHistory } from "./skills";
 import { applyTheme, renderSettings, watchSystemTheme } from "./settings";
-import { contextsState, ensureContexts, renderContexts, resetContextsState, resolveProjectScope } from "./contexts";
+import {
+  assistantNameForScope,
+  contextsState,
+  ensureContexts,
+  renderContexts,
+  resetContextsState,
+  resolveProjectScope,
+} from "./contexts";
 import { appState, can, canView, isView, type AuthMode, type Me, type View } from "./shell-state";
-import { activeSessionForDocumentTitle, updateDocumentTitle } from "./document-title";
+import { updateDocumentTitle } from "./document-title";
 export { appState, can, type Me, type View } from "./shell-state";
 
 let userMenuOpen = false;
@@ -626,22 +632,9 @@ export function renderSidebarTop(): void {
 }
 
 export function syncDocumentTitle(): void {
-  if (!appState.me) {
-    updateDocumentTitle();
-    return;
-  }
-  const state = mainConversation().state;
-  const active = splitState.active
-    ? focusedPaneSession()
-    : activeSessionForDocumentTitle(sessionsState.list, {
-        openingKey: sessionsState.openingKey,
-        sessionId: state.sessionId,
-        threadRef: state.threadRef,
-      });
+  const state = (focusedPaneConversation() ?? mainConversation()).state;
   updateDocumentTitle(
-    appState.currentView,
-    active ? sessionTitle(active) : null,
-    Boolean(active || (!splitState.active && state.threadRef)),
+    appState.me && state.scopeId ? assistantNameForScope(state.scopeId, state.contextName) || brandName() : undefined,
   );
 }
 
@@ -815,7 +808,7 @@ function showConversationError(unavailable: boolean): void {
   );
   appState.mainEl.querySelector<HTMLElement>("h1")?.focus();
   renderList();
-  document.title = `${unavailable ? "无法加载对话" : "找不到对话"} · ${brandName()}`;
+  updateDocumentTitle();
 }
 
 function toggleSidebar(): void {

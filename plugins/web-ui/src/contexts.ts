@@ -255,6 +255,12 @@ function metaForScope(scopeId: string | null, fallbackName?: string | null): { t
   return { title: fallbackName?.trim() || "个人", glyph: User };
 }
 
+export function assistantNameForScope(scopeId: string | null, fallbackName?: string | null): string | undefined {
+  if (!scopeId?.startsWith("group:")) return undefined;
+  const context = contextsState.list.find((item) => item.scopeId === scopeId);
+  return context?.project?.name?.trim() || context?.name?.trim() || fallbackName?.trim() || "你的专属数字员工";
+}
+
 export function scopeTitle(scopeId: string | null, fallbackName?: string | null): string {
   return metaForScope(scopeId, fallbackName).title;
 }
