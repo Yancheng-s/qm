@@ -22,6 +22,7 @@ export interface PluginAgent {
 export interface PluginManifest {
   schemaVersion: 1;
   id: string;
+  mcp: string[];
   entryAgent: string;
   delegation: { enabled: boolean; provider: "qm" };
   agents: Record<string, PluginAgent>;
@@ -67,6 +68,7 @@ export function parsePluginManifest(value: unknown): PluginManifest {
   const raw = object(value);
   if (raw.schemaVersion !== 1) throw new Error("plugin schemaVersion must be 1");
   const id = identifier(raw.id);
+  const mcp = names(raw.mcp);
   const entryAgent = identifier(raw.entryAgent);
   const delegation = object(raw.delegation);
   if (typeof delegation.enabled !== "boolean" || delegation.provider !== "qm")
@@ -93,7 +95,7 @@ export function parsePluginManifest(value: unknown): PluginManifest {
     if (key !== entryAgent && !agents[entryAgent]!.members.includes(key))
       throw new Error(`agent ${key} is not reachable from entryAgent`);
   }
-  return { schemaVersion: 1, id, entryAgent, delegation: { enabled: delegation.enabled, provider: "qm" }, agents };
+  return { schemaVersion: 1, id, mcp, entryAgent, delegation: { enabled: delegation.enabled, provider: "qm" }, agents };
 }
 
 export function parsePluginSources(raw: string): Map<string, PluginSource> {
@@ -191,6 +193,10 @@ export function pluginOrders(pkg: PluginPackage, packId: string, extra = ""): st
   const adapter = [
     "## QM 运行适配规则",
     `插件 ${manifest.id}，版本 ${pkg.commit}，默认主理人 ${manifest.entryAgent}。`,
+    manifest.mcp.length
+      ? `本项目仅可调用以下 MCP Server 的工具：${manifest.mcp.join(", ")}。不调用任何其他 MCP Server，即使工具列表中显示了它们。`
+      : "本项目不允许调用任何 MCP Server。即使工具列表中显示 MCP 工具，也不得调用。",
+    "用户要求其他业务或其他 MCP 能力时，说明该能力不属于当前项目，建议切换到对应项目；不得尝试调用未声明的 MCP。",
     "以下规则替代角色文档中的宿主工具名称和团队创建约定，不改变业务流程。",
     "本主理人设定仅适用于接待用户的会话。收到 QM 的 subagent-task 时，按委派的员工身份执行，不扮演主理人，不继续派生代理。",
     `使用 skills 工具 action=read 读取 ${lead.skills[0]}，以返回的 Pack files 路径为共享文件根目录（pack id: ${packId}）。每轮路径可能变化，不使用本机仓库绝对路径。`,

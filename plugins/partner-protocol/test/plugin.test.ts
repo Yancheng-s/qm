@@ -22,6 +22,7 @@ import { readConfig, bootProblems } from "../src/config.ts";
 const manifest = {
   schemaVersion: 1,
   id: "pmos",
+  mcp: ["pmos"],
   entryAgent: "lead",
   delegation: { enabled: true, provider: "qm" },
   agents: {
@@ -41,6 +42,7 @@ function fixture(): PluginPackage {
 }
 
 test("manifest refuses missing roles, traversal, unsupported provider and recursive delegation", () => {
+  assert.throws(() => parsePluginManifest({ ...manifest, mcp: "pmos" }));
   assert.throws(() => parsePluginManifest({ ...manifest, entryAgent: "missing" }));
   assert.throws(() => parsePluginManifest({ ...manifest, delegation: { enabled: true, provider: "native" } }));
   assert.throws(() =>
@@ -102,9 +104,13 @@ test("compiled orders distinguish lead and workers and bound instruction size", 
   assert.match(orders, /session.*open/);
   assert.match(orders, /agents\/worker.md/);
   assert.match(orders, /项目要求/);
+  assert.match(orders, /仅可调用以下 MCP Server 的工具：pmos/);
+  assert.match(orders, /不得尝试调用未声明的 MCP/);
   assert.ok(!orders.includes("你是专员"));
   pkg.manifest.delegation.enabled = false;
   assert.match(pluginOrders(pkg, "pack-1"), /本插件关闭委派/);
+  pkg.manifest.mcp = [];
+  assert.match(pluginOrders(pkg, "pack-1"), /不允许调用任何 MCP Server/);
   assert.throws(() => pluginOrders(pkg, "pack-1", "x".repeat(20000)), /20000/);
 });
 

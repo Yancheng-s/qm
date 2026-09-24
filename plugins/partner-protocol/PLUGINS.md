@@ -17,7 +17,7 @@ LIBRARY_PRINCIPAL=your-admin-principal
 
 HTTPS 私有仓库需要 partner 运行账户的 Git 凭证，以及 QM 拉取端可用的 Git 凭证。不要把令牌写入 URL、清单或提交到仓库。本实现不转发 partner 的 Git 凭证给 QM。
 
-`LIBRARY_URLS` 是项目装配的唯一技能来源。MCP 服务及其权限仍由现有配置负责，本清单不自动注册 MCP 或发放 MCP 凭证。
+`LIBRARY_URLS` 是项目装配的唯一技能来源。MCP 服务及其凭证仍由现有管理员配置负责；本清单只规定主理人允许使用哪些已注册 MCP Server，不注册服务或发放凭证。
 
 ## 清单
 
@@ -25,6 +25,7 @@ HTTPS 私有仓库需要 partner 运行账户的 Git 凭证，以及 QM 拉取�
 {
   "schemaVersion": 1,
   "id": "pmos",
+  "mcp": ["pmos"],
   "entryAgent": "lead",
   "delegation": { "enabled": true, "provider": "qm" },
   "agents": {
@@ -41,6 +42,8 @@ HTTPS 私有仓库需要 partner 运行账户的 Git 凭证，以及 QM 拉取�
 }
 ```
 
+`mcp` 是必填数组，可为空。它列出允许调用的已注册 MCP Server ID；空数组表示禁止 MCP。Partner 将该白名单编译进主理人的常驻指令：未声明的 MCP 即使出现在工具列表中也不得调用，相关业务须提示用户切换项目。这个约束作用于模型行为，QM Core 当前仍会全局注入 MCP 工具，因此不是服务端权限隔离。
+
 角色文档放在技能目录之外，作为 QM Skill Pack 的共享附件。每个技能必须存在唯一的同名目录及 `SKILL.md`，其 frontmatter 名称必须匹配清单。只有入口角色可以委派，成员不能再次委派。当前仅支持 `provider: qm`。
 
 ## 装配
@@ -51,7 +54,7 @@ HTTPS 私有仓库需要 partner 运行账户的 Git 凭证，以及 QM 拉取�
 4. 如果开启委派，为实际用户的 `personal:<principalId>` 开启 `persistent_subagents`。关闭委派的插件不会撤销该用户在其他项目需要的能力。
 5. 把主理人文档、调用方补充要求和 QM 工具适配规则写入项目常驻指令。插件模式下传入的 `soul` 作为主理人补充要求，不写入所有员工都会继承的项目 SOUL。
 
-插件模式须安装完整角色技能集合：通常省略 `skills`；若显式传入，必须等于清单声明的完整集合。编译后的常驻指令必须不超过 QM 现有的 20000 字符上限，超限会在创建项目前拒绝，不截断文档。
+调用方不传入技能列表，Partner 始终安装清单声明的完整角色技能集合。编译后的常驻指令必须不超过 QM 现有的 20000 字符上限，超限会在创建项目前拒绝，不截断文档。
 
 `201` 响应增加 `plugin: { id, commit, packId, entryAgent, delegation }`。`granted` 保持兼容，插件模式下表示已导入项目的技能名称。
 
@@ -66,6 +69,6 @@ HTTPS 私有仓库需要 partner 运行账户的 Git 凭证，以及 QM 拉取�
 ## 验证
 
 ```text
-node --test plugins/partner-protocol/test/plugin.test.ts plugins/partner-protocol/test/assemble.test.ts plugins/partner-protocol/test/gateway.test.ts
+node --test plugins/partner-protocol/test/*.test.ts
 node node_modules/typescript/bin/tsc -p plugins/partner-protocol/tsconfig.json --noEmit
 ```
