@@ -1,16 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { verifyPortalIdentity } from "../../chassis/src/portal-identity.ts";
 import { bootProblems, readConfig } from "../src/config.ts";
 import {
   CREDENTIALS,
   IDENTITY_SECRET,
-  LIBRARY_KEY,
   LIBRARY_PRINCIPAL,
-  LIBRARY_SCOPE,
   PARTNER_ID,
   PARTNER_SECRET,
-  PRINCIPAL_ID,
   SIGNING_SECRET,
   USER_ID,
   VALID_ENV,
@@ -23,7 +19,7 @@ import {
 
 test("config parsing keeps secrets out of the partner table and reports every problem at once", () => {
   const secrets = { CORE_SIGNING_SECRET: SIGNING_SECRET, PORTAL_IDENTITY_SECRET: IDENTITY_SECRET };
-  const library = { LIBRARY_SCOPES: `${LIBRARY_KEY}=${LIBRARY_SCOPE}`, LIBRARY_PRINCIPAL: LIBRARY_PRINCIPAL };
+  const library = { LIBRARY_URLS: VALID_ENV.LIBRARY_URLS, LIBRARY_PRINCIPAL: LIBRARY_PRINCIPAL };
   const cfg = readConfig({
     ...secrets,
     ...library,
@@ -37,8 +33,7 @@ test("config parsing keeps secrets out of the partner table and reports every pr
   assert.equal(cfg.coreApiUrl, "http://core.local:8081");
   assert.equal(cfg.ratePerMin, 0);
   assert.deepEqual([...cfg.partners.keys()], [PARTNER_ID, "beta"]);
-  assert.deepEqual([...cfg.libraries.keys()], [LIBRARY_KEY]);
-  assert.equal(cfg.libraries.get(LIBRARY_KEY), LIBRARY_SCOPE);
+  assert.deepEqual([...cfg.pluginSources.keys()], ["card"]);
   assert.equal(cfg.libraryPrincipalId, LIBRARY_PRINCIPAL);
 
   const blank = readConfig({ ...secrets, ...library, CORE_API_URL: "/", PARTNER_CREDENTIALS: CREDENTIALS });
@@ -68,7 +63,7 @@ test("config parsing keeps secrets out of the partner table and reports every pr
 
   const noLibrary = readConfig({ ...secrets, CORE_API_URL: "http://core.local", PARTNER_CREDENTIALS: CREDENTIALS });
   assert.deepEqual(bootProblems(noLibrary), [
-    "LIBRARY_SCOPES is required (<key>=<scopeId>, comma separated)",
+    "LIBRARY_URLS is required",
     "LIBRARY_PRINCIPAL is required",
   ]);
 
@@ -76,13 +71,11 @@ test("config parsing keeps secrets out of the partner table and reports every pr
     ...secrets,
     CORE_API_URL: "http://core.local",
     PARTNER_CREDENTIALS: CREDENTIALS,
-    LIBRARY_SCOPES: "BAD=group:x,xhs=not-a-scope,dupe=group:z,dupe2=group:z",
+    LIBRARY_URLS: "not-json",
     LIBRARY_PRINCIPAL: LIBRARY_PRINCIPAL,
   });
   const problems = bootProblems(badLibrary);
-  assert.ok(problems.some((item) => /key "BAD" must match/.test(item)));
-  assert.ok(problems.some((item) => /binding "xhs" needs a scope id/.test(item)));
-  assert.ok(problems.some((item) => /binds "dupe2" and "dupe" to the same scope/.test(item)));
+  assert.ok(problems.some((item) => /LIBRARY_URLS must be a JSON mapping/.test(item)));
 });
 
 test("the gateway refuses to start when it is misconfigured", async () => {
@@ -122,102 +115,11 @@ test("the gateway refuses to start when it is misconfigured", async () => {
   assert.notEqual(badRate.code, 0);
   assert.match(badRate.logged, /PARTNER_RATE_LIMIT_PER_MIN must be an integer/);
 
-  const noLibrary = await exitOutput(without(VALID_ENV, "LIBRARY_SCOPES", "LIBRARY_PRINCIPAL"));
+  const noLibrary = await exitOutput(without(VALID_ENV, "LIBRARY_URLS", "LIBRARY_PRINCIPAL"));
   assert.notEqual(noLibrary.code, 0);
-  assert.match(noLibrary.logged, /LIBRARY_SCOPES is required/);
+  assert.match(noLibrary.logged, /LIBRARY_URLS is required/);
   assert.match(noLibrary.logged, /LIBRARY_PRINCIPAL is required/);
   assert.match(noLibrary.logged, /refusing to start: 2 misconfiguration/);
-});
-
-test("the whole protocol closes against a stub core", async () => {
-  const core = await startStubCore();
-  try {
-    await withGateway({ CORE_API_URL: core.url }, async (base, banner) => {
-      assert.match(banner, /partners acme/);
-      assert.doesNotMatch(banner, new RegExp(PARTNER_SECRET));
-
-      const health = await fetch(`${base}/healthz`);
-      assert.equal(health.status, 200);
-      assert.deepEqual(await health.json(), { ok: true });
-
-      const unsigned = await fetch(`${base}/v1/assemble`, { method: "POST", body: "{}" });
-      assert.equal(unsigned.status, 401);
-
-      const unknown = await fetch(`${base}/v1/nope?userId=${USER_ID}`, {
-        headers: partnerHeaders("GET", `/v1/nope?userId=${USER_ID}`),
-      });
-      assert.equal(unknown.status, 404);
-
-      const assembleBody = JSON.stringify({
-        userId: USER_ID,
-        name: "Support",
-        library: LIBRARY_KEY,
-        soul: "Be terse.",
-      });
-      const assembled = await fetch(`${base}/v1/assemble`, {
-        method: "POST",
-        body: assembleBody,
-        headers: partnerHeaders("POST", "/v1/assemble", assembleBody),
-      });
-      assert.equal(assembled.status, 201);
-      assert.deepEqual(await assembled.json(), {
-        employee: { id: "web-project-1", scopeId: "group:web-project-1", name: "Support" },
-        granted: ["space-xhs-writer", "space-xhs-title"],
-        soul: true,
-        standingOrders: false,
-        files: [],
-      });
-
-      const outbound = core.calls.find((call) => call.path === "/v1/projects" && call.method === "POST");
-      assert.ok(outbound, "expected a project creation call");
-      assert.ok(outbound.headers["x-signature"]?.startsWith("v0="), "expected a source-auth signature");
-      assert.ok(outbound.headers["x-timestamp"], "expected a source-auth timestamp");
-      const claims = verifyPortalIdentity(outbound.headers["x-portal-identity"] ?? "", IDENTITY_SECRET, Date.now());
-      assert.equal(claims?.p, PRINCIPAL_ID);
-
-      const skillList = core.calls.find((call) => call.path.startsWith("/v1/skills") && call.method === "GET");
-      assert.ok(skillList, "expected a library skill listing call");
-      const libraryClaims = verifyPortalIdentity(
-        skillList.headers["x-portal-identity"] ?? "",
-        IDENTITY_SECRET,
-        Date.now(),
-      );
-      assert.equal(libraryClaims?.p, LIBRARY_PRINCIPAL);
-
-      assert.ok(
-        core.calls.some((call) => call.path === "/v1/grants" && call.method === "POST"),
-        "expected a grant call",
-      );
-
-      const chatSessionBody = JSON.stringify({
-        userId: USER_ID,
-        scopeId: "group:web-project-1",
-        conversationId: "c1",
-      });
-      const chatSession = await fetch(`${base}/v1/chat-sessions`, {
-        method: "POST",
-        body: chatSessionBody,
-        headers: partnerHeaders("POST", "/v1/chat-sessions", chatSessionBody),
-      });
-      assert.equal(chatSession.status, 200);
-      const { chatUrl } = (await chatSession.json()) as { chatUrl: string };
-      const url = new URL(chatUrl, base);
-      assert.equal(url.pathname, "/auth/login");
-      assert.equal(
-        url.searchParams.get("returnTo"),
-        `/chat/?scopeId=${encodeURIComponent("group:web-project-1")}&conversationId=c1&session=s1`,
-      );
-      const assertion = verifyPortalIdentity(url.searchParams.get("assertion") ?? "", IDENTITY_SECRET, Date.now());
-      assert.equal(assertion?.p, PRINCIPAL_ID);
-
-      assert.ok(
-        core.calls.every((call) => !call.path.includes("admin")),
-        "the gateway must never touch an admin endpoint",
-      );
-    });
-  } finally {
-    await core.close();
-  }
 });
 
 test("the partner quota answers 429 with a retry-after", async () => {

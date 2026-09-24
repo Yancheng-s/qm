@@ -9,7 +9,7 @@ import {
   type McpProbe,
   type ResolvedMcpServer,
 } from "../bootstrap/register-mcp.ts";
-import type { CoreClient, CoreResponse, ScannedPack } from "../bootstrap/bootstrap-library.ts";
+import type { CoreClient, CoreResponse, ScannedPack } from "../bootstrap/register-mcp.ts";
 
 interface Recorded {
   method: string;
@@ -60,11 +60,7 @@ const unreachable: McpProbe = {
 };
 
 const cardPack: ScannedPack = {
-  dir: "/pack/card",
-  packUrl: "/pack/card",
   library: "card",
-  projectName: "智渠名片技能库",
-  skills: ["zhiqu-card-create"],
   mcp: [
     {
       id: "zhiqu-card",
@@ -77,11 +73,7 @@ const cardPack: ScannedPack = {
 };
 
 const pmosPack: ScannedPack = {
-  dir: "/pack/pmos",
-  packUrl: "/pack/pmos",
   library: "pmos",
-  projectName: "PMOS 营销素材技能库",
-  skills: ["pmos-activate"],
   mcp: [
     {
       id: "pmos",
@@ -96,10 +88,7 @@ const pmosPack: ScannedPack = {
 
 test("collectMcpServers skips packs without mcp", () => {
   assert.deepEqual(
-    collectMcpServers([
-      cardPack,
-      { dir: "/pack/docs", packUrl: "/pack/docs", library: "docs", projectName: "文案库" },
-    ]),
+    collectMcpServers([cardPack, { library: "docs" }]),
     [
       {
         id: "zhiqu-card",
@@ -148,8 +137,10 @@ test("registerMcpServer probes then PUTs a writable server", async () => {
 
 test("registerMcpServer PUTs bearerToken for bearer servers", async () => {
   const admin = createAdminCore();
+  const server = pmosPack.mcp![0]!;
+  assert.ok(server.auth === "bearer");
   const outcome = await registerMcpServer(
-    { adminCore: admin.client, probe: probeFor([{ ...pmosPack.mcp![0]!, bearerToken: "pmos_test" }]) },
+    { adminCore: admin.client, probe: probeFor([{ ...server, bearerToken: "pmos_test" }]) },
     pmosPack.mcp![0]!,
     { PMOS_API_KEY: "pmos_test" },
   );
@@ -196,7 +187,7 @@ test("registerScannedMcp registers each declared server", async () => {
   const admin = createAdminCore();
   const results = await registerScannedMcp({ adminCore: admin.client, probe: reachable }, [
     cardPack,
-    { dir: "/pack/docs", packUrl: "/pack/docs", library: "docs", projectName: "文案库" },
+    { library: "docs" },
   ]);
   assert.equal(results.length, 1);
   assert.equal(results[0]?.library, "card");

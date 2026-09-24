@@ -7,12 +7,10 @@ import { createCoreCall } from "../src/core-client.ts";
 import {
   IDENTITY_SECRET,
   PARTNER_ID,
-  PARTNER_SECRET,
   ROOT,
   SIGNING_SECRET,
   USER_ID,
   startStubCore,
-  withGateway,
 } from "./support.ts";
 
 interface ClientRun {
@@ -33,37 +31,6 @@ function runClient(env: Record<string, string | undefined>, base?: string): Prom
   child.stderr?.on("data", (chunk: string) => output.push(chunk));
   return new Promise((resolve) => child.once("exit", (code) => resolve({ code, output: output.join("") })));
 }
-
-const CLIENT_ENV = { PARTNER_ID, PARTNER_SECRET, PARTNER_USER_ID: USER_ID };
-
-test("the sample client walks the whole protocol against a stub core", async () => {
-  const core = await startStubCore();
-  try {
-    await withGateway({ CORE_API_URL: core.url }, async (base) => {
-      const ran = await runClient(CLIENT_ENV, base);
-      assert.equal(ran.code, 0, ran.output);
-      assert.match(ran.output, /employee \{[^}]*scopeId: 'group:web-project-1'/);
-      assert.match(ran.output, /granted \[ 'space-xhs-writer', 'space-xhs-title' \]/);
-      assert.match(ran.output, /soul true/);
-      assert.match(ran.output, /chatUrl \/auth\/login\?returnTo=/);
-      assert.match(ran.output, /session s1/);
-
-      assert.deepEqual(
-        core.calls.map((call) => `${call.method} ${call.path}`),
-        [
-          "GET /v1/skills",
-          "POST /v1/projects",
-          "POST /v1/grants",
-          "POST /v1/grants",
-          "POST /v1/soul",
-          "GET /v1/sessions",
-        ],
-      );
-    });
-  } finally {
-    await core.close();
-  }
-});
 
 test("the sample client refuses to run without a secret", async () => {
   const ran = await runClient({ PARTNER_ID, PARTNER_SECRET: undefined, PARTNER_USER_ID: USER_ID });

@@ -45,11 +45,10 @@ app.get("/api/libraries", async () => ({
     label: preset.label,
     description: preset.description,
     defaultEmployeeName: preset.defaultEmployeeName,
-    skills: preset.skills,
   })),
 }));
 
-app.post<{ Body: { name?: unknown; library?: unknown; files?: unknown; skills?: unknown } }>(
+app.post<{ Body: { name?: unknown; library?: unknown; files?: unknown } }>(
   "/api/employees",
   async (req, reply) => {
     const auth = authenticate(req);
@@ -67,12 +66,10 @@ app.post<{ Body: { name?: unknown; library?: unknown; files?: unknown; skills?: 
     }
     const name =
       typeof req.body?.name === "string" && req.body.name.trim() ? req.body.name.trim() : preset.defaultEmployeeName;
-    const skills = Array.isArray(req.body?.skills) ? req.body.skills : [...preset.skills];
     const outcome = await partner.call("POST", "/v1/assemble", {
       userId: auth.userId,
       name,
       library: preset.key,
-      skills,
       ...(Array.isArray(req.body?.files) ? { files: req.body.files } : {}),
       soul: preset.soul,
       standingOrders: preset.standingOrders,

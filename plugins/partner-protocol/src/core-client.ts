@@ -26,6 +26,21 @@ export interface CoreCall {
 }
 
 export function createCoreCall(deps: CoreDeps, principalId: string): CoreCall {
+  return createAuthenticatedCall(deps, () => ({
+    [PORTAL_IDENTITY_HEADER]: mintPortalIdentity(
+      { p: principalId, exp: Date.now() + IDENTITY_TTL_MS },
+      deps.identitySecret,
+    ),
+  }));
+}
+
+export function createAdminCoreCall(deps: CoreDeps, principalId: string, orgId: string): CoreCall {
+  if (!principalId || !orgId) throw new Error("admin principal and organization are required");
+  const actor = principalId.endsWith(`@${orgId}`) ? principalId : `${principalId}@${orgId}`;
+  return createAuthenticatedCall({ ...deps, timeoutMs: 120_000 }, () => ({ "x-admin-actor": actor }));
+}
+
+function createAuthenticatedCall(deps: CoreDeps, headers: () => Record<string, string>): CoreCall {
   const parseJsonResponse = async (response: Response): Promise<CoreOutcome> => {
     const text = await response.text();
     if (!text) return { ok: true, status: response.status, json: null };
@@ -48,10 +63,7 @@ export function createCoreCall(deps: CoreDeps, principalId: string): CoreCall {
         method,
         headers: {
           ...signedHeaders(deps.signingSecret, method, path, raw),
-          [PORTAL_IDENTITY_HEADER]: mintPortalIdentity(
-            { p: principalId, exp: Date.now() + IDENTITY_TTL_MS },
-            deps.identitySecret,
-          ),
+          ...headers(),
         },
         ...(raw ? { body: raw } : {}),
         redirect: "manual",
@@ -76,10 +88,7 @@ export function createCoreCall(deps: CoreDeps, principalId: string): CoreCall {
               "content-type": "application/octet-stream",
               "x-content-sha256": sha256,
             }),
-            [PORTAL_IDENTITY_HEADER]: mintPortalIdentity(
-              { p: principalId, exp: Date.now() + IDENTITY_TTL_MS },
-              deps.identitySecret,
-            ),
+            ...headers(),
           },
           body: Buffer.from(data),
           redirect: "manual",

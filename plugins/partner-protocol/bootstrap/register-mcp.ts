@@ -1,21 +1,167 @@
-import { dirname } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { signedRequestHeaders, withSourceAuthNonce } from "../../chassis/src/core-client.ts";
 import { CORE_API_URL, CORE_ORG_ID, CORE_SIGNING_SECRET } from "../../chassis/src/env.ts";
-import {
-  adminActorHeader,
-  createCoreClient,
-  loadSelectedPacks,
-  parseBootstrapArgs,
-  type CoreClient,
-  type McpBearerManifest,
-  type McpManifest,
-  type McpNoneManifest,
-  type ScannedPack,
-} from "./bootstrap-library.ts";
 
 const BOOTSTRAP_DIR = dirname(fileURLToPath(import.meta.url));
 const PROBE_TIMEOUT_MS = 15_000;
 const MCP_ACCEPT = "application/json, text/event-stream";
+const MCP_ID = /^[a-z][a-z0-9-]{1,39}$/;
+const MCP_BEARER_ENV = /^[A-Z][A-Z0-9_]{0,127}$/;
+const LIBRARY_KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+
+export interface CoreResponse {
+  status: number;
+  json: unknown;
+}
+
+export interface CoreClient {
+  call(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<CoreResponse>;
+}
+
+export interface McpManifestBase {
+  id: string;
+  url: string;
+  name: string;
+  readOnly: boolean;
+}
+
+export interface McpNoneManifest extends McpManifestBase {
+  auth: "none";
+}
+
+export interface McpBearerManifest extends McpManifestBase {
+  auth: "bearer";
+  bearerEnv: string;
+}
+
+export type McpManifest = McpNoneManifest | McpBearerManifest;
+
+export interface ScannedPack {
+  library: string;
+  mcp?: McpManifest[];
+}
+
+export function adminActorHeader(principalId: string, orgId: string): string {
+  return JSON.stringify({ principalId, orgId });
+}
+
+export function createCoreClient(
+  baseUrl: string,
+  secret: string | undefined,
+  extraHeaders: Record<string, string> = {},
+  timeoutMs = 15_000,
+): CoreClient {
+  return {
+    async call(method, path, body) {
+      const raw = body === undefined ? "" : JSON.stringify(body);
+      const signedPath = withSourceAuthNonce(path, secret);
+      const headers = signedRequestHeaders(secret, method, signedPath, raw, {
+        ...extraHeaders,
+        ...(raw ? { "content-type": "application/json" } : {}),
+      });
+      const response = await fetch(`${baseUrl}${signedPath}`, {
+        method,
+        headers,
+        ...(raw ? { body: raw } : {}),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      const text = await response.text();
+      let json: unknown;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        json = null;
+      }
+      return { status: response.status, json };
+    },
+  };
+}
+
+function parseMcp(raw: unknown, label: string): McpManifest[] | { problem: string } | undefined {
+  if (raw === undefined) return undefined;
+  const entries = Array.isArray(raw) ? raw : [raw];
+  const mcp: McpManifest[] = [];
+  const ids = new Set<string>();
+  for (const entry of entries) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return { problem: `${label}: mcp entry must be an object` };
+    const item = entry as Record<string, unknown>;
+    const id = typeof item.id === "string" ? item.id.trim() : "";
+    const url = typeof item.url === "string" ? item.url.trim() : "";
+    if (!MCP_ID.test(id)) return { problem: `${label}: mcp.id must match ${MCP_ID.source}` };
+    if (ids.has(id)) return { problem: `${label}: duplicate mcp.id "${id}"` };
+    let parsed: URL;
+    try { parsed = new URL(url); } catch { return { problem: `${label}: mcp.url must be a valid URL` }; }
+    if (!url || (parsed.protocol !== "http:" && parsed.protocol !== "https:") || parsed.username || parsed.password || parsed.search || parsed.hash)
+      return { problem: `${label}: mcp.url must be a credential-free http(s) URL without query or fragment` };
+    if (item.readOnly !== undefined && typeof item.readOnly !== "boolean") return { problem: `${label}: mcp.readOnly must be a boolean` };
+    const name = typeof item.name === "string" && item.name.trim() ? item.name.trim().slice(0, 80) : id;
+    const common = { id, url, name, readOnly: item.readOnly === true };
+    if (item.auth === undefined || item.auth === null || item.auth === "" || item.auth === "none") {
+      if (item.bearerEnv !== undefined) return { problem: `${label}: mcp.bearerEnv is only valid when mcp.auth is "bearer"` };
+      mcp.push({ ...common, auth: "none" });
+    } else if (item.auth === "bearer") {
+      const bearerEnv = typeof item.bearerEnv === "string" ? item.bearerEnv.trim() : "";
+      if (!MCP_BEARER_ENV.test(bearerEnv)) return { problem: `${label}: mcp.bearerEnv must name an env var like PMOS_API_KEY` };
+      mcp.push({ ...common, auth: "bearer", bearerEnv });
+    } else return { problem: `${label}: mcp.auth must be "none" or "bearer"` };
+    ids.add(id);
+  }
+  return mcp.length ? mcp : undefined;
+}
+
+export function loadSelectedPacks(root: string, selected: readonly string[]): { packs: ScannedPack[] } | { problems: string[] } {
+  const packs: ScannedPack[] = [];
+  const problems: string[] = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === ".git") continue;
+    const dir = join(root, entry.name);
+    if (!existsSync(join(dir, ".git")) || !existsSync(join(dir, "library.json"))) continue;
+    let raw: unknown;
+    try { raw = JSON.parse(readFileSync(join(dir, "library.json"), "utf8")); } catch { problems.push(`${dir}: library.json must be valid JSON`); continue; }
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) { problems.push(`${dir}: library.json must be an object`); continue; }
+    const body = raw as Record<string, unknown>;
+    const library = typeof body.library === "string" ? body.library.trim() : "";
+    if (!LIBRARY_KEY.test(library)) { problems.push(`${dir}: library must match ${LIBRARY_KEY.source}`); continue; }
+    const mcp = parseMcp(body.mcp, `${dir} mcp`);
+    if (mcp && "problem" in mcp) { problems.push(mcp.problem); continue; }
+    packs.push({ library, ...(mcp ? { mcp } : {}) });
+  }
+  const seen = new Set<string>();
+  for (const pack of packs) {
+    if (seen.has(pack.library)) problems.push(`library "${pack.library}" is declared twice`);
+    seen.add(pack.library);
+  }
+  const requested = selected.length ? new Set(selected) : undefined;
+  if (requested) {
+    const found = new Set(packs.map((pack) => pack.library));
+    const missing = [...requested].filter((library) => !found.has(library));
+    if (missing.length) problems.push(`unknown library: ${missing.join(", ")}`);
+  }
+  if (problems.length) return { problems };
+  const filtered = requested ? packs.filter((pack) => requested.has(pack.library)) : packs;
+  return filtered.length ? { packs: filtered } : { problems: ["no library.json packs under bootstrap/"] };
+}
+
+export function parseBootstrapArgs(args: readonly string[], env: NodeJS.ProcessEnv): { adminPrincipalId: string; libraries: string[] } | { problem: string } {
+  const libraries: string[] = [];
+  let adminPrincipalId = "";
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index]!;
+    if (arg === "--admin") {
+      const value = args[++index];
+      if (!value || value.startsWith("--")) return { problem: "--admin requires a value" };
+      adminPrincipalId = value;
+    } else if (arg.startsWith("-")) return { problem: `unknown flag: ${arg}` };
+    else libraries.push(arg);
+  }
+  adminPrincipalId ||= env.LIBRARY_PRINCIPAL?.trim() ?? "";
+  if (!adminPrincipalId || adminPrincipalId.length > 200) return { problem: "--admin <principalId> or LIBRARY_PRINCIPAL is required" };
+  const invalid = libraries.filter((library) => !LIBRARY_KEY.test(library));
+  if (invalid.length) return { problem: `invalid library key: ${invalid.join(", ")}` };
+  return { adminPrincipalId, libraries };
+}
 
 export type ResolvedMcpServer = McpNoneManifest | (McpBearerManifest & { bearerToken: string });
 

@@ -17,17 +17,14 @@ export const PRINCIPAL_ID = `${PARTNER_ID}_${USER_ID}`;
 export const SIGNING_SECRET = "gateway-test-signing-secret-0123456789";
 export const IDENTITY_SECRET = "gateway-test-identity-secret-0123456789";
 export const CREDENTIALS = `${PARTNER_ID}=${PARTNER_SECRET}`;
-export const LIBRARY_KEY = "xhs";
-export const LIBRARY_SCOPE = "group:web-project-lib";
 export const LIBRARY_PRINCIPAL = "lib-admin";
-export const LIBRARIES: ReadonlyMap<string, string> = new Map([[LIBRARY_KEY, LIBRARY_SCOPE]]);
 
 export const VALID_ENV = {
   CORE_API_URL: "http://127.0.0.1:9",
   CORE_SIGNING_SECRET: SIGNING_SECRET,
   PORTAL_IDENTITY_SECRET: IDENTITY_SECRET,
   PARTNER_CREDENTIALS: CREDENTIALS,
-  LIBRARY_SCOPES: `${LIBRARY_KEY}=${LIBRARY_SCOPE}`,
+  LIBRARY_URLS: JSON.stringify({ card: { url: "C:/Users/Administrator/Desktop/zhongqu/qm-v2/plugins/partner-protocol/bootstrap/zhiqu-card-skills" } }),
   LIBRARY_PRINCIPAL: LIBRARY_PRINCIPAL,
 };
 
@@ -86,7 +83,6 @@ export async function startGateway(factory: (principalId: string) => CoreCall, r
     signingSecret: "test-signing-secret-not-used-outbound",
     identitySecret: IDENTITY_SECRET,
     partners: PARTNERS,
-    libraries: LIBRARIES,
     libraryPrincipalId: LIBRARY_PRINCIPAL,
     ratePerMin,
     portalUrl: "http://portal.invalid",
@@ -185,9 +181,9 @@ export async function startStubCore(): Promise<StubCore> {
       if (pathname === "/v1/skills") {
         return reply(200, {
           skills: [
-            { id: "skill-writer", name: "space-xhs-writer", scopeId: LIBRARY_SCOPE, status: "active" },
-            { id: "skill-title", name: "space-xhs-title", scopeId: LIBRARY_SCOPE, status: "active" },
-            { id: "skill-old", name: "retired", scopeId: LIBRARY_SCOPE, status: "archived" },
+            { id: "skill-writer", name: "space-xhs-writer", scopeId: "group:web-project-lib", status: "active" },
+            { id: "skill-title", name: "space-xhs-title", scopeId: "group:web-project-lib", status: "active" },
+            { id: "skill-old", name: "retired", scopeId: "group:web-project-lib", status: "archived" },
             { id: "skill-elsewhere", name: "elsewhere", scopeId: "group:other", status: "active" },
           ],
         });

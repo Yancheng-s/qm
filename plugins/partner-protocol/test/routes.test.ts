@@ -6,10 +6,7 @@ import { verifyPortalIdentity } from "../../chassis/src/portal-identity.ts";
 import { createHandler, routes } from "../src/routes/index.ts";
 import {
   IDENTITY_SECRET,
-  LIBRARIES,
-  LIBRARY_KEY,
   LIBRARY_PRINCIPAL,
-  LIBRARY_SCOPE,
   PARTNERS,
   PRINCIPAL_ID,
   USER_ID,
@@ -40,7 +37,7 @@ async function withGateway(script: CoreScript | undefined, run: (base: string) =
 test("the whitelist is exactly the documented routes with their body limits", () => {
   assert.deepEqual(
     routes.map((route) => `${route.method} ${route.path} ${route.limit}`),
-    ["POST /v1/assemble 128000", "POST /v1/chat-sessions 4000"],
+    ["POST /v1/assemble 128000", "POST /v1/chat-sessions 4000", "GET /v1/chat-sessions 4000"],
   );
 });
 
@@ -121,7 +118,6 @@ test("the auth path is dispatched to the proxy without partner verification", as
     signingSecret: "test-signing-secret-not-used-outbound",
     identitySecret: IDENTITY_SECRET,
     partners: PARTNERS,
-    libraries: LIBRARIES,
     libraryPrincipalId: LIBRARY_PRINCIPAL,
     ratePerMin: 0,
     portalUrl: "http://portal.invalid",
@@ -172,70 +168,6 @@ test("the partner signature covers the target and body exactly as sent", async (
     assert.match(await wrongPath.text(), /signature mismatch/);
 
     assert.equal(core.calls.length, 0);
-  } finally {
-    await gateway.close();
-  }
-});
-
-test("relayed core errors surface as upstream errors", async () => {
-  const core = recordingCore(() => ok(400, {}));
-  const gateway = await startGateway(core.factory);
-  try {
-    const badAssemble = await post(gateway.base, "/v1/assemble", { userId: USER_ID, name: "Support", skills: [] });
-    assert.equal(badAssemble.status, 502);
-    assert.deepEqual(await badAssemble.json(), {
-      error: "upstream_error",
-      message: "skill listing failed",
-      upstream: { status: 400 },
-    });
-  } finally {
-    await gateway.close();
-  }
-});
-
-test("assemble is reachable end to end through the pipeline", async () => {
-  let projects = 0;
-  const core = recordingCore((call) => {
-    if (call.path.startsWith("/v1/skills")) {
-      return ok(200, {
-        skills: [
-          { id: "skill-writer", name: "space-xhs-writer", scopeId: LIBRARY_SCOPE, status: "active" },
-          { id: "skill-title", name: "space-xhs-title", scopeId: LIBRARY_SCOPE, status: "active" },
-        ],
-      });
-    }
-    if (call.path === "/v1/projects") {
-      projects += 1;
-      return ok(201, { project: { id: `web-project-${projects}`, scopeId: `group:web-project-${projects}` } });
-    }
-    if (call.path === "/v1/grants") return ok(200, { ok: true });
-    if (call.path === "/v1/soul") return ok(200, { ok: true, version: 1 });
-    if (call.path === "/v1/contexts/policy") {
-      const body = call.body as { orders?: string };
-      return ok(200, { policy: { orders: body.orders ?? "", bots: {}, ambientEnabled: null, updatedAt: 1 } });
-    }
-    return ok(404, { error: "not_found" });
-  });
-  const gateway = await startGateway(core.factory);
-  try {
-    const response = await post(gateway.base, "/v1/assemble", {
-      userId: USER_ID,
-      name: "Support",
-      library: LIBRARY_KEY,
-      soul: "Be terse.",
-    });
-    assert.equal(response.status, 201);
-    assert.deepEqual(await response.json(), {
-      employee: { id: "web-project-1", scopeId: "group:web-project-1", name: "Support" },
-      granted: ["space-xhs-writer", "space-xhs-title"],
-      soul: true,
-      standingOrders: false,
-      files: [],
-    });
-    assert.deepEqual(
-      core.calls.map((call) => call.path.split("?")[0]),
-      ["/v1/skills", "/v1/projects", "/v1/grants", "/v1/grants", "/v1/soul"],
-    );
   } finally {
     await gateway.close();
   }

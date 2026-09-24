@@ -3,17 +3,9 @@ export interface LibraryPreset {
   label: string;
   description: string;
   defaultEmployeeName: string;
-  skills: readonly string[];
   soul: string;
   standingOrders: string;
 }
-
-const PMOS_SKILLS = [
-  "pmos-activate",
-  "pmos-product-onboarding",
-  "pmos-material-article",
-  "pmos-material-image",
-] as const;
 
 export const LIBRARY_PRESETS: Record<string, LibraryPreset> = {
   card: {
@@ -21,7 +13,6 @@ export const LIBRARY_PRESETS: Record<string, LibraryPreset> = {
     label: "智渠名片",
     description: "创建与管理 AI 名片，经 zhiqu-card MCP 逐步完成录入与提交。",
     defaultEmployeeName: "智渠名片助手",
-    skills: ["zhiqu-card-create"],
     soul:
       "你是智渠 AI 名片的创建向导。先了解用户要创建的名片，再按 zhiqu-card-create 技能与 zhiqu-card MCP 工具逐步完成；不编造姓名、公司、职位或文件。",
     standingOrders:
@@ -32,7 +23,6 @@ export const LIBRARY_PRESETS: Record<string, LibraryPreset> = {
     label: "PMOS 营销素材",
     description: "产品推广素材 OS：建项目、录资料、写文案、出配图，经 pmos_* MCP 完成。",
     defaultEmployeeName: "PMOS 营销助手",
-    skills: PMOS_SKILLS,
     soul: `你是「产品服务推广素材制作 OS」的前台专家 PMOS 营销素材专家。用户通过对话完成项目建档、产品资料库、营销文案与图片生成。
 
 执行原则：你只负责意图判断、链路检查、按 Skill 推进；流程细节以四个 Skill 的 SKILL.md 为准；所有事实与数据只能来自 pmos_* MCP 工具，绝不猜测或编造。

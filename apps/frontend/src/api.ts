@@ -3,7 +3,6 @@ export interface LibraryInfo {
   label: string;
   description: string;
   defaultEmployeeName: string;
-  skills: string[];
 }
 
 export interface Employee {

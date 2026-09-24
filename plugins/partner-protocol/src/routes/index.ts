@@ -1,7 +1,10 @@
+import { CORE_ORG_ID } from "../../../chassis/src/env.ts";
+import type { PluginSource } from "../plugin-package.ts";
+import type { PluginInstaller } from "../plugin-install.ts";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { findRoute } from "../../../chassis/src/router.ts";
 import { principalFor, verifySignedRequest } from "../auth.ts";
-import { createCoreCall, type CoreCall } from "../core-client.ts";
+import { createAdminCoreCall, createCoreCall, type CoreCall } from "../core-client.ts";
 import { createRateLimiter, problem, readJsonBody, sendProblem, type RateLimiter } from "../transport.ts";
 import { createAuthProxy, type AuthProxy } from "./auth/auth-proxy.ts";
 import { handleAssemble } from "./partner/assemble.ts";
@@ -17,9 +20,7 @@ export interface Ctx {
   principalId: string;
   body: Record<string, unknown>;
   core: CoreCall;
-  libraryCore: CoreCall;
-  libraries: ReadonlyMap<string, string>;
-  libraryPrincipalId: string;
+  pluginInstaller?: PluginInstaller;
   identitySecret: string;
   partnerWebRedirectUrl: string;
 }
@@ -40,11 +41,12 @@ export const routes: readonly Route[] = [
 const UNKNOWN_PATH_BODY_LIMIT = 512_000;
 
 export interface GatewayDeps {
+  pluginSources?: ReadonlyMap<string, PluginSource>;
+  adminCore?: CoreCall;
   coreApiUrl: string;
   signingSecret: string | undefined;
   identitySecret: string;
   partners: ReadonlyMap<string, string>;
-  libraries: ReadonlyMap<string, string>;
   libraryPrincipalId: string;
   ratePerMin: number;
   portalUrl: string;
@@ -82,7 +84,13 @@ export function createHandler(deps: GatewayDeps): Handler {
         principalId,
       ));
 
-  const libraryCore = coreFor(deps.libraryPrincipalId);
+  const pluginInstaller: PluginInstaller | undefined = deps.pluginSources?.size
+    ? {
+        sources: deps.pluginSources,
+        orgId: CORE_ORG_ID,
+        admin: deps.adminCore ?? createAdminCoreCall(deps, deps.libraryPrincipalId, CORE_ORG_ID),
+      }
+    : undefined;
 
   return async (req, res) => {
     const method = req.method ?? "GET";
@@ -146,9 +154,7 @@ export function createHandler(deps: GatewayDeps): Handler {
       principalId: identity.principalId,
       body: read.body,
       core: coreFor(identity.principalId),
-      libraryCore,
-      libraries: deps.libraries,
-      libraryPrincipalId: deps.libraryPrincipalId,
+      pluginInstaller,
       identitySecret: deps.identitySecret,
       partnerWebRedirectUrl: deps.partnerWebRedirectUrl,
     });

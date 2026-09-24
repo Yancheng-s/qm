@@ -17,7 +17,7 @@ const dispatch = createHandler({
   signingSecret: cfg.signingSecret,
   identitySecret: cfg.identitySecret,
   partners: cfg.partners,
-  libraries: cfg.libraries,
+  pluginSources: cfg.pluginSources,
   libraryPrincipalId: cfg.libraryPrincipalId,
   ratePerMin: cfg.ratePerMin,
   portalUrl: cfg.portalUrl,

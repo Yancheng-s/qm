@@ -1,3 +1,4 @@
+import { parsePluginSources, type PluginSource } from "./plugin-package.ts";
 import { CORE_API_URL, CORE_SIGNING_SECRET, PORTAL_IDENTITY_SECRET } from "../../chassis/src/env.ts";
 
 const PARTNER_ID = /^[a-z][a-z0-9-]{0,31}$/;
@@ -6,8 +7,6 @@ const DEFAULT_RATE_PER_MIN = 120;
 const DEFAULT_PORT = 8211;
 const DEFAULT_PORTAL_URL = "http://localhost:8129";
 const DEFAULT_PARTNER_WEB_REDIRECT_URL = "http://localhost:8129/";
-const LIBRARY_KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/;
-const SCOPE_ID = /^[a-z]+:.+$/;
 
 export interface PartnerConfig {
   port: number;
@@ -15,7 +14,7 @@ export interface PartnerConfig {
   signingSecret: string | undefined;
   identitySecret: string;
   partners: ReadonlyMap<string, string>;
-  libraries: ReadonlyMap<string, string>;
+  pluginSources: ReadonlyMap<string, PluginSource>;
   libraryPrincipalId: string;
   ratePerMin: number;
   portalUrl: string;
@@ -64,34 +63,12 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): PartnerConfig 
     holders.set(secret, id);
   }
 
-  const libraries = new Map<string, string>();
-  const scopeOwners = new Map<string, string>();
   const libraryProblems: string[] = [];
-  for (const entry of (env.LIBRARY_SCOPES ?? "").split(",")) {
-    const candidate = entry.trim();
-    if (!candidate) continue;
-    const separator = candidate.indexOf("=");
-    const key = (separator < 0 ? candidate : candidate.slice(0, separator)).trim();
-    const scopeId = separator < 0 ? "" : candidate.slice(separator + 1).trim();
-    if (!LIBRARY_KEY.test(key)) {
-      libraryProblems.push(`LIBRARY_SCOPES key "${key}" must match ${LIBRARY_KEY.source}`);
-      continue;
-    }
-    if (libraries.has(key)) {
-      libraryProblems.push(`LIBRARY_SCOPES binds "${key}" twice`);
-      continue;
-    }
-    if (!SCOPE_ID.test(scopeId)) {
-      libraryProblems.push(`LIBRARY_SCOPES binding "${key}" needs a scope id like group:<project scope>`);
-      continue;
-    }
-    const owner = scopeOwners.get(scopeId);
-    if (owner) {
-      libraryProblems.push(`LIBRARY_SCOPES binds "${key}" and "${owner}" to the same scope ${scopeId}`);
-      continue;
-    }
-    libraries.set(key, scopeId);
-    scopeOwners.set(scopeId, key);
+  let pluginSources = new Map<string, PluginSource>();
+  try {
+    pluginSources = parsePluginSources(env.LIBRARY_URLS ?? "");
+  } catch {
+    libraryProblems.push("LIBRARY_URLS must be a JSON mapping of library ids to valid Git sources");
   }
   const libraryPrincipalId = trimmed(env.LIBRARY_PRINCIPAL) ?? "";
 
@@ -107,7 +84,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): PartnerConfig 
     signingSecret,
     identitySecret: trimmed(env.PORTAL_IDENTITY_SECRET) ?? PORTAL_IDENTITY_SECRET ?? signingSecret ?? "",
     partners,
-    libraries,
+    pluginSources,
     libraryPrincipalId,
     ratePerMin,
     portalUrl: trimmed(env.PORTAL_URL)?.replace(/\/+$/, "") ?? DEFAULT_PORTAL_URL,
@@ -124,8 +101,7 @@ export function bootProblems(cfg: PartnerConfig): string[] {
   if (!cfg.identitySecret) problems.push("PORTAL_IDENTITY_SECRET or CORE_SIGNING_SECRET is required");
   if (cfg.partners.size === 0 && cfg.credentialProblems.length === 0)
     problems.push("PARTNER_CREDENTIALS is required (<partnerId>=<secret>, comma separated)");
-  if (cfg.libraries.size === 0 && cfg.libraryProblems.length === 0)
-    problems.push("LIBRARY_SCOPES is required (<key>=<scopeId>, comma separated)");
+  if (cfg.pluginSources.size === 0 && cfg.libraryProblems.length === 0) problems.push("LIBRARY_URLS is required");
   if (!cfg.libraryPrincipalId) problems.push("LIBRARY_PRINCIPAL is required");
   if (cfg.ratePerMin < 0) problems.push("PARTNER_RATE_LIMIT_PER_MIN must be an integer >= 0 (0 disables limiting)");
   return problems;
