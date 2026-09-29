@@ -77,11 +77,27 @@ const pmosPack: ScannedPack = {
   mcp: [
     {
       id: "pmos",
-      url: "http://127.0.0.1:3000/mcp",
+      url: "http://127.0.0.1:13000/mcp",
       name: "PMOS 营销素材",
       readOnly: false,
       auth: "bearer",
       bearerEnv: "PMOS_API_KEY",
+      credentialScope: "per-user",
+      credentialHost: "pmos",
+    },
+  ],
+};
+
+const bearerPack: ScannedPack = {
+  library: "billing",
+  mcp: [
+    {
+      id: "billing",
+      url: "http://127.0.0.1:3001/mcp",
+      name: "Billing",
+      readOnly: false,
+      auth: "bearer",
+      bearerEnv: "BILLING_API_KEY",
     },
   ],
 };
@@ -103,15 +119,16 @@ test("collectMcpServers skips packs without mcp", () => {
 });
 
 test("resolveMcpServer reads bearer tokens from env", () => {
-  assert.deepEqual(resolveMcpServer(pmosPack.mcp![0]!, { PMOS_API_KEY: "pmos_test" }), {
-    id: "pmos",
-    url: "http://127.0.0.1:3000/mcp",
-    name: "PMOS 营销素材",
+  assert.deepEqual(resolveMcpServer(bearerPack.mcp![0]!, { BILLING_API_KEY: "bill_test" }), {
+    id: "billing",
+    url: "http://127.0.0.1:3001/mcp",
+    name: "Billing",
     readOnly: false,
     auth: "bearer",
-    bearerEnv: "PMOS_API_KEY",
-    bearerToken: "pmos_test",
+    bearerEnv: "BILLING_API_KEY",
+    bearerToken: "bill_test",
   });
+  assert.ok("problem" in resolveMcpServer(bearerPack.mcp![0]!, {}));
   assert.ok("problem" in resolveMcpServer(pmosPack.mcp![0]!, {}));
 });
 
@@ -137,19 +154,42 @@ test("registerMcpServer probes then PUTs a writable server", async () => {
 
 test("registerMcpServer PUTs bearerToken for bearer servers", async () => {
   const admin = createAdminCore();
-  const server = pmosPack.mcp![0]!;
+  const server = bearerPack.mcp![0]!;
   assert.ok(server.auth === "bearer");
   const outcome = await registerMcpServer(
-    { adminCore: admin.client, probe: probeFor([{ ...server, bearerToken: "pmos_test" }]) },
-    pmosPack.mcp![0]!,
-    { PMOS_API_KEY: "pmos_test" },
+    { adminCore: admin.client, probe: probeFor([{ ...server, bearerToken: "bill_test" }]) },
+    bearerPack.mcp![0]!,
+    { BILLING_API_KEY: "bill_test" },
   );
   assert.equal(outcome.status, "registered");
   assert.deepEqual(admin.calls[0]?.body, {
-    url: "http://127.0.0.1:3000/mcp",
+    url: "http://127.0.0.1:3001/mcp",
+    name: "Billing",
+    auth: "bearer",
+    bearerToken: "bill_test",
+    readOnly: false,
+    enabled: true,
+    validate: true,
+  });
+});
+
+test("registerMcpServer PUTs a catalog bearer and per-user call scope", async () => {
+  const admin = createAdminCore();
+  const server = pmosPack.mcp![0]!;
+  assert.ok(server.auth === "bearer");
+  const outcome = await registerMcpServer(
+    { adminCore: admin.client, probe: probeFor([{ ...server, bearerToken: "pmos_catalog" }]) },
+    server,
+    { PMOS_API_KEY: "pmos_catalog" },
+  );
+  assert.equal(outcome.status, "registered");
+  assert.deepEqual(admin.calls[0]?.body, {
+    url: "http://127.0.0.1:13000/mcp",
     name: "PMOS 营销素材",
     auth: "bearer",
-    bearerToken: "pmos_test",
+    bearerToken: "pmos_catalog",
+    credentialScope: "per-user",
+    credentialHost: "pmos",
     readOnly: false,
     enabled: true,
     validate: true,
@@ -167,7 +207,7 @@ test("an unreachable MCP does not write to core", async () => {
 
 test("a missing bearer env does not probe or write to core", async () => {
   const admin = createAdminCore();
-  const outcome = await registerMcpServer({ adminCore: admin.client, probe: reachable }, pmosPack.mcp![0]!, {});
+  const outcome = await registerMcpServer({ adminCore: admin.client, probe: reachable }, bearerPack.mcp![0]!, {});
   assert.equal(outcome.status, "error");
   if (outcome.status !== "error") return;
   assert.equal(outcome.code, "mcp_auth_missing");
@@ -208,15 +248,17 @@ test("probeMcpServer sends bearer auth and requires tools for bearer servers", a
   try {
     const outcome = await probeMcpServer({
       id: "pmos",
-      url: "http://127.0.0.1:3000/mcp",
+      url: "http://127.0.0.1:13000/mcp",
       name: "PMOS 营销素材",
       readOnly: false,
       auth: "bearer",
       bearerEnv: "PMOS_API_KEY",
-      bearerToken: "pmos_test",
+      bearerToken: "pmos_catalog",
+      credentialScope: "per-user",
+      credentialHost: "pmos",
     });
     assert.deepEqual(outcome, { ok: true, toolCount: 1 });
-    assert.equal(calls[0]?.headers.authorization, "Bearer pmos_test");
+    assert.equal(calls[0]?.headers.authorization, "Bearer pmos_catalog");
     assert.match(calls[0]?.headers.accept ?? "", /application\/json/);
   } finally {
     globalThis.fetch = originalFetch;

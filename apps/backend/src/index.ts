@@ -45,10 +45,11 @@ app.get("/api/libraries", async () => ({
     label: preset.label,
     description: preset.description,
     defaultEmployeeName: preset.defaultEmployeeName,
+    ...(preset.connectorHost ? { requiresApiKey: true } : {}),
   })),
 }));
 
-app.post<{ Body: { name?: unknown; library?: unknown; files?: unknown } }>(
+app.post<{ Body: { name?: unknown; library?: unknown; files?: unknown; apiKey?: unknown } }>(
   "/api/employees",
   async (req, reply) => {
     const auth = authenticate(req);
@@ -66,11 +67,19 @@ app.post<{ Body: { name?: unknown; library?: unknown; files?: unknown } }>(
     }
     const name =
       typeof req.body?.name === "string" && req.body.name.trim() ? req.body.name.trim() : preset.defaultEmployeeName;
+    const apiKey = typeof req.body?.apiKey === "string" ? req.body.apiKey.trim() : "";
+    if (preset.connectorHost && (!apiKey || apiKey.length > 4096)) {
+      return reply.status(400).send({
+        error: "bad_request",
+        message: "apiKey is required for this library (max 4096 chars)",
+      });
+    }
     const outcome = await partner.call("POST", "/v1/assemble", {
       userId: auth.userId,
       name,
       library: preset.key,
       ...(Array.isArray(req.body?.files) ? { files: req.body.files } : {}),
+      ...(preset.connectorHost ? { connectors: [{ host: preset.connectorHost, accessToken: apiKey }] } : {}),
       soul: preset.soul,
       standingOrders: preset.standingOrders,
     });

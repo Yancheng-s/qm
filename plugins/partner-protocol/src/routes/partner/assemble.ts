@@ -13,6 +13,14 @@ import type { Ctx } from "../index.ts";
 export const MAX_NAME_CHARS = 200;
 export const MAX_SOUL_BYTES = 8 * 1024;
 export const MAX_STANDING_ORDERS_CHARS = 20_000;
+export const MAX_CONNECTORS = 8;
+export const MAX_ACCESS_TOKEN_CHARS = 4096;
+const CONNECTOR_HOST = /^[^\s/\\?#@]{1,253}$/;
+
+export interface AssembleConnector {
+  host: string;
+  accessToken: string;
+}
 
 interface AssembleRequest {
   name: string;
@@ -20,6 +28,7 @@ interface AssembleRequest {
   files?: readonly AssembleFile[];
   soul?: string;
   standingOrders?: string;
+  connectors?: readonly AssembleConnector[];
 }
 
 export interface AssembleInput extends AssembleRequest {
@@ -50,6 +59,7 @@ export type AssembleOutcome =
       standingOrdersError?: string;
       files: readonly ImportedFile[];
       fileFailures?: readonly { url: string; name?: string; error: string }[];
+      connectors: readonly { host: string }[];
     }
   | { status: "failed"; problem: Problem };
 
@@ -82,6 +92,9 @@ export function parseAssembleBody(body: Record<string, unknown>): AssembleParse 
     soul = body.soul;
   }
 
+  const parsedConnectors = parseAssembleConnectors(body.connectors);
+  if (!parsedConnectors.ok) return parsedConnectors;
+
   let standingOrders: string | undefined;
   if (body.standingOrders !== undefined && body.standingOrders !== null && body.standingOrders !== "") {
     if (typeof body.standingOrders !== "string")
@@ -102,8 +115,42 @@ export function parseAssembleBody(body: Record<string, unknown>): AssembleParse 
       ...(library ? { library } : {}),
       ...(soul ? { soul } : {}),
       ...(standingOrders ? { standingOrders } : {}),
+      ...(parsedConnectors.connectors.length ? { connectors: parsedConnectors.connectors } : {}),
     },
   };
+}
+
+function parseAssembleConnectors(
+  raw: unknown,
+): { ok: true; connectors: AssembleConnector[] } | { ok: false; problem: Problem } {
+  if (raw === undefined || raw === null) return { ok: true, connectors: [] };
+  if (!Array.isArray(raw)) return { ok: false, problem: problem(400, "bad_request", "connectors must be an array") };
+  if (raw.length > MAX_CONNECTORS) {
+    return { ok: false, problem: problem(400, "bad_request", `connectors exceeds ${MAX_CONNECTORS} entries`) };
+  }
+  const connectors: AssembleConnector[] = [];
+  const hosts = new Set<string>();
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      return { ok: false, problem: problem(400, "bad_request", "connectors[] must be objects") };
+    }
+    const item = entry as Record<string, unknown>;
+    const host = typeof item.host === "string" ? item.host : "";
+    const accessToken = typeof item.accessToken === "string" ? item.accessToken.trim() : "";
+    if (!CONNECTOR_HOST.test(host)) {
+      return { ok: false, problem: problem(400, "bad_request", "connectors[].host must be a credential host") };
+    }
+    if (!accessToken || accessToken.length > MAX_ACCESS_TOKEN_CHARS) {
+      return {
+        ok: false,
+        problem: problem(400, "bad_request", `connectors[].accessToken is required (max ${MAX_ACCESS_TOKEN_CHARS} chars)`),
+      };
+    }
+    if (hosts.has(host)) return { ok: false, problem: problem(400, "bad_request", `duplicate connector host "${host}"`) };
+    hosts.add(host);
+    connectors.push({ host, accessToken });
+  }
+  return { ok: true, connectors };
 }
 
 function failureMessage(outcome: CoreOutcome): string {
@@ -213,6 +260,26 @@ export async function assembleEmployee(deps: AssembleDeps, input: AssembleInput)
         incomplete: true,
       }),
     };
+
+  const savedConnectors: { host: string }[] = [];
+  for (const connector of input.connectors ?? []) {
+    const outcome = await deps.core("POST", "/v1/connectors/token", {
+      host: connector.host,
+      principalId: input.principalId,
+      accessToken: connector.accessToken,
+    });
+    if (!outcome.ok || outcome.status !== 200) {
+      return {
+        status: "failed",
+        problem: problem(502, "connector_token_failed", `connector token for ${connector.host} was not saved`, {
+          employee: { id: projectId, scopeId, name: input.name },
+          incomplete: true,
+        }),
+      };
+    }
+    savedConnectors.push({ host: connector.host });
+  }
+
   return {
     status: "assembled",
     plugin: {
@@ -229,6 +296,7 @@ export async function assembleEmployee(deps: AssembleDeps, input: AssembleInput)
     ...(standingOrdersError ? { standingOrdersError } : {}),
     files: importedFiles,
     ...(fileFailures.length ? { fileFailures } : {}),
+    connectors: savedConnectors,
   };
 }
 
@@ -255,5 +323,6 @@ export async function handleAssemble(c: Ctx): Promise<void> {
     ...(outcome.standingOrdersError ? { standingOrdersError: outcome.standingOrdersError } : {}),
     files: outcome.files,
     ...(outcome.fileFailures ? { fileFailures: outcome.fileFailures } : {}),
+    ...(outcome.connectors.length ? { connectors: outcome.connectors } : {}),
   });
 }

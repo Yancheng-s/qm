@@ -22,6 +22,7 @@ const activeLibrary = ref(getActiveLibrary());
 const employees = ref<Employee[]>([]);
 const conversations = ref<Conversation[]>([]);
 const newName = ref("");
+const apiKey = ref("");
 const busy = ref(false);
 const error = ref("");
 const notice = ref("");
@@ -32,6 +33,7 @@ function selectLibrary(key: string): void {
   activeLibrary.value = key;
   setActiveLibrary(key);
   newName.value = "";
+  apiKey.value = "";
   reload();
 }
 
@@ -66,6 +68,10 @@ function conversationsFor(scopeId: string): Conversation[] {
 
 async function create(): Promise<void> {
   if (busy.value || !userId.value.trim() || !activeLibrary.value) return;
+  if (currentLibrary.value?.requiresApiKey && !apiKey.value.trim()) {
+    error.value = "请填写 PMOS API Key";
+    return;
+  }
   busy.value = true;
   error.value = "";
   notice.value = "";
@@ -74,6 +80,7 @@ async function create(): Promise<void> {
     const result = await api.createEmployee({
       library: activeLibrary.value,
       ...(newName.value.trim() ? { name: newName.value.trim() } : {}),
+      ...(apiKey.value.trim() ? { apiKey: apiKey.value.trim() } : {}),
     });
     rememberEmployee({ ...result.employee, library: activeLibrary.value });
     if (result.fileFailures?.length) {
@@ -82,6 +89,7 @@ async function create(): Promise<void> {
       notice.value = `已导入默认文件：${result.files.map((item) => item.name).join("、")}`;
     }
     newName.value = "";
+    apiKey.value = "";
     reload();
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
@@ -154,13 +162,27 @@ onMounted(async () => {
         <input v-model="userId" class="field" placeholder="用户 id（userId）" @change="reload" />
       </div>
 
+      <div v-if="currentLibrary?.requiresApiKey" class="row">
+        <input
+          v-model="apiKey"
+          class="field"
+          type="password"
+          autocomplete="off"
+          placeholder="PMOS API Key（写入该用户的 connector）"
+        />
+      </div>
+
       <div class="row">
         <input
           v-model="newName"
           class="field"
           :placeholder="currentLibrary ? `助手名（默认：${currentLibrary.defaultEmployeeName}）` : '助手名（可选）'"
         />
-        <button class="btn" :disabled="busy || !userId.trim()" @click="create">
+        <button
+          class="btn"
+          :disabled="busy || !userId.trim() || (currentLibrary?.requiresApiKey && !apiKey.trim())"
+          @click="create"
+        >
           {{ busy ? "装配中…" : `创建${currentLibrary?.label ?? ""}助手` }}
         </button>
       </div>

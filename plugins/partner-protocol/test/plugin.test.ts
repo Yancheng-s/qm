@@ -104,6 +104,8 @@ test("compiled orders distinguish lead and workers and bound instruction size", 
   assert.match(orders, /session.*open/);
   assert.match(orders, /agents\/worker.md/);
   assert.match(orders, /项目要求/);
+  assert.match(orders, /AGENT\.md/);
+  assert.ok(!orders.includes("你是主理人"));
   assert.match(orders, /仅可调用以下 MCP Server 的工具：pmos/);
   assert.match(orders, /不得尝试调用未声明的 MCP/);
   assert.ok(!orders.includes("你是专员"));
@@ -253,6 +255,35 @@ test("plugin soul input becomes lead-only supplemental orders", async () => {
   const orders = (calls.find((call) => call.path === "/v1/contexts/policy")?.body as { orders: string }).orders;
   assert.match(orders, /Caller identity/);
   assert.match(orders, /Caller style/);
+});
+
+test("assembly stores connector tokens for the new principal", async () => {
+  const { calls, deps } = scenario();
+  const result = await assembleEmployee(deps, {
+    ...input,
+    connectors: [{ host: "pmos", accessToken: "pmos_live" }],
+  });
+  assert.equal(result.status, "assembled");
+  if (result.status !== "assembled") return;
+  assert.deepEqual(result.connectors, [{ host: "pmos" }]);
+  assert.deepEqual(calls.find((call) => call.path === "/v1/connectors/token")?.body, {
+    host: "pmos",
+    principalId: "dev_user",
+    accessToken: "pmos_live",
+  });
+});
+
+test("a rejected connector token leaves the project incomplete", async () => {
+  const { deps } = scenario({ fail: "/v1/connectors/token" });
+  const result = await assembleEmployee(deps, {
+    ...input,
+    connectors: [{ host: "pmos", accessToken: "pmos_live" }],
+  });
+  assert.equal(result.status, "failed");
+  if (result.status !== "failed") return;
+  assert.equal(result.problem.body.error, "connector_token_failed");
+  assert.equal(result.problem.body.incomplete, true);
+  assert.equal(JSON.stringify(result.problem).includes("pmos_live"), false);
 });
 
 test("oversized instructions fail before project creation", async () => {

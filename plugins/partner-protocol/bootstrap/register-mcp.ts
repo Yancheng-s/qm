@@ -10,6 +10,7 @@ const MCP_ACCEPT = "application/json, text/event-stream";
 const MCP_ID = /^[a-z][a-z0-9-]{1,39}$/;
 const MCP_BEARER_ENV = /^[A-Z][A-Z0-9_]{0,127}$/;
 const LIBRARY_KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+const MCP_HOST = /^[^\s/\\?#@]{1,253}$/;
 
 export interface CoreResponse {
   status: number;
@@ -25,6 +26,8 @@ export interface McpManifestBase {
   url: string;
   name: string;
   readOnly: boolean;
+  credentialScope?: "shared" | "per-user";
+  credentialHost?: string;
 }
 
 export interface McpNoneManifest extends McpManifestBase {
@@ -97,7 +100,24 @@ function parseMcp(raw: unknown, label: string): McpManifest[] | { problem: strin
       return { problem: `${label}: mcp.url must be a credential-free http(s) URL without query or fragment` };
     if (item.readOnly !== undefined && typeof item.readOnly !== "boolean") return { problem: `${label}: mcp.readOnly must be a boolean` };
     const name = typeof item.name === "string" && item.name.trim() ? item.name.trim().slice(0, 80) : id;
-    const common = { id, url, name, readOnly: item.readOnly === true };
+    const credentialScope = item.credentialScope;
+    if (credentialScope !== undefined && credentialScope !== "shared" && credentialScope !== "per-user") {
+      return { problem: `${label}: mcp.credentialScope must be "shared" or "per-user"` };
+    }
+    const credentialHost = typeof item.credentialHost === "string" ? item.credentialHost : "";
+    if (item.credentialHost !== undefined && !MCP_HOST.test(credentialHost)) {
+      return { problem: `${label}: mcp.credentialHost must be a host without spaces or URL punctuation` };
+    }
+    if (credentialScope === "per-user" && !MCP_HOST.test(credentialHost)) {
+      return { problem: `${label}: per-user mcp requires credentialHost` };
+    }
+    const scope =
+      credentialScope === "per-user"
+        ? { credentialScope: "per-user" as const, credentialHost }
+        : credentialScope === "shared"
+          ? { credentialScope: "shared" as const }
+          : {};
+    const common = { id, url, name, readOnly: item.readOnly === true, ...scope };
     if (item.auth === undefined || item.auth === null || item.auth === "" || item.auth === "none") {
       if (item.bearerEnv !== undefined) return { problem: `${label}: mcp.bearerEnv is only valid when mcp.auth is "bearer"` };
       mcp.push({ ...common, auth: "none" });
@@ -247,6 +267,12 @@ export async function registerMcpServer(
       message: `tools/list against ${server.url} failed: ${probed.message}`,
     };
   }
+  const credential =
+    server.credentialScope === "per-user"
+      ? { credentialScope: "per-user" as const, credentialHost: server.credentialHost }
+      : server.credentialScope === "shared"
+        ? { credentialScope: "shared" as const }
+        : {};
   const putBody =
     resolved.auth === "bearer"
       ? {
@@ -257,6 +283,7 @@ export async function registerMcpServer(
           readOnly: server.readOnly,
           enabled: true,
           validate: true,
+          ...credential,
         }
       : {
           url: server.url,
@@ -265,6 +292,7 @@ export async function registerMcpServer(
           readOnly: server.readOnly,
           enabled: true,
           validate: true,
+          ...credential,
         };
   const put = await deps.adminCore.call("PUT", `/v1/admin/mcp-servers/${encodeURIComponent(server.id)}`, putBody);
   if (put.status !== 200) {

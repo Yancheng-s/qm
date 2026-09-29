@@ -185,7 +185,6 @@ export async function loadPluginPackage(key: string, source: PluginSource): Prom
 export function pluginOrders(pkg: PluginPackage, packId: string, extra = ""): string {
   const { manifest } = pkg;
   const lead = manifest.agents[manifest.entryAgent]!;
-  const body = pkg.documents[lead.instructions]!.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "");
   const members = lead.members.map((id) => {
     const agent = manifest.agents[id]!;
     return `- ${id}: 文档 ${agent.instructions}；技能 ${agent.skills.join(", ")}`;
@@ -200,6 +199,7 @@ export function pluginOrders(pkg: PluginPackage, packId: string, extra = ""): st
     "以下规则替代角色文档中的宿主工具名称和团队创建约定，不改变业务流程。",
     "本主理人设定仅适用于接待用户的会话。收到 QM 的 subagent-task 时，按委派的员工身份执行，不扮演主理人，不继续派生代理。",
     `使用 skills 工具 action=read 读取 ${lead.skills[0]}，以返回的 Pack files 路径为共享文件根目录（pack id: ${packId}）。每轮路径可能变化，不使用本机仓库绝对路径。`,
+    `接待用户前读取该根目录下的 ${lead.instructions}，并按该文档执行。文档全文不在本段规则里。`,
     "员工文档是按需读取的角色定义，不是你同时承担的身份。角色技能列表属于使用约定，不改变项目权限。",
     ...members,
     ...(manifest.delegation.enabled
@@ -213,7 +213,7 @@ export function pluginOrders(pkg: PluginPackage, packId: string, extra = ""): st
           "本插件关闭委派：不使用 QM 或引擎自身的子代理工具。由主理人直接执行业务流程；涉及员工流程时先读取对应文档作为操作手册，不假装已派发。",
         ]),
   ].join("\n");
-  const orders = [body, extra.trim() ? `## 项目补充要求\n${extra.trim()}` : "", adapter].filter(Boolean).join("\n\n");
+  const orders = [extra.trim() ? `## 项目补充要求\n${extra.trim()}` : "", adapter].filter(Boolean).join("\n\n");
   if (orders.length > 20_000) throw new Error("compiled plugin instructions exceed QM's 20000 character limit");
   return orders;
 }

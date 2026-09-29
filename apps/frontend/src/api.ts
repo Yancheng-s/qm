@@ -3,6 +3,7 @@ export interface LibraryInfo {
   label: string;
   description: string;
   defaultEmployeeName: string;
+  requiresApiKey?: boolean;
 }
 
 export interface Employee {
@@ -67,7 +68,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   listLibraries: () =>
     request<{ defaultLibrary: string; libraries: LibraryInfo[] }>("/api/libraries"),
-  createEmployee: (input: { library: string; name?: string }) =>
+  createEmployee: (input: { library: string; name?: string; apiKey?: string }) =>
     request<{
       employee: Employee;
       granted?: string[];
