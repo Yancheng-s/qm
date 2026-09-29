@@ -38,7 +38,7 @@ import {
   waitForSupervisor,
 } from "./lib/client.ts";
 import { sweepSlackTokenOrphans } from "./lib/orphans.ts";
-import { destroyLocalDevSandboxes } from "./lib/sandbox.ts";
+import { destroyLocalDevSandboxes, pruneLocalDevDockerSandboxes } from "./lib/sandbox.ts";
 import { bestEffort, errMessage, formatAge, nowEpoch, sleep } from "./lib/util.ts";
 import { runDoctor } from "./commands/doctor.ts";
 import type { BootPhaseEvent, BootResult, DevSandboxChoice, LeaseInfo } from "./lib/types.ts";
@@ -83,6 +83,7 @@ const commandOptions: Record<string, readonly string[]> = {
   canary: ["json"],
   logs: ["follow"],
   doctor: ["json", "fix", "no-slack"],
+  "sandbox-prune": ["force"],
 };
 
 const devServiceNames = [...CHILD_ORDER, "web-ui"];
@@ -471,6 +472,17 @@ async function cmdUp(): Promise<number> {
   return EXIT.slotStolen;
 }
 
+async function cmdSandboxPrune(): Promise<number> {
+  try {
+    await pruneLocalDevDockerSandboxes((m) => out(m), { forceRunning: opts.force });
+    out("[ok] sandbox docker prune finished (volumes kept; use 'docker volume prune' manually if you need a full reset)");
+    return EXIT.ok;
+  } catch (e) {
+    out(`[fail] sandbox docker prune: ${errMessage(e)}`);
+    return EXIT.internal;
+  }
+}
+
 async function cmdDown(): Promise<number> {
   ensureStore(store);
   const worktree = repoRoot();
@@ -686,9 +698,11 @@ async function main(): Promise<number> {
         store,
         slack: requestedSurface === undefined ? myLease(repoRoot(), store)?.meta.slack === "1" : withSlack,
       });
+    case "sandbox-prune":
+      return await cmdSandboxPrune();
     default:
       console.error(
-        "usage: dev [up|down|status|restart|canary|logs|doctor] [--json] [--force] [--rotate] [--strict] [--sandbox local|sprites|smolmachines|e2b|porter|agent37|superserve|auto] [--surface web|slack|both] [--no-slack] [--no-watch] [--org id] [--fix]",
+        "usage: dev [up|down|status|restart|canary|logs|doctor|sandbox-prune] [--json] [--force] [--rotate] [--strict] [--sandbox local|sprites|smolmachines|e2b|porter|agent37|superserve|auto] [--surface web|slack|both] [--no-slack] [--no-watch] [--org id] [--fix]",
       );
       return EXIT.usage;
   }

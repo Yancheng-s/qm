@@ -21,7 +21,7 @@ export interface SpecInputs {
 
 const IDLOGIN_CLIENT_ID = "qm-portal";
 const IDLOGIN_CLIENT_SECRET = "dev-instance-idlogin-0123456789abcdef";
-const PARTNER_DEV_CREDENTIALS = "dev-partner=dev-instance-partner-0123456789abcdef";
+const PARTNER_DEV_CREDENTIALS = "zhiqu=dev-instance-partner-0123456789abcdef";
 const PARTNER_DEV_LIBRARY_PRINCIPAL = "dev-admin";
 
 function publicHost(baseEnv: Record<string, string>): string {

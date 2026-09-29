@@ -282,28 +282,64 @@ async function startQuickTunnel(corePort: number, lock: string, log: (msg: strin
   return null;
 }
 
-export async function destroyLocalDevSandboxes(log: (msg: string) => void): Promise<void> {
-  const list = await run(
-    "docker",
-    [
-      "ps",
-      "-aq",
-      "--filter",
-      "label=qm.sandbox=1",
-      "--filter",
-      "label=agent_env=dev",
-      "--filter",
-      "status=exited",
-      "--filter",
-      "status=created",
-    ],
-    { timeoutMs: 30_000 },
-  );
-  const ids = (list.stdout ?? "")
+async function dockerIds(args: string[]): Promise<string[]> {
+  const list = await run("docker", args, { timeoutMs: 60_000 });
+  if (list.code !== 0) throw new Error(`docker ${args.join(" ")} failed: ${(list.stderr || list.stdout).trim()}`);
+  return (list.stdout ?? "")
     .split("\n")
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+export async function destroyLocalDevSandboxes(log: (msg: string) => void): Promise<void> {
+  const ids = await dockerIds([
+    "ps",
+    "-aq",
+    "--filter",
+    "label=qm.sandbox=1",
+    "--filter",
+    "label=agent_env=dev",
+    "--filter",
+    "status=exited",
+    "--filter",
+    "status=created",
+  ]).catch(() => []);
   if (!ids.length) return;
   log(`sandbox: removing ${ids.length} parked local dev sandbox container(s) (volumes kept; running boxes untouched)`);
-  await run("docker", ["rm", "-f", ...ids], { timeoutMs: 60_000 });
+  await run("docker", ["rm", "-f", ...ids], { timeoutMs: 120_000 });
+}
+
+export async function pruneLocalDevDockerSandboxes(
+  log: (msg: string) => void,
+  opts?: { forceRunning?: boolean },
+): Promise<void> {
+  const devSandboxFilters = ["ps", "-aq", "--filter", "label=qm.sandbox=1", "--filter", "label=agent_env=dev"];
+  if (opts?.forceRunning) {
+    const running = await dockerIds(devSandboxFilters).catch(() => []);
+    if (running.length) {
+      log(`sandbox: removing ${running.length} local dev sandbox container(s) (including running)`);
+      await run("docker", ["rm", "-f", ...running], { timeoutMs: 180_000 });
+    }
+  } else {
+    await destroyLocalDevSandboxes(log);
+  }
+  const byName = [
+    ...new Set([
+      ...(await dockerIds(["ps", "-aq", "--filter", "name=qm-sbx-"]).catch(() => [])),
+      ...(await dockerIds(["ps", "-aq", "--filter", "name=qm-scratch-"]).catch(() => [])),
+    ]),
+  ];
+  if (byName.length) {
+    log(`sandbox: removing ${byName.length} qm-sbx/qm-scratch container(s) without dev labels`);
+    await run("docker", ["rm", "-f", ...byName], { timeoutMs: 180_000 });
+  }
+  const nets = await dockerIds(["network", "ls", "-q", "--filter", "name=qm-net-"]).catch(() => []);
+  if (!nets.length) return;
+  log(`sandbox: removing ${nets.length} qm-net-* Docker network(s) (frees address pools for new sandboxes)`);
+  for (const id of nets) {
+    const rm = await run("docker", ["network", "rm", id], { timeoutMs: 30_000 });
+    if (rm.code !== 0 && !/no such network|has active endpoints/i.test(rm.stderr)) {
+      log(`sandbox: could not remove network ${id}: ${rm.stderr.trim() || rm.stdout.trim()}`);
+    }
+  }
 }
