@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  adminActorHeader,
   collectMcpServers,
   probeMcpServer,
   registerMcpServer,
@@ -58,6 +59,11 @@ const unreachable: McpProbe = {
     return { ok: false, message: "ECONNREFUSED" };
   },
 };
+
+test("admin actor header is principal@org", () => {
+  assert.equal(adminActorHeader("lib-admin", "acme"), "lib-admin@acme");
+  assert.equal(adminActorHeader("lib-admin@acme", "acme"), "lib-admin@acme");
+});
 
 const cardPack: ScannedPack = {
   library: "card",

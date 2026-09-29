@@ -47,7 +47,8 @@ export interface ScannedPack {
 }
 
 export function adminActorHeader(principalId: string, orgId: string): string {
-  return JSON.stringify({ principalId, orgId });
+  if (!principalId || !orgId) throw new Error("admin principal and organization are required");
+  return principalId.endsWith(`@${orgId}`) ? principalId : `${principalId}@${orgId}`;
 }
 
 export function createCoreClient(
