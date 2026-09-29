@@ -29,15 +29,17 @@ node dist/index.js --http
   Write-Warning "card-mcp skipped (card API not ready?): $_"
 }
 
+$hostIp = (Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway } | Select-Object -First 1).IPv4Address.IPAddress
+
 $pmosCoreEnv = @"
 `$env:GOMODCACHE='C:\Users\Administrator\go\pkg\mod'
 `$env:GOCACHE='C:\Users\Administrator\AppData\Local\go-build'
-`$env:HTTP_ADDR=':8082'
+`$env:HTTP_ADDR=':18080'
 `$env:DATABASE_URL='postgres://pmos:pmos@localhost:5433/pmos?sslmode=disable'
 `$env:HMAC_SECRET='dev-hmac-secret-change-me'
 `$env:JWT_SECRET='dev-jwt-secret-change-me'
 `$env:MASTER_KEY='dev-master-key-change-me'
-`$env:LOCAL_BASE_URL='http://host.docker.internal:8082'
+`$env:LOCAL_BASE_URL='http://${hostIp}:18080'
 `$env:RUN_MIGRATIONS='true'
 `$env:STORAGE_DRIVER='local'
 `$env:LOCAL_STORAGE_DIR='./data'
@@ -60,9 +62,9 @@ Start-DevWindow "apps-frontend" (Join-Path $root "apps\frontend") "npm run dev"
 
 Write-Host ""
 Write-Host "URLs:"
-Write-Host "  apps UI     http://localhost:5173"
+Write-Host "  apps UI     http://localhost:5175"
 Write-Host "  apps API    http://localhost:8300  (needs QM partner :8209)"
 Write-Host "  card API    http://localhost:8080"
 Write-Host "  card MCP    http://127.0.0.1:8310/mcp"
-Write-Host "  pmos core   http://localhost:8082"
-Write-Host "  pmos MCP    http://localhost:3000"
+Write-Host "  pmos core   http://localhost:18080"
+Write-Host "  pmos MCP    http://localhost:13000"
