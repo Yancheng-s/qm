@@ -51,6 +51,8 @@ const reachable = probeFor([
     name: "智渠名片创建",
     readOnly: false,
     auth: "none",
+    credentialScope: "per-user",
+    credentialHost: "zhiqu",
   },
 ]);
 
@@ -74,6 +76,8 @@ const cardPack: ScannedPack = {
       name: "智渠名片创建",
       readOnly: false,
       auth: "none",
+      credentialScope: "per-user",
+      credentialHost: "zhiqu",
     },
   ],
 };
@@ -109,19 +113,18 @@ const bearerPack: ScannedPack = {
 };
 
 test("collectMcpServers skips packs without mcp", () => {
-  assert.deepEqual(
-    collectMcpServers([cardPack, { library: "docs" }]),
-    [
-      {
-        id: "zhiqu-card",
-        url: "http://127.0.0.1:8310/mcp",
-        name: "智渠名片创建",
-        readOnly: false,
-        auth: "none",
-        library: "card",
-      },
-    ],
-  );
+  assert.deepEqual(collectMcpServers([cardPack, { library: "docs" }]), [
+    {
+      id: "zhiqu-card",
+      url: "http://127.0.0.1:8310/mcp",
+      name: "智渠名片创建",
+      readOnly: false,
+      auth: "none",
+      credentialScope: "per-user",
+      credentialHost: "zhiqu",
+      library: "card",
+    },
+  ]);
 });
 
 test("resolveMcpServer reads bearer tokens from env", () => {
@@ -154,6 +157,8 @@ test("registerMcpServer probes then PUTs a writable server", async () => {
       readOnly: false,
       enabled: true,
       validate: true,
+      credentialScope: "per-user",
+      credentialHost: "zhiqu",
     },
   });
 });

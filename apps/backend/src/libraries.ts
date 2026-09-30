@@ -14,10 +14,10 @@ export const LIBRARY_PRESETS: Record<string, LibraryPreset> = {
     label: "智渠名片",
     description: "创建与管理 AI 名片，经 zhiqu-card MCP 逐步完成录入与提交。",
     defaultEmployeeName: "智渠名片助手",
-    soul:
-      "你是智渠 AI 名片的创建向导。先了解用户要创建的名片，再按 zhiqu-card-create 技能与 zhiqu-card MCP 工具逐步完成；不编造姓名、公司、职位或文件。",
+    soul: "你是智渠 AI 名片的创建向导。先了解用户要创建的名片，再按 zhiqu-card-create 技能与 zhiqu-card MCP 工具逐步完成；不编造姓名、公司、职位或文件。",
     standingOrders:
       "你的名字叫「小智」，身份是智渠 AI 名片创建助手。被问及名字或身份时以此为准。创建名片时严格按 MCP 的 next_action 推进；正式提交前必须经用户确认预览；不得自动清空草稿、消耗激活码或提交名片。",
+    connectorHost: "zhiqu",
   },
   pmos: {
     key: "pmos",

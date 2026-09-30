@@ -53,10 +53,7 @@ async function reload(): Promise<void> {
       return title && title !== conv.title ? { ...conv, title } : conv;
     });
     conversations.value = merged;
-    saveConversations([
-      ...merged,
-      ...listConversations().filter((item) => item.library !== activeLibrary.value),
-    ]);
+    saveConversations([...merged, ...listConversations().filter((item) => item.library !== activeLibrary.value)]);
   } catch {
     void 0;
   }
@@ -168,7 +165,7 @@ onMounted(async () => {
           class="field"
           type="password"
           autocomplete="off"
-          placeholder="PMOS API Key（写入该用户的 connector）"
+          placeholder="Connector 凭证（PMOS API Key 或 Card 用户 JWT）"
         />
       </div>
 
@@ -211,9 +208,7 @@ onMounted(async () => {
           </div>
         </div>
       </div>
-      <p v-else class="empty">
-        还没有{{ currentLibrary?.label ?? "该" }}助手，先创建一个。
-      </p>
+      <p v-else class="empty">还没有{{ currentLibrary?.label ?? "该" }}助手，先创建一个。</p>
     </div>
   </div>
 </template>

@@ -19,9 +19,9 @@ try {
   if (-not $token) { throw "dev login returned no token" }
   $mcpEnv = @"
 `$env:ZHIQU_API_BASE_URL='http://127.0.0.1:8080/api/v1'
-`$env:ZHIQU_API_TOKEN='$token'
 `$env:ZHIQU_UPLOAD_ROOTS='$uploadRoot'
 `$env:PORT='8310'
+npm run build
 node dist/index.js --http
 "@
   Start-DevWindow "card-mcp" (Join-Path $card "agent-card-mcp") $mcpEnv
