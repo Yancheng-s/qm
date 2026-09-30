@@ -53,7 +53,7 @@ $appsBackendEnv = @"
 `$env:PORT='8300'
 `$env:PARTNER_GATEWAY_URL='http://localhost:8209'
 `$env:PARTNER_ID='zhiqu'
-`$env:PARTNER_SECRET='dev-instance-partner-0123456789abcdef'
+`$env:PARTNER_SECRET='zhiqu-partner-integration-secret-a9f3e7c2b8d10456'
 npm run dev
 "@
 Start-DevWindow "apps-backend" (Join-Path $root "apps\backend") $appsBackendEnv

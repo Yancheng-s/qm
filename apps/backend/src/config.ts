@@ -14,7 +14,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const gatewayUrl = (env.PARTNER_GATEWAY_URL || "http://localhost:8209").replace(/\/+$/, "");
   const gatewayPublicUrl = (env.PARTNER_PUBLIC_URL || gatewayUrl).replace(/\/+$/, "");
   const partnerId = env.PARTNER_ID || "zhiqu";
-  const partnerSecret = env.PARTNER_SECRET || "dev-instance-partner-0123456789abcdef";
+  const partnerSecret = env.PARTNER_SECRET || "zhiqu-partner-integration-secret-a9f3e7c2b8d10456";
   const defaultLibrary = env.LIBRARY || "card";
   return {
     port,
