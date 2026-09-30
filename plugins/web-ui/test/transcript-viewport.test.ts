@@ -5,15 +5,13 @@ import { readFileSync } from "node:fs";
 const css = readFileSync(new URL("../src/shell.css", import.meta.url), "utf8");
 const chat = readFileSync(new URL("../src/chat.ts", import.meta.url), "utf8");
 
-test("only an actually stuck prompt gets elevation", () => {
-  const normal =
-    css.match(/\.message-stack \.user-row:not\(:has\(~ \.user-row\)\) > \.user-bubble \{[^}]*\}/)?.[0] ?? "";
-  assert.doesNotMatch(normal, /box-shadow: var/);
-  assert.match(css, /\.user-row\.stuck > \.user-bubble/);
+test("the latest user prompt scrolls with the rest of the transcript", () => {
+  assert.doesNotMatch(css, /\.message-stack \.user-row:not\(:has\(~ \.user-row\)\)\s*\{[^}]*position:\s*sticky/);
+  assert.doesNotMatch(css, /\.user-row\.(?:stuck|sticky-disabled)/);
+  assert.doesNotMatch(css, /--chat-sticky-top/);
 });
 
-test("prompt offset reserves the pane's measured pins height", () => {
-  assert.match(css, /top: var\(--chat-sticky-top, 0px\)/);
+test("an expanded pin strip stays within the pane", () => {
   assert.match(css, /max-height: min\(38cqh, 240px\)/);
 });
 
@@ -327,18 +325,14 @@ test("scrolling between scheduling and painting cannot be overwritten", () => {
   }
 });
 
-test("only reaching the sticky edge elevates the prompt; pin resizes update the edge", () => {
+test("scrolling never pins the latest user prompt", () => {
   const f = fixture();
   try {
-    f.resize(30, 200);
-    assert.equal(f.prompt.classList.contains("stuck"), false);
     f.resize(30, 50);
-    assert.equal(f.prompt.classList.contains("stuck"), true);
-    f.resize(90, 110);
-    assert.equal(f.s.style.getPropertyValue("--chat-sticky-top"), "90px");
-    assert.equal(f.prompt.classList.contains("stuck"), true);
-    f.scroll(0);
+    f.scroll(400);
     assert.equal(f.prompt.classList.contains("stuck"), false);
+    assert.equal(f.prompt.classList.contains("sticky-disabled"), false);
+    assert.equal(f.s.style.getPropertyValue("--chat-sticky-top"), "");
   } finally {
     f.close();
   }
@@ -352,7 +346,6 @@ test("disposing cancels queued work and clears sticky presentation", () => {
     f.flush();
     assert.equal(f.writes.length, 0);
     assert.equal(f.prompt.classList.contains("stuck"), false);
-    assert.equal(f.s.style.getPropertyValue("--chat-sticky-top"), "");
   } finally {
     f.close();
   }
@@ -403,15 +396,12 @@ test("redrawing unchanged nodes while reading performs no layout reads", () => {
   }
 });
 
-test("a prompt stays in flow when pins leave too little room, and can stick again after resizing", () => {
+test("a crowded pin strip does not pin the latest user prompt", () => {
   const f = fixture();
   try {
     f.resize(160, 180);
-    assert.equal(f.prompt.classList.contains("sticky-disabled"), true);
-    assert.equal(f.prompt.classList.contains("stuck"), false);
-    f.resize(30, 50);
     assert.equal(f.prompt.classList.contains("sticky-disabled"), false);
-    assert.equal(f.prompt.classList.contains("stuck"), true);
+    assert.equal(f.prompt.classList.contains("stuck"), false);
   } finally {
     f.close();
   }

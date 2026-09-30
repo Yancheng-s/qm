@@ -9,6 +9,7 @@ import { createRateLimiter, problem, readJsonBody, sendProblem, type RateLimiter
 import { createAuthProxy, type AuthProxy } from "./auth/auth-proxy.ts";
 import { handleAssemble } from "./partner/assemble.ts";
 import { handleChatSessions, handleListChatSessions } from "./partner/chat-sessions.ts";
+import { handleReplaceConnector } from "./partner/connectors.ts";
 
 export interface Ctx {
   req: IncomingMessage;
@@ -34,6 +35,7 @@ export interface Route {
 
 export const routes: readonly Route[] = [
   { method: "POST", path: "/v1/assemble", limit: 128_000, handle: handleAssemble },
+  { method: "PUT", path: "/v1/connectors", limit: 8_000, handle: handleReplaceConnector },
   { method: "POST", path: "/v1/chat-sessions", limit: 4_000, handle: handleChatSessions },
   { method: "GET", path: "/v1/chat-sessions", limit: 4_000, handle: handleListChatSessions },
 ];

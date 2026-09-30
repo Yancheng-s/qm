@@ -202,22 +202,21 @@ test("switching to a new scroller resets expansion even when the message index i
   }
 });
 
-test("expanding a scrolled prompt stays sticky with a bounded scrollable body", () => {
+test("expanding a scrolled prompt keeps a bounded scrollable body", () => {
   const f = fixture();
   try {
     f.scroller.scrollTop = 500;
     f.scroller.dispatchEvent(new f.scroller.ownerDocument.defaultView!.Event("scroll"));
-    assert.equal(f.row.classList.contains("stuck"), true);
+    assert.equal(f.row.classList.contains("stuck"), false);
     f.toggle.click();
-    assert.equal(f.row.classList.contains("sticky-disabled"), false);
-    assert.equal(f.row.classList.contains("stuck"), true);
+    assert.equal(f.row.classList.contains("stuck"), false);
     assert.equal(f.content.clientHeight, 276);
     assert.ok(f.content.scrollHeight > f.content.clientHeight);
     assert.equal(f.scroller.scrollTop, 500);
     f.content.scrollTop = 200;
     f.toggle.click();
     assert.equal(f.content.scrollTop, 0);
-    assert.equal(f.row.classList.contains("stuck"), true);
+    assert.equal(f.row.classList.contains("stuck"), false);
     assert.equal(f.content.clientHeight, 139.5);
     assert.equal(f.scroller.scrollTop, 500);
   } finally {
@@ -234,10 +233,8 @@ test("expanded prompts reserve pins and chrome when panes resize or content grow
     f.row.style.marginBottom = "12px";
     f.toggle.click();
     assert.equal(f.content.clientHeight, 176);
-    assert.equal(f.row.classList.contains("sticky-disabled"), false);
     f.resize(220);
     assert.equal(f.content.clientHeight, 96);
-    assert.equal(f.row.classList.contains("sticky-disabled"), false);
     f.setPins(80);
     assert.equal(f.content.clientHeight, 76);
     f.grow(1200);
@@ -257,8 +254,6 @@ test("an expanded prompt stays in flow when its chrome alone cannot fit", () => 
     f.setPins(290);
     f.toggle.click();
     assert.equal(f.row.style.getPropertyValue("--pin-expanded-max"), "0px");
-    assert.equal(f.row.classList.contains("sticky-disabled"), true);
-    f.setPins(30);
     assert.equal(f.row.classList.contains("sticky-disabled"), false);
   } finally {
     f.close();

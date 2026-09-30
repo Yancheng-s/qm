@@ -37,7 +37,12 @@ async function withGateway(script: CoreScript | undefined, run: (base: string) =
 test("the whitelist is exactly the documented routes with their body limits", () => {
   assert.deepEqual(
     routes.map((route) => `${route.method} ${route.path} ${route.limit}`),
-    ["POST /v1/assemble 128000", "POST /v1/chat-sessions 4000", "GET /v1/chat-sessions 4000"],
+    [
+      "POST /v1/assemble 128000",
+      "PUT /v1/connectors 8000",
+      "POST /v1/chat-sessions 4000",
+      "GET /v1/chat-sessions 4000",
+    ],
   );
 });
 
@@ -58,6 +63,66 @@ test("unsigned partner calls are refused before any core call", async () => {
     assert.deepEqual(await anonymous.json(), { error: "bad_request", message: "userId is required" });
 
     assert.equal(core.calls.length, 0);
+  } finally {
+    await gateway.close();
+  }
+});
+
+async function put(base: string, path: string, body: unknown): Promise<Response> {
+  const raw = JSON.stringify(body);
+  return fetch(`${base}${path}`, { method: "PUT", body: raw, headers: partnerHeaders("PUT", path, raw) });
+}
+
+test("replacing a connector overwrites that user's token and hides the secret", async () => {
+  const core = recordingCore(() => ok(200, { ok: true }));
+  const gateway = await startGateway(core.factory);
+  try {
+    const missing = await put(gateway.base, "/v1/connectors", { userId: USER_ID, host: "zhiqu" });
+    assert.equal(missing.status, 400);
+    assert.match(await missing.text(), /accessToken is required/);
+
+    const response = await put(gateway.base, "/v1/connectors", {
+      userId: USER_ID,
+      host: "pmos",
+      accessToken: "pmos_live",
+      expiresAt: 1_790_000_000,
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { host: "pmos" });
+    assert.deepEqual(core.calls.at(-1)?.body, {
+      host: "pmos",
+      principalId: PRINCIPAL_ID,
+      accessToken: "pmos_live",
+      expiresAt: 1_790_000_000,
+    });
+
+    const rejected = await put(gateway.base, "/v1/connectors", {
+      userId: USER_ID,
+      host: "zhiqu",
+      accessToken: "eyJ.bad",
+      expiresAt: true,
+    });
+    assert.equal(rejected.status, 400);
+    assert.equal(core.calls.length, 1);
+  } finally {
+    await gateway.close();
+  }
+});
+
+test("a rejected connector replacement does not echo the token", async () => {
+  const core = recordingCore(() => ok(400, { error: "bad_request", message: "expiresAt must be an epoch timestamp" }));
+  const gateway = await startGateway(core.factory);
+  try {
+    const response = await put(gateway.base, "/v1/connectors", {
+      userId: USER_ID,
+      host: "zhiqu",
+      accessToken: "eyJ.secret",
+      expiresAt: "not-a-date",
+    });
+    assert.equal(response.status, 400);
+    const body = await response.text();
+    assert.match(body, /epoch timestamp/);
+    assert.equal(body.includes("eyJ.secret"), false);
   } finally {
     await gateway.close();
   }

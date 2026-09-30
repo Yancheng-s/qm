@@ -15,7 +15,7 @@ export const MAX_SOUL_BYTES = 8 * 1024;
 export const MAX_STANDING_ORDERS_CHARS = 20_000;
 export const MAX_CONNECTORS = 8;
 export const MAX_ACCESS_TOKEN_CHARS = 4096;
-const CONNECTOR_HOST = /^[^\s/\\?#@]{1,253}$/;
+export const CONNECTOR_HOST = /^[^\s/\\?#@]{1,253}$/;
 
 export interface AssembleConnector {
   host: string;

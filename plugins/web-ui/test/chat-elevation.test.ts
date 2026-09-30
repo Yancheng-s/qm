@@ -10,18 +10,17 @@ test("transcript edges do not blur or mask the response", () => {
   assert.doesNotMatch(css, /--chat-edge-fade/);
 });
 
-test("the pinned prompt and composer have elevated solid surfaces", () => {
-  const pinned = css.match(/\.message-stack \.user-row\.stuck > \.user-bubble \{[^}]*\}/)?.[0] ?? "";
+test("the composer has an elevated solid surface and user prompts do not", () => {
   const composer = css.match(/^\.composer-wrap \{[^}]*\}/m)?.[0] ?? "";
-  assert.match(pinned, /box-shadow: var\(--chat-surface-shadow\);/);
+  assert.doesNotMatch(css, /\.user-row\.stuck/);
   assert.match(composer, /background: var\(--background\);/);
   assert.match(composer, /box-shadow:\s*0 2px 5px rgb\(0 0 0 \/ 0\.05\),\s*0 8px 24px rgb\(0 0 0 \/ 0\.06\);/);
 });
 
-test("prompt elevation uses the shared surface shadow only while stuck", () => {
+test("user prompts do not take the shared surface shadow", () => {
   const root = css.match(/:root \{[^}]*\}/)?.[0] ?? "";
   const chat = readFileSync(new URL("../src/chat.ts", import.meta.url), "utf8");
   assert.match(root, /--chat-surface-shadow:/);
-  assert.match(css, /\.user-row\.stuck/);
+  assert.doesNotMatch(css, /\.user-row[^{]*\{[^}]*--chat-surface-shadow/);
   assert.doesNotMatch(chat, /markStuckUserRow/);
 });

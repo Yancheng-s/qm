@@ -62,7 +62,7 @@ export function createTranscriptViewport() {
 
   function clearPrompt(): void {
     if (content) content.scrollTop = 0;
-    prompt?.classList.remove("stuck", "sticky-disabled", "pin-expanded");
+    prompt?.classList.remove("pin-expanded");
     prompt?.style.removeProperty("--pin-expanded-max");
     const toggle = prompt?.querySelector<HTMLButtonElement>(".pin-toggle");
     if (toggle) toggle.hidden = true;
@@ -98,7 +98,6 @@ export function createTranscriptViewport() {
     if (!scroller) return;
     syncPrompt();
     const top = pins?.getBoundingClientRect().height ?? 0;
-    scroller.style.setProperty("--chat-sticky-top", `${top}px`);
     const style = getComputedStyle(scroller);
     const paddingTop = parseFloat(style.paddingTop) || 0;
     const paddingBottom = parseFloat(style.paddingBottom) || 0;
@@ -108,17 +107,6 @@ export function createTranscriptViewport() {
       const available = scroller.clientHeight - top - paddingTop - paddingBottom - promptMargin - chrome;
       prompt.style.setProperty("--pin-expanded-max", `${Math.max(0, Math.floor(available))}px`);
     }
-    const canStick =
-      !!prompt &&
-      prompt.getBoundingClientRect().height + promptMargin + top + paddingTop + paddingBottom <= scroller.clientHeight;
-    prompt?.classList.toggle("sticky-disabled", !canStick);
-    prompt?.classList.toggle(
-      "stuck",
-      canStick &&
-        scroller.scrollTop > 0 &&
-        prompt.getBoundingClientRect().top <=
-          scroller.getBoundingClientRect().top + scroller.clientTop + paddingTop + top + 0.5,
-    );
   }
 
   function onScroll(): void {
@@ -216,7 +204,6 @@ export function createTranscriptViewport() {
     scroller?.removeEventListener("click", onClick);
     scroller?.removeEventListener("pointerdown", clearInput);
     scroller?.removeEventListener("keydown", onKeyDown);
-    scroller?.style.removeProperty("--chat-sticky-top");
     scroller?.style.removeProperty("overflow-anchor");
     clearPrompt();
     scroller = pins = prompt = stack = content = null;
