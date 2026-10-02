@@ -5,10 +5,6 @@
   "ignoreDependencies": ["opencode-ai"],
   "ignoreIssues": {
     "scripts/migrate-principals-to-email.d.mts": ["files"],
-    "apps/backend/src/auth.ts": ["files"],
-    "apps/backend/src/config.ts": ["files"],
-    "apps/backend/src/index.ts": ["files"],
-    "apps/backend/src/partner-client.ts": ["files"],
     "aws/microvm-agent/agent.mjs": ["unresolved"],
     "cli/src/util.ts": ["unresolved"],
     "cli/templates/aws/microvm-agent/agent.mjs": ["unresolved"],
@@ -49,9 +45,6 @@
     },
     "cli": {
       "entry": ["bin/qm.ts"]
-    },
-    "apps/frontend": {
-      "entry": ["index.html"]
     },
     "plugins/*": {},
     "plugins/partner-protocol": {
